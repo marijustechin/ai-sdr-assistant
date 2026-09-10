@@ -1,0 +1,218 @@
+// Prisma schema — single schema and migration chain.
+//
+// Owned by @ai-sdr/database (packages/database). No other package or module may
+// define a schema or run migrations. Every model carries a `/// @owner <module>`
+// tag so ownership is machine-readable (see docs/data-ownership.md §5).
+//
+// Prisma cannot express every constraint; CHECK constraints added in the
+// initial migration SQL are documented in docs/data-model.md.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated"
+  moduleFormat = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Canonical product identity (stored once, reusable across offers).
+/// @owner products-and-offers
+model Product {
+  id             String                 @id @default(uuid()) @db.Uuid
+  name           String                 @db.VarChar(255)
+  scientificName String?                @map("scientific_name") @db.VarChar(255)
+  description    String?                @db.Text
+  lifecycleStatus ProductLifecycleStatus @default(DRAFT) @map("lifecycle_status")
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  offers Offer[]
+  facts  ProductFact[]
+
+  @@map("products")
+}
+
+/// A concrete sellable product form (variant) of exactly one Product.
+/// Example: "Thermo Abachi STS 3D" is an Offer of "Abachi".
+/// @owner products-and-offers
+model Offer {
+  id               String      @id @default(uuid()) @db.Uuid
+  productId        String      @map("product_id") @db.Uuid
+  name             String      @db.VarChar(255)
+  commercialStatus OfferStatus @default(DRAFT) @map("commercial_status")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  facts          ProductFact[]
+  opportunities  Opportunity[]
+
+  @@index([productId])
+  @@map("offers")
+}
+
+/// One structured fact about exactly one Product or one Offer (never both,
+/// never neither — enforced by a CHECK constraint in the migration).
+/// @owner products-and-offers
+model ProductFact {
+  id           String         @id @default(uuid()) @db.Uuid
+  productId    String?        @map("product_id") @db.Uuid
+  offerId      String?        @map("offer_id") @db.Uuid
+  key          String         @db.VarChar(255)
+  valueText    String?        @map("value_text") @db.Text
+  valueNumeric Decimal?       @map("value_numeric") @db.Decimal(18, 6)
+  unit         String?        @db.VarChar(64)
+  status       FactStatus     @default(PENDING)
+  visibility   FactVisibility @default(OPERATIONAL)
+  sourceLabel  String?        @map("source_label") @db.VarChar(255)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  offer   Offer?   @relation(fields: [offerId], references: [id], onDelete: Restrict)
+
+  @@index([productId])
+  @@index([offerId])
+  @@index([key])
+  @@map("product_facts")
+}
+
+/// A country/region + market segment combination (duplicates prevented).
+/// `country` holds a country OR region identifier (documented simplification).
+/// @owner opportunities
+model TargetMarket {
+  id             String             @id @default(uuid()) @db.Uuid
+  country        String             @db.VarChar(120)
+  segment        String             @db.VarChar(255)
+  lifecycleStatus TargetMarketStatus @default(ACTIVE) @map("lifecycle_status")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  opportunities    OpportunityTargetMarket[]
+  researchRunScopes ResearchRunTargetMarket[]
+
+  @@unique([country, segment])
+  @@map("target_markets")
+}
+
+/// The commercial work unit; belongs to exactly one Offer.
+/// @owner opportunities
+model Opportunity {
+  id             String             @id @default(uuid()) @db.Uuid
+  offerId        String             @map("offer_id") @db.Uuid
+  name           String             @db.VarChar(255)
+  lifecycleStatus OpportunityStatus @default(DRAFT) @map("lifecycle_status")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  offer         Offer                        @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  targetMarkets OpportunityTargetMarket[]
+  researchRuns  ResearchRun[]
+
+  @@index([offerId])
+  @@map("opportunities")
+}
+
+/// Explicit join between an Opportunity and its TargetMarkets.
+/// @owner opportunities
+model OpportunityTargetMarket {
+  id            String       @id @default(uuid()) @db.Uuid
+  opportunityId String       @map("opportunity_id") @db.Uuid
+  targetMarketId String      @map("target_market_id") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  opportunity  Opportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  targetMarket TargetMarket  @relation(fields: [targetMarketId], references: [id], onDelete: Restrict)
+
+  @@unique([opportunityId, targetMarketId])
+  @@index([targetMarketId])
+  @@map("opportunity_target_markets")
+}
+
+/// An auditable record that market research was requested/executed for one
+/// Opportunity. Holds no LLM chain-of-thought, credentials, or scraped pages.
+/// @owner market-researcher
+model ResearchRun {
+  id             String            @id @default(uuid()) @db.Uuid
+  opportunityId  String            @map("opportunity_id") @db.Uuid
+  status         ResearchRunStatus @default(QUEUED)
+  contextVersion Int               @map("context_version")
+  requestedAt    DateTime          @default(now()) @map("requested_at") @db.Timestamptz(6)
+  startedAt      DateTime?         @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime?         @map("finished_at") @db.Timestamptz(6)
+  errorCode      String?           @map("error_code") @db.VarChar(120)
+  errorNote      String?           @map("error_note") @db.Text
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  opportunity   Opportunity               @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  targetMarkets ResearchRunTargetMarket[]
+
+  @@index([opportunityId])
+  @@map("research_runs")
+}
+
+/// Target-market scope of a ResearchRun (explicit join + compound uniqueness).
+/// @owner market-researcher
+model ResearchRunTargetMarket {
+  id             String       @id @default(uuid()) @db.Uuid
+  researchRunId  String       @map("research_run_id") @db.Uuid
+  targetMarketId String       @map("target_market_id") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  researchRun  ResearchRun  @relation(fields: [researchRunId], references: [id], onDelete: Cascade)
+  targetMarket TargetMarket @relation(fields: [targetMarketId], references: [id], onDelete: Restrict)
+
+  @@unique([researchRunId, targetMarketId])
+  @@index([targetMarketId])
+  @@map("research_run_target_markets")
+}
+
+enum ProductLifecycleStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum OfferStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum OpportunityStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  ARCHIVED
+}
+
+enum TargetMarketStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum FactStatus {
+  PENDING
+  CONFIRMED
+  SUPERSEDED
+}
+
+enum FactVisibility {
+  OPERATIONAL
+  RESTRICTED
+}
+
+enum ResearchRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}

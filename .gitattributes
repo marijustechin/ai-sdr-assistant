@@ -1,0 +1,12 @@
+# Git attributes — repository-wide.
+#
+# `legacy/**` is immutable historical evidence (see `docs/system/decisions.md`,
+# decision "Legacy evidence is immutable; whitespace checking must not force
+# normalization"). Git must never force us to normalize historical content to
+# pass a whitespace check, so trailing-whitespace detection is disabled for
+# `legacy/**` ONLY.
+#
+# This is a narrow, path-scoped exception: normal source, docs, ops tasks,
+# migrations, and archived `soft/tasks/**` records retain the default
+# whitespace checking (`blank-at-eol`, `blank-at-eof`, `space-before-tab`).
+legacy/** whitespace=-trailing-space

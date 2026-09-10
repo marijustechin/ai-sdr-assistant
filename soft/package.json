@@ -1,0 +1,33 @@
+{
+  "name": "ai-sdr-assistant",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.26.0",
+  "engines": {
+    "node": ">=24.20.0 <25",
+    "pnpm": ">=11.26.0 <12"
+  },
+  "scripts": {
+    "postinstall": "pnpm --filter @ai-sdr/database run generate",
+    "dev:api": "pnpm --filter @ai-sdr/api run start:dev",
+    "dev:web": "pnpm --filter web run dev",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "db:reset": "docker compose down -v",
+    "db:generate": "pnpm --filter @ai-sdr/database run generate",
+    "db:migrate:dev": "pnpm --filter @ai-sdr/database run migrate:dev",
+    "db:migrate": "pnpm --filter @ai-sdr/database run migrate",
+    "db:migrate:status": "pnpm --filter @ai-sdr/database run migrate:status",
+    "db:studio": "pnpm --filter @ai-sdr/database run studio",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "verify": "bash scripts/verify.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

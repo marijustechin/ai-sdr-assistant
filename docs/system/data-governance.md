@@ -1,0 +1,168 @@
+# Data Governance and Ownership (Canonical)
+
+**Status:** Canonical, live. Reconciled with implemented reality through T-004.
+**Supersedes:** `docs/redesign/data-ownership.md`.
+**Companion:** `architecture.md`, `module-map.md`, `research-context-contract.md`;
+implementation view: `soft/docs/data-model.md`, `soft/docs/data-ownership.md`.
+
+> **PostgreSQL is the single source of live business state.** This document
+> defines table ownership and write rules. It never lists live values; values
+> live only in the database.
+
+---
+
+## 1. Ownership Principles
+
+1. **One write-owner per table.** Exactly one module may write a given table
+   (through its own services). Other modules read it or ask the owner to mutate.
+2. **Reads are permissioned.** Read access is declared per module and granted
+   through the owner's exported query/read-model service, or `control-plane` read
+   models for cross-cutting reporting. No module does free-form `SELECT *`.
+3. **Cross-boundary mutation = service call.** Module A asks module B's
+   application service; B validates, writes, and emits an event. A never opens a
+   write transaction on B's tables.
+4. **The Assistant Manager owns no business tables.** It owns routing/audit
+   tables only.
+5. **Schema and migrations are owned by `soft/packages/database`** — one schema,
+   one migration chain, one owner. Each model carries a `/// @owner <module>`
+   tag.
+
+---
+
+## 2. Canonical Tables and Write Owners
+
+Status: **impl** = implemented (T-004); **plan** = planned.
+
+| Table | Purpose | Write owner | Status |
+|---|---|---|---|
+| `tasks` | A requested unit of work | `control-plane` | plan |
+| `executions` | Technical run of a task | `control-plane` | plan |
+| `activities` | User-visible business audit events | `control-plane` | plan |
+| `research_contexts` | Frozen, versioned Research Context snapshot | `control-plane` | plan |
+| `approval_requests` | Human approval requests + decisions | `approvals` | plan |
+| `decision_records` | Accepted/rejected decisions with reasoning + sources | `approvals` | plan |
+| `opportunities` | The commercial work unit | `opportunities` | impl |
+| `target_markets` | Country/region + market segment | `opportunities` | impl |
+| `opportunity_target_markets` | Opportunity↔target-market join (compound-unique) | `opportunities` | impl |
+| `target_market_suggestions` | Research-driven suggestions (PENDING→ACCEPTED/REJECTED) | `opportunities` | plan |
+| `products` | Canonical product identity / catalog | `products-and-offers` | impl |
+| `offers` | Concrete sellable product form (variant) of one product | `products-and-offers` | impl |
+| `product_facts` | Typed facts (PENDING/CONFIRMED/SUPERSEDED; OPERATIONAL/RESTRICTED) | `products-and-offers` | impl |
+| `opportunity_offers` | Per-opportunity commercial terms (1:1) | `products-and-offers` | plan |
+| `fact_sources` | Fact↔source join | `evidence` | plan |
+| `clarification_requests` | Product-data questions filed by research modules | `market-researcher` | plan |
+| `companies` | Potential buyer organisations | `lead-discoverer` | plan |
+| `opportunity_companies` | Company↔opportunity join | `lead-discoverer` | plan |
+| `contacts` | People at companies | `contact-discovery` | plan |
+| `qualification_records` | Versioned qualification results | `lead-evaluator` | plan |
+| `research_runs` | A market-research run bound to a context version | `market-researcher` | impl |
+| `research_run_target_markets` | ResearchRun↔target-market scope join | `market-researcher` | impl |
+| `research_records` | Structured research (MARKET/COMPANY/CONTACT/COMPETITOR/IMPORT_EXPORT) | `research-records` | plan |
+| `research_findings` | Findings within a research record | `research-records` | plan |
+| `source_references` | Retrieved sources (url, publisher, type, retrieval date) | `evidence` | plan |
+| `claims` | Typed claims (FACT/INFERENCE/UNKNOWN) with confidence | `evidence` | plan |
+| `claim_sources` | Claim↔source join | `evidence` | plan |
+| `company_sources` | Company↔source join | `evidence` | plan |
+| `contact_sources` | Contact↔source join | `evidence` | plan |
+| `research_record_sources` | ResearchRecord↔source join | `evidence` | plan |
+| `outreach_draft_sources` | Draft↔source join | `evidence` | plan |
+| `outreach_drafts` | Outreach drafts | `outreach-drafter` | plan |
+| `outreach_draft_research` | Draft↔research join | `outreach-drafter` | plan |
+| `customer_profiles` | Versioned ideal-customer profiles | `knowledge` | plan |
+| `buyer_personas` | Versioned buyer personas | `knowledge` | plan |
+| `value_propositions` | Versioned value propositions + approved/forbidden claims | `knowledge` | plan |
+| `opportunity_customer_profile` | Opportunity↔customer-profile association | `opportunities` | plan |
+| `opportunity_buyer_persona` | Opportunity↔buyer-persona association | `opportunities` | plan |
+| `opportunity_value_proposition` | Opportunity↔value-proposition association | `opportunities` | plan |
+| `inbox_items` | Ingested inbound messages (future) | `inbox-intelligence` | plan |
+| `job_logs` | Queue job bookkeeping | `jobs` | plan |
+
+The exact implemented columns and constraints are defined in
+`soft/packages/database/prisma/schema.prisma` and described in
+`soft/docs/data-model.md`. Business values are never reproduced here.
+
+---
+
+## 3. Single-Writer Modules
+
+### `research_records` / `research_findings`
+
+Exactly **one write-owner: `research-records`**. `market-researcher`,
+`company-intelligence`, and `contact-discovery` call
+`research-records.createRecord({ type, ... })` / `addFinding(...)`; they never
+write the tables directly. `research-records` validates the `type` and required
+scope fields. Reads are served by its query/read-model service.
+
+### `product_facts` (typed; exactly one subject)
+
+- Owned by `products-and-offers`. **Implemented model:** one structured fact per
+  row about exactly one Product **or** one Offer (never both, never neither —
+  enforced by a DB CHECK constraint; the fact must also carry a value).
+- `status` ∈ `PENDING | CONFIRMED | SUPERSEDED`; `visibility` ∈
+  `OPERATIONAL | RESTRICTED` (**visibility is a separate dimension**; contrast
+  with the historical redesign, which treated RESTRICTED as a status).
+- Only `CONFIRMED` facts are assertable by research modules.
+- Fact authoring is **human or trusted internal product-data source only**;
+  research modules file `clarification_requests` instead. A fact moves to
+  `CONFIRMED` only through an approved `approvals` request.
+- Append-only versioning is **planned**; T-004 stores the `status`/`visibility`
+  columns only.
+
+### `research_contexts` and `research_runs`
+
+- `research_contexts` is owned by `control-plane`: a read-only materialization of
+  the assembled `ResearchContext` at freeze time, referenced by `contextVersion`.
+- `research_runs` is owned by `market-researcher` and holds exactly one
+  `context_version` column; its target-market scope is recorded in
+  `research_run_target_markets` (compound-unique). `ResearchContextService`
+  composes snapshots from each module's read service and never writes another
+  module's tables.
+
+---
+
+## 4. Read Rules and Read Models
+
+- Each module declares its read set in `module-map.md`, satisfied by its own
+  tables, another module's read-model/query service, or `control-plane` read
+  models.
+- Read models may join across owners but are read-only and owned by a declared
+  module. No module may `SELECT *` across the DB at will.
+
+---
+
+## 5. Schema Governance
+
+1. `soft/packages/database` is the only place migrations are generated/applied.
+2. Business tables use plural snake_case; join tables `a_b`; all mapped with
+   `@map`.
+3. Each model carries `/// @owner <module>` for machine-readable ownership.
+4. Raw `$executeRaw`/`$queryRaw` are not exposed to application code outside the
+   database package's typed boundary; application code uses typed repositories
+   or injected services.
+5. A migration may only touch tables owned by the module authoring it (mapped
+   from `@owner`); this is reviewable and CI-enforceable.
+
+---
+
+## 6. Cross-Boundary Mutation Patterns
+
+- **A — direct service call:** `market-researcher` → `opportunities.createSuggestion(...)`.
+- **B — approval-gated:** `approvals.createRequest(...)` → human approve →
+  `approvals` calls the owning module's `apply()`.
+- **C — event + job:** `control-plane` routes → `jobs` enqueues → worker runs
+  the module service → events update `executions`/`activities`.
+- **D — evidence writes:** any module calls `evidence.registerSource(...)` /
+  `persistClaim(...)`.
+- **E — research-record writes:** any research module calls
+  `research-records.createRecord(...)` / `addFinding(...)`.
+
+---
+
+## 7. What Must Not Happen
+
+- A module writing another module's table (including `control-plane` writing
+  business tables).
+- A migration authored outside `soft/packages/database`.
+- Markdown acting as live state (it is instructions/decisions/evidence/reports).
+- A research module writing `product_facts`.
+- A research module writing `research_records`/`research_findings` directly.

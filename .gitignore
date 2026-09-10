@@ -1,0 +1,63 @@
+# Root .gitignore — repository-wide protection for generated/private artifacts.
+#
+# Protects every tree in this repository (root manager workspace, `soft/`
+# implementation workspace, docs, and ops). It must NOT hide source,
+# migrations, canonical docs, legacy evidence, task archives, or lockfiles.
+
+# --- Dependencies ----------------------------------------------------------
+node_modules/
+
+# --- Build / output --------------------------------------------------------
+dist/
+out/
+build/
+.next/
+*.tsbuildinfo
+
+# --- Generated code (e.g. Prisma Client under soft/packages/database/src) --
+**/generated/
+
+# --- Test / coverage -------------------------------------------------------
+coverage/
+*.lcov
+
+# --- Logs ------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# --- Environment files (keep the safe example templates) -------------------
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.*.example
+
+# --- Caches / tooling ------------------------------------------------------
+.cache/
+.eslintcache
+.parcel-cache
+.turbo/
+.nx/
+
+# --- OS / editor -----------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Private keys / certificates (never commit) ----------------------------
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+id_rsa
+id_ed25519
+id_rsa.pub
+id_ed25519.pub

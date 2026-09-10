@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    "noEmit": true,
+    "sourceMap": true,
+    "declaration": false,
+    "removeComments": true,
+    "outDir": "./dist",
+
+    "paths": {
+      "@ai-sdr/database": ["../../packages/database/src/index.ts"]
+    }
+  },
+  "include": ["src", "test"]
+}

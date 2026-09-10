@@ -1,0 +1,21 @@
+services:
+  db:
+    container_name: pg_sdr_assistant
+    image: postgres:18
+    restart: always
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
+    ports:
+      - '5434:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - backend
+
+volumes:
+  postgres_data:
+networks:
+  backend:
+    driver: bridge
