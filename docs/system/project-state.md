@@ -53,13 +53,15 @@ See `module-map.md` for the full intended module set and status markers.
 
 ## Blocked
 
-- **Repository baseline commit/push.** No git remote is configured and the
-  repository has no commits. T-005 (commit/push foundation baseline) was
-  attempted, blocked on the missing remote, and then **superseded** by the
-  decision to establish this root manager workspace first. See
-  `soft/tasks/done/2026-09-10-commit-push-foundation-baseline-superseded.md`.
-  Resolution requires a human to configure/verify the `origin` remote and
-  re-decide the commit scope against this hierarchy.
+- None. The repository baseline is established: the root repository exists,
+  `main` tracks `origin/main`, and baseline commit
+  `0c6a10103519b9065654ad4ba8e51a6aa3d2058d` was pushed; the working tree was
+  clean immediately after the push. T-005 (commit/push foundation baseline) was
+  attempted, blocked on the then-missing remote, and then **superseded** by the
+  decision to establish this root manager workspace first; the baseline was
+  completed under O-002 (see
+  `ops/done/2026-09-10-commit-push-complete-project-baseline.md`). The prior
+  block on a missing `origin` remote is resolved.
 
 ---
 

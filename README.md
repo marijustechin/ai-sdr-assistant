@@ -71,4 +71,7 @@ See [`docs/system/project-state.md`](docs/system/project-state.md). In short: a
 clean API host, liveness/readiness endpoints, PostgreSQL with a Prisma migration
 and the core commercial schema are implemented; business feature modules, the
 control plane, research-context assembly, the market researcher, the worker,
-and the UI are not. No commit exists yet and no remote is configured.
+and the UI are not. The next planned functional slice remains the **Catalogue +
+Research Context API**. The root repository exists, `main` tracks `origin/main`,
+and baseline commit `0c6a10103519b9065654ad4ba8e51a6aa3d2058d` was pushed; the
+working tree was clean immediately after the push.

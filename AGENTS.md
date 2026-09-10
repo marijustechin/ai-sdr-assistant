@@ -73,6 +73,17 @@ ai-sdr-assistant/                 # repository root (root manager workspace)
 - `docs/redesign/` is **historical proposal material** — not current authority.
 - `legacy/` is **historical, non-live** input; never authoritative, never edited.
 
+### Runtime activation for `soft/` commands
+
+When an agent is started from the repository root and runs any `soft/` pnpm,
+Prisma, test, build, lint, or verification command, it must **first activate the
+Node version declared by `soft/.nvmrc`** (currently Node 24.20.0). Do not rely
+on the host default Node version. A safe pattern for a root-started agent is:
+
+```bash
+nvm exec 24.20.0 pnpm --dir soft <command>
+```
+
 ---
 
 ## 3. Live Business State vs. Markdown (Non-Negotiable)

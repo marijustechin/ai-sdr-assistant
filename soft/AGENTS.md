@@ -39,6 +39,12 @@ never broaden it beyond the higher layers.
   exist in a `package.json` after reading it.
 - Run commands from the workspace root (`soft/`) unless the script lives in a
   workspace package.
+- **Node version activation.** When an agent is started from the repository root
+  and runs any `soft/` pnpm, Prisma, test, build, lint, or verification command,
+  it must first activate the Node version declared by `.nvmrc` (currently Node
+  24.20.0). Do not rely on the host default Node version. A safe pattern for a
+  root-started agent is `nvm exec 24.20.0 pnpm --dir soft <command>`; inside
+  `soft/`, load `$NVM_DIR/nvm.sh` and run `nvm use` first.
 
 ## 3. Architecture Invariants
 
