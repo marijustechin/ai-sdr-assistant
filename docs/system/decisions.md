@@ -12,6 +12,47 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-10 — Business endpoints sit behind an internal API key (T-006)
+
+Every implemented business endpoint (Product/Offer/ProductFact, TargetMarket,
+Opportunity, target-market attachment, and the research-context read) requires
+the `x-internal-api-key` header. The check is constant-time; when
+`INTERNAL_API_KEY` is unconfigured the guard fails closed with a non-sensitive
+503; a missing/wrong key returns a non-sensitive 401. The key is never logged,
+returned, or embedded in an error. `GET /health` and `GET /ready` remain public.
+This is service-to-service identification only — **not** user authentication
+(no users, roles, sessions, or JWT).
+
+- Reason: business writes and context reads must not be open by default, while
+  keeping operational liveness/readiness simple.
+
+## 2026-09-10 — Research Context v1 is current-assembled, not yet frozen (T-006)
+
+`GET /opportunities/:id/research-context` returns a **current assembled**
+`research_context_v1` payload: `schemaVersion` is the contract literal and
+`contextVersion` is the Opportunity's current revision (incremented with the
+triggering write — target-market attachment or a relevant fact creation).
+It is **not** an immutable or research-run snapshot. A future
+ResearchRun/`research_contexts` capability will freeze the exact context for
+audit and reproducibility at a binding version. Redaction (PENDING/RESTRICTED
+values withheld) and SUPERSEDED omission remain mandatory and are enforced at
+assembly time.
+
+- Reason: deliver a usable context read path now without overstating
+  reproducibility guarantees that only frozen snapshots can provide.
+
+## 2026-09-10 — Initial feature modules implemented (T-006)
+
+The first business modules now exist: `products-and-offers`, `opportunities`,
+and a minimal `control-plane` (`ResearchContextService`), with shared
+`packages/contracts` implementing the canonical contract. The remaining modules
+(`knowledge`, `evidence`, `research-records`, `market-researcher`, discovery,
+outreach, `approvals`, `jobs`) and the `research_contexts` snapshot remain
+planned.
+
+- Reason: record the implemented reality so `project-state.md` and
+  `module-map.md` no longer describe the modules as entirely absent.
+
 ## 2026-09-10 — Legacy evidence is immutable; whitespace checking must not force normalization
 
 `legacy/**` is historical, non-live evidence and is **immutable**: it must not

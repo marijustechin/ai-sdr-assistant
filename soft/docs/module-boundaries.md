@@ -4,7 +4,9 @@
 > in [`docs/system/module-map.md`](../../docs/system/module-map.md). This file is
 > the implementation-local view; the root canonical document wins on conflict.
 
-**Status:** Implementation view. No business module code written.
+**Status:** Implementation view. The `products-and-offers`, `opportunities`, and
+`control-plane` (research-context assembly) modules are implemented (T-006);
+other business modules are not yet implemented.
 **Companion:** `data-ownership.md` (tables), `task-execution.md` (runtime), `architecture.md` (overview).
 
 Each module is defined by: **responsibility, inputs, outputs, tables read, tables written, emitted events, approval requirements, failure behaviour.** Table names use the canonical list defined in `data-ownership.md`.

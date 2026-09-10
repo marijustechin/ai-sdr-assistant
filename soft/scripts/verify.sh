@@ -3,9 +3,9 @@
 # verify.sh — fail-fast structural + safety checks for the pnpm workspace.
 #
 # Mandatory checks (failure => non-zero exit): required structure, correct
-# lockfile (pnpm-lock.yaml present, bun.lock absent), no business code /
-# migrations / Prisma schema, legacy scaffold archived, toolchain pinned to
-# Node 24 + pnpm 11, no committed secrets.
+# lockfile (pnpm-lock.yaml present, bun.lock absent), single Prisma schema owner,
+# expected business modules present, legacy scaffold archived, toolchain pinned
+# to Node 24 + pnpm 11, no committed secrets.
 #
 # Usage: bash scripts/verify.sh  (or: pnpm verify)
 
@@ -47,6 +47,11 @@ required_files=(
   packages/database/prisma/schema.prisma
   packages/database/src/prisma.service.ts
   packages/database/src/index.ts
+  packages/contracts/package.json
+  packages/contracts/src/index.ts
+  apps/api/src/modules/products-and-offers/products-and-offers.module.ts
+  apps/api/src/modules/opportunities/opportunities.module.ts
+  apps/api/src/modules/control-plane/control-plane.module.ts
   harness/task-template.md
   harness/acceptance-checklist.md
   scripts/verify.sh
@@ -61,6 +66,7 @@ required_dirs=(
   packages
   packages/database
   packages/database/prisma/migrations
+  packages/contracts
   docs
   docs/contracts
   harness
@@ -131,10 +137,19 @@ else
   ok "no generated Prisma client under apps/api"
 fi
 
-if [[ -d apps/api/src/modules ]]; then
-  bad "unexpected: apps/api/src/modules exists (no business modules yet)"
+if [[ -d apps/api/src/modules/products-and-offers \
+   && -d apps/api/src/modules/opportunities \
+   && -d apps/api/src/modules/control-plane ]]; then
+  ok "business modules present under apps/api/src/modules"
 else
-  ok "no business modules under apps/api/src/modules"
+  bad "missing expected business modules under apps/api/src/modules"
+fi
+
+if find packages -type f -name 'schema.prisma' \
+   -not -path 'packages/database/*' 2>/dev/null | grep -q .; then
+  bad "Prisma schema found outside packages/database"
+else
+  ok "single Prisma schema owner (packages/database)"
 fi
 
 # --- 4. Legacy scaffold archived (mandatory) ---------------------------------

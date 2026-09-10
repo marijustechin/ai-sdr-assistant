@@ -1,12 +1,19 @@
 # Research Context Contract (Canonical)
 
 **Status:** Canonical, live (business contract). Reconciled with implemented
-reality through T-004.
+reality through T-006.
 **Schema version literal:** `research_context_v1`
 **Supersedes:** `docs/redesign/research-context-contract.md`.
 **Companion:** `architecture.md`, `module-map.md`, `data-governance.md`.
 **Implementation companion (does not restate this contract):**
 `soft/docs/contracts/research-context.v1.md`.
+
+**Implemented today (T-006):** `GET /opportunities/:opportunityId/research-context`
+returns a **current assembled** `research_context_v1` payload carrying
+`schemaVersion` and the Opportunity's `contextVersion`. It is **not yet** an
+immutable or research-run snapshot; freezing exact context is a future
+ResearchRun/snapshot capability (§3, §8). Redaction (PENDING/RESTRICTED) and
+SUPERSEDED omission are mandatory and already enforced at assembly time.
 
 This is the **single, versioned contract** by which the Market Researcher (and
 later other research modules) obtains everything it needs about an opportunity —
@@ -65,10 +72,17 @@ GET  /opportunities/:opportunityId/research-runs/:runId                   # sing
 
 - `GET .../research-context` returns the active context, or the frozen snapshot
   `?version=N`.
+  - **Implemented (T-006):** without `?version`, it returns the **current
+    assembled** context (`frozenAt` = assembly time, `contextVersion` = the
+    Opportunity's current revision). `?version=N` and frozen snapshots are
+    **not implemented yet**.
 - `POST .../research-runs` freezes the current context into a new version,
   creates a `research_runs` record bound to that version and `taskId`, and
   returns `{ runId, contextVersion }`.
+  - **Planned:** this is the future immutable context-freeze capability for audit
+    and reproducibility. It is not implemented in the current slice.
 - `GET .../research-runs` lists runs (id, contextVersion, status, timestamps).
+  - **Planned.**
 
 ---
 
@@ -234,10 +248,17 @@ the context is auditable without a second lookup.
 - **Fact versioning (planned):** append-only — a change creates a new row with
   `version = prev + 1` and marks the previous `SUPERSEDED`. The current fact for
   `(subject, subjectId, key)` is the highest non-superseded version.
-- **Context versioning:** each `POST .../research-runs` freezes the assembled
-  context into a `research_contexts` snapshot with a new monotonic
-  `contextVersion`; a `research_runs` row binds to exactly one version.
-  `contextVersion` (revision) is independent of `schemaVersion` (contract).
+- **Context versioning:** `contextVersion` is the monotonic revision of one
+  Opportunity's assembled context. Implemented (T-006) as
+  `Opportunity.contextVersion`, incremented (with the triggering write, in one
+  transaction) when a target market is attached and when a relevant
+  product/offer fact is created. `GET .../research-context` reports the current
+  revision.
+- **Frozen snapshots (planned):** each `POST .../research-runs` will freeze the
+  then-current assembled context into a `research_contexts` snapshot at a new
+  version; a `research_runs` row binds to exactly one version for audit and
+  reproducibility. `contextVersion` (revision) is independent of
+  `schemaVersion` (contract).
 
 ---
 
@@ -313,7 +334,8 @@ interface ClarificationRequest {
 |---|---|
 | `Product`, `Offer` (sellable variant), `ProductFact`, `TargetMarket`, `Opportunity`, `OpportunityTargetMarket`, `ResearchRun`, `ResearchRunTargetMarket` tables | **implemented** (T-004) |
 | `status`/`visibility` fact model + CHECK constraints | **implemented** (T-004) |
-| `ResearchContextService` assembly/redaction, `research_contexts`, `research_runs` endpoints, Task scope, knowledge/approvals/companies sections | **planned** |
+| `ResearchContextService` assembly/redaction + `GET /opportunities/:id/research-context` (current assembled context) | **implemented** (T-006) |
+| `research_contexts` frozen snapshots, research-run endpoints, Task scope, knowledge/approvals/companies/human-decision sections | **planned** |
 | Per-opportunity commercial terms (`offer` price/quantity/delivery block), fact append-only versioning | **planned** |
 
 The implementation-level view (Zod location, redaction enforcement, test

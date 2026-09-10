@@ -9,14 +9,32 @@ defined by responsibility, inputs, outputs, tables read, tables written, emitted
 events, approval requirements, and failure behaviour. Table owners are defined
 in `data-governance.md`.
 
-> **Status note:** no business module is implemented yet. The table below marks
-> the intended module set; only the host + data foundation exist today
-> (`project-state.md`).
+> **Status note:** the first vertical slice is implemented — `products-and-offers`
+> (Product/Offer/ProductFact writes), `opportunities` (TargetMarket/Opportunity
+> + join + context-version increments), and a minimal `control-plane`
+> (`ResearchContextService` assembly with redaction). The remaining modules are
+> intended but not implemented; see `project-state.md`.
+
+**Service-to-service boundary:** every implemented business endpoint (the
+catalogue write routes and the research-context read) is gated by the
+`x-internal-api-key` guard (constant-time, fail-closed when unconfigured,
+non-sensitive errors; never logged or returned). `GET /health` and `GET /ready`
+stay public. This is not end-user authentication.
+
+**Context semantics:** `GET /opportunities/:id/research-context` returns a
+**current assembled** `research_context_v1` (`contextVersion` = the Opportunity's
+current revision). It is not an immutable snapshot; freezing exact context for
+audit/reproducibility is a future ResearchRun/`research_contexts` capability
+(§1, `research-context-contract.md` §8).
 
 ---
 
 ## 1. `control-plane` — Assistant Manager
 
+- **Status:** implemented subset (T-006) — `ResearchContextService` assembly and
+  redaction, exposed as `GET /opportunities/:id/research-context`. Task routing,
+  `tasks`/`executions`/`activities`, approval routing, and `research_contexts`
+  snapshots remain planned.
 - **Responsibility:** Task routing/orchestration (including task **scope**),
   execution tracking, activity (audit) log, initiating approval requests, and
   assembling the versioned **Research Context** (`ResearchContextService`). It
@@ -41,6 +59,10 @@ in `data-governance.md`.
 
 ## 2. `opportunities`
 
+- **Status:** implemented subset (T-006) — `POST /target-markets`,
+  `POST /opportunities`, `POST /opportunities/:id/target-markets`, and the
+  Opportunity `contextVersion` increments. Update/status/archive and
+  target-market suggestions remain planned.
 - **Responsibility:** Opportunity and TargetMarket lifecycle (create, update,
   status, archive); the opportunity workspace read model.
 - **Inputs:** `CreateOpportunityInput`, `UpdateOpportunityInput`,
@@ -64,6 +86,11 @@ in `data-governance.md`.
 
 ## 3. `products-and-offers`
 
+- **Status:** implemented subset (T-006) — `POST /products`,
+  `POST /products/:productId/offers`, `POST /product-facts` (human/trusted-source
+  authoring only; SUPERSEDED rejected as an initial state; CONFIRMED requires a
+  source label; exactly one subject; at least one value). CRUD, confirm/restrict,
+  and append-only fact versioning remain planned.
 - **Responsibility:** Product catalog, sellable **Offers**, and typed product
   facts. Product facts are authored by humans or trusted internal product-data
   sources only — **never by research modules**.

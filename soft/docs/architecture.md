@@ -6,7 +6,9 @@
 > canonical document wins on conflict.
 
 **Status:** Implementation view (self-contained within `soft/`). Central
-database foundation and the core commercial domain are established (T-004);
+database foundation and the core commercial domain are established (T-004); the
+first vertical slice — `products-and-offers`, `opportunities`, and the
+`control-plane` research-context assembly — is implemented (T-006). Remaining
 business modules are not yet implemented.
 **Date:** 2026-09-10
 **Companion:** `module-boundaries.md`, `data-ownership.md`, `data-model.md`, `task-execution.md`, `contracts/research-context.v1.md`, `security.md`, `testing.md`, `decisions.md`.

@@ -26,6 +26,7 @@
     "outDir": "./dist",
 
     "paths": {
+      "@ai-sdr/contracts": ["../../packages/contracts/src/index.ts"],
       "@ai-sdr/database": ["../../packages/database/src/index.ts"]
     }
   },

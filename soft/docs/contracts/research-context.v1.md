@@ -11,10 +11,11 @@ implementation-level notes for the `soft/` workspace.
 
 ## What this file owns
 
-- the literal `SCHEMA_VERSION` value and where it is defined in code (planned:
-  `soft/packages/contracts`);
+- the literal `SCHEMA_VERSION` value and where it is defined in code
+  (**implemented** in `soft/packages/contracts`,
+  `research-context.ts`);
 - how redaction is enforced in implementation (`ResearchContextService`,
-  planned, in `control-plane`);
+  **implemented** in `control-plane`);
 - the DI-vs-REST parity requirement for workers;
 - implementation test expectations (see [`../testing.md`](../testing.md) §2).
 
@@ -36,13 +37,20 @@ These are normative and come from the canonical contract:
 
 | Concern | Location | State |
 |---|---|---|
-| Zod schemas + shared types | `soft/packages/contracts` | planned |
-| Context assembler + redaction | `control-plane` `ResearchContextService` | planned |
-| `GET /opportunities/:id/research-context` | `soft/apps/api` | planned |
+| Zod schemas + shared types | `soft/packages/contracts` | **implemented** (T-006) |
+| Context assembler + redaction | `control-plane` `ResearchContextService` | **implemented** (T-006) |
+| `GET /opportunities/:id/research-context` | `soft/apps/api` | **implemented** (T-006) |
 | `POST`/`GET /opportunities/:id/research-runs` | `soft/apps/api` | planned |
 | `research_contexts` snapshot | `soft/packages/database` | planned |
 | `research_runs` (+ scope join) | `soft/packages/database` | **implemented** (T-004) |
 | `product_facts` status/visibility | `soft/packages/database` | **implemented** (T-004) |
+
+The implemented assembler returns a **current assembled context**, not an
+immutable research-run snapshot. Sections whose owning modules do not exist yet
+(`priorResearchRuns`, `existingCompanies`, `approvedKnowledge`, `humanDecisions`)
+are empty. Asserted facts carry `sourceLabel` and an empty `evidence` array until
+the `evidence` module lands; `version` is `1` until append-only fact versioning
+is implemented.
 
 ## Tests
 

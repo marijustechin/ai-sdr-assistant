@@ -71,3 +71,21 @@ obey.
 - Never bypass the approval gate.
 - Never write restricted values into outputs, logs, or drafts.
 - Never introduce a raw DB write outside typed repositories/services.
+
+## 8. Internal Service-to-Service API Key
+
+The business endpoints (product/offer/fact/target-market/opportunity creation and
+the research-context read) are protected by a small **internal API-key guard**.
+This is not end-user authentication: there are no users, roles, sessions, JWTs,
+or admin UI.
+
+- The key is read from `INTERNAL_API_KEY` (env). It is never logged, echoed, or
+  returned, and never appears in an error body.
+- Callers send it in the `x-internal-api-key` header. Comparison is
+  constant-time.
+- If `INTERNAL_API_KEY` is unset or too short, the guard **fails closed** (503)
+  for business endpoints.
+- A missing or wrong key returns a non-sensitive 401 body (`{"error":"unauthorized"}`).
+- `GET /health` and `GET /ready` remain public (liveness/readiness).
+- Tests never assert the secret value itself; they assert status codes and that
+  responses do not leak `DATABASE_URL` or `INTERNAL_API_KEY`.

@@ -5,7 +5,9 @@
 > This file is the implementation-local view; the root canonical document wins
 > on conflict.
 
-**Status:** Implementation view. No business module code written.
+**Status:** Implementation view. The `products-and-offers`, `opportunities`, and
+`control-plane` (research-context assembly) modules are implemented (T-006);
+other business modules are not yet implemented.
 **Companion:** `architecture.md`, `module-boundaries.md`, `task-execution.md`.
 
 This document defines the canonical table list, the single write-owner per table, read rules, cross-boundary coordination, and migration ownership.

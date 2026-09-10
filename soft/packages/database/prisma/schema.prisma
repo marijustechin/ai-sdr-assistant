@@ -26,6 +26,7 @@ model Product {
   name           String                 @db.VarChar(255)
   scientificName String?                @map("scientific_name") @db.VarChar(255)
   description    String?                @db.Text
+  category       String?                @db.VarChar(120)
   lifecycleStatus ProductLifecycleStatus @default(DRAFT) @map("lifecycle_status")
   createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -105,7 +106,9 @@ model Opportunity {
   id             String             @id @default(uuid()) @db.Uuid
   offerId        String             @map("offer_id") @db.Uuid
   name           String             @db.VarChar(255)
+  objective      String?            @db.Text
   lifecycleStatus OpportunityStatus @default(DRAFT) @map("lifecycle_status")
+  contextVersion Int                @default(1) @map("context_version")
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 

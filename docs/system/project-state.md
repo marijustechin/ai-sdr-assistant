@@ -1,6 +1,7 @@
 # Project State (Canonical)
 
-**Status:** Canonical, live snapshot. Last updated 2026-09-10.
+**Status:** Canonical, live snapshot. Last updated 2026-09-10 (post-review
+documentation reconciliation of O-005/T-006).
 **Companion:** `architecture.md`, `module-map.md`, `data-governance.md`,
 `research-context-contract.md`, `decisions.md`.
 
@@ -20,10 +21,21 @@ PostgreSQL).
 | Readiness endpoint | `GET /ready` → `200 {"status":"ready"}` via safe `SELECT 1`; non-sensitive `503 {"status":"not_ready"}` on failure | `soft/apps/api/src/health/readiness.controller.ts` |
 | Central database | Local PostgreSQL 17 via project-scoped Docker Compose (host port 54329) | `soft/docker-compose.yml` |
 | Prisma foundation | Prisma 7, ESM `prisma-client` generator, `@prisma/adapter-pg`, `prisma.config.ts`; `soft/packages/database` is the single schema/migration owner | `soft/packages/database` |
-| Migration | Initial migration `20260910112935_init` applied; `prisma migrate status` clean | `soft/packages/database/prisma/migrations` |
-| Core commercial schema | `Product`, `Offer`, `ProductFact` (CHECK-constrained), `TargetMarket`, `Opportunity`, `OpportunityTargetMarket`, `ResearchRun`, `ResearchRunTargetMarket` | `soft/packages/database/prisma/schema.prisma` |
-| Tests | Database integration tests (isolated `ai_sdr_test`) and API health/readiness/env tests pass | `soft/packages/database/test`, `soft/apps/api/test` |
+| Migrations | `20260910112935_init` and `20260910150428_research_context_fields` applied; `prisma migrate status` clean | `soft/packages/database/prisma/migrations` |
+| Core commercial schema | `Product`, `Offer`, `ProductFact` (CHECK-constrained), `TargetMarket`, `Opportunity` (with `contextVersion`/`objective`), `OpportunityTargetMarket`, `ResearchRun`, `ResearchRunTargetMarket`; `Product.category` | `soft/packages/database/prisma/schema.prisma` |
+| Shared contracts | `@ai-sdr/contracts` (Zod 4 + TypeScript) implements the canonical `research_context_v1` and the write-side input schemas | `soft/packages/contracts` |
+| Initial feature modules | `products-and-offers` (Product/Offer/ProductFact writes), `opportunities` (TargetMarket/Opportunity + join + context-version increments), and a minimal `control-plane` (`ResearchContextService` assembly with redaction) | `soft/apps/api/src/modules` |
+| Catalogue + Research Context API | `POST /products`, `POST /products/:productId/offers`, `POST /product-facts`, `POST /target-markets`, `POST /opportunities`, `POST /opportunities/:opportunityId/target-markets`, `GET /opportunities/:opportunityId/research-context` | `soft/apps/api/src/modules` |
+| Internal-key boundary | Every business route requires `x-internal-api-key`; constant-time check, fail-closed non-sensitive `503` when `INTERNAL_API_KEY` is unconfigured, non-sensitive `401` otherwise; key never logged or returned. `GET /health`/`GET /ready` stay public | `soft/apps/api/src/security` |
+| Tests | Database integration tests (isolated `ai_sdr_test`), contract tests, and API integration tests including the catalogue/research-context slice (isolated `ai_sdr_test_api`); API health/readiness/env tests still pass | `soft/packages/database/test`, `soft/packages/contracts/test`, `soft/apps/api/test` |
 | Root manager workspace | Root `AGENTS.md`, `ops/` task loop, `docs/system/` canonical docs, root `.gitignore` | this repository root |
+
+The **Catalogue + Research Context API** vertical slice (O-005/T-006) is
+implemented and awaiting human review: an operator enters canonical product,
+offer, product-fact, target-market, and opportunity data once, and `GET
+/opportunities/:id/research-context` returns the current assembled
+`research_context_v1` (CONFIRMED+OPERATIONAL values, PENDING/RESTRICTED redacted,
+SUPERSEDED omitted).
 
 `soft/apps/web` is a retained **planned UI** (implementation deferred), not
 implemented functionality.
@@ -32,20 +44,26 @@ implemented functionality.
 
 ## Not implemented
 
-- Business feature modules (`products-and-offers`, `opportunities`,
-  `control-plane`, `knowledge`, `evidence`, `research-records`,
-  `market-researcher`, `lead-discoverer`, `lead-evaluator`,
+- Business feature modules beyond the initial slice: `knowledge`, `evidence`,
+  `research-records`, `market-researcher`, `lead-discoverer`, `lead-evaluator`,
   `company-intelligence`, `contact-discovery`, `outreach-drafter`, `approvals`,
-  `jobs`) — none exist; `soft/apps/api/src/modules/` is empty.
-- Control plane (task routing, executions, activities, approval routing).
-- `ResearchContextService` and Research Context assembly/redaction; the
-  `research_contexts` snapshot and the research-run endpoints.
+  `jobs`.
+- Control-plane task routing, executions, activities, approval routing, and Task
+  scope. Only the `ResearchContextService` read-model assembler exists today;
+  ResearchContext `scope` is derived from the Opportunity's attached target
+  markets until the Task table lands.
+- Immutable Research Context snapshots (`research_contexts`) and the
+  research-run endpoints (`POST`/`GET /opportunities/:id/research-runs`). The
+  implemented `GET .../research-context` returns a **current assembled** context,
+  not a frozen research-run snapshot.
 - `market-researcher` (first AI vertical) and BullMQ `jobs`.
 - Worker process (`soft/apps/worker`).
-- `soft/packages/contracts` (shared Zod schemas/types).
 - UI (`soft/apps/web`).
 - Per-opportunity commercial terms (`opportunity_offers`); fact append-only
   versioning; research records/findings; sources/claims; companies/contacts.
+- `evidence` resolution, so asserted facts carry `sourceLabel` and an empty
+  `evidence` array; knowledge/companies/human-decision context sections are
+  empty.
 
 See `module-map.md` for the full intended module set and status markers.
 
@@ -67,22 +85,22 @@ See `module-map.md` for the full intended module set and status markers.
 
 ## Next planned functional slice
 
-**Catalogue + Research Context API** — delegated as one `soft/tasks/current.md`
-implementation task:
+**Knowledge + Approvals (human gate)** — the next slice after the implemented
+Catalogue + Research Context API (which is awaiting human review):
 
-- `products-and-offers` + `opportunities` application services over the
-  implemented schema;
-- a thin `control-plane` skeleton (Task scope) and `ResearchContextService`
-  assembly with redaction (CONFIRMED/OPERATIONAL asserted, PENDING and RESTRICTED
-  redacted, SUPERSEDED absent);
-- `GET /opportunities/:opportunityId/research-context` returning
-  `schemaVersion: research_context_v1`.
+- `knowledge` versioned entities (customer profiles, buyer personas, value
+  propositions);
+- `approvals` request/decision tables and the human gate that a fact moves
+  `PENDING → CONFIRMED` through.
 
-Ref: `research-context-contract.md`, `module-map.md`.
+Ref: `module-map.md` §§4, 14; `research-context-contract.md` §10.
 
 ---
 
 ## Sequencing after the first slice (planned)
+
+The first slice (Catalogue + Research Context API) is implemented and awaiting
+review. Remaining sequence:
 
 1. Knowledge + Approvals (human gate).
 2. Research-records + Market Researcher (+ jobs/worker).

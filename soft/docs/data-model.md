@@ -5,7 +5,7 @@
 > This file is the implementation-local description of the implemented schema;
 > the root canonical document wins on ownership/write rules.
 
-**Status:** Live (established by T-004).
+**Status:** Live (established by T-004; extended by T-006).
 **Companion:** `architecture.md`, `data-ownership.md`, `security.md`,
 `contracts/research-context.v1.md`.
 
@@ -63,6 +63,8 @@ application service — no module writes another module's table.
 - `scientificName` (optional) — scientific or common naming.
 - `description` (optional) — free-text description (canonical data, not a
   prompt).
+- `category` (optional) — high-level product category (added in T-006 for the
+  research-context `product.category` field).
 - `lifecycleStatus` — `ProductLifecycleStatus`: `DRAFT | ACTIVE | ARCHIVED`.
 
 ### 3.2 `Offer`
@@ -93,6 +95,13 @@ application service — no module writes another module's table.
 ### 3.5 `Opportunity`
 
 - `name` (required), `offerId` (required FK).
+- `objective` (optional) — free-text commercial objective (added in T-006 for
+  the research-context `opportunity.objective` field).
+- `contextVersion` (int, default 1) — monotonic revision of the Opportunity's
+  **operational research context**. Incremented (with the triggering write, in
+  one transaction) when a target market is attached and when a relevant
+  product/offer fact is created. Distinguishes the context **revision** from the
+  contract `schemaVersion`.
 - `lifecycleStatus` — `OpportunityStatus`: `DRAFT | ACTIVE | CLOSED | ARCHIVED`.
 
 ### 3.6 `ResearchRun`

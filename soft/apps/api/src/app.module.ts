@@ -1,10 +1,20 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from './database/database.module.js';
+import { SecurityModule } from './security/security.module.js';
 import { HealthController } from './health/health.controller.js';
 import { ReadinessController } from './health/readiness.controller.js';
+import { ProductsAndOffersModule } from './modules/products-and-offers/products-and-offers.module.js';
+import { OpportunitiesModule } from './modules/opportunities/opportunities.module.js';
+import { ControlPlaneModule } from './modules/control-plane/control-plane.module.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [
+    DatabaseModule,
+    SecurityModule,
+    OpportunitiesModule,
+    ProductsAndOffersModule,
+    ControlPlaneModule,
+  ],
   controllers: [HealthController, ReadinessController],
 })
 export class AppModule {}

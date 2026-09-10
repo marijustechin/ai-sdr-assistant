@@ -13,6 +13,57 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-10 — Internal API key guards business endpoints (T-006)
+
+Every business endpoint (product/offer/fact/target-market/opportunity creation
+and the research-context read) is protected by an `INTERNAL_API_KEY`
+service-to-service guard (`x-internal-api-key`). `GET /health` and `GET /ready`
+stay public. This is not end-user authentication (no users/roles/sessions/JWT),
+and the key is never logged, echoed, or returned. A missing/too-short configured
+key fails closed (503); a missing/wrong provided key returns 401.
+
+- Reason: business writes and context reads must not be open by default, while
+  keeping the operational endpoints simple.
+
+## 2026-09-10 — Opportunity context version increments transactionally (T-006)
+
+`Opportunity.contextVersion` is a monotonic revision of the opportunity's
+operational research context. It is incremented in the same transaction as the
+triggering write: attaching a target market (owned by `opportunities`) and
+creating a relevant product/offer fact (owned by `products-and-offers`, which
+calls the `opportunities` service inside a shared transaction). Any
+non-SUPERSEDED fact changes the assembled context (a value, or a redacted
+placeholder), so fact creation bumps every affected opportunity.
+
+- Reason: consumers can detect when the context they cached is stale, without a
+  separate snapshot table yet. The write still happens through the owning
+  module's repository, preserving single-writer ownership.
+
+## 2026-09-10 — Research Context v1 is a current assembled context (T-006)
+
+`GET /opportunities/:id/research-context` returns `research_context_v1` assembled
+on demand (`frozenAt` = assembly time, `contextVersion` = the Opportunity
+revision). It is **not yet** an immutable research-run snapshot;
+`research_contexts` freeze, `POST/GET .../research-runs`, and related endpoints
+remain planned. Sections whose owning modules do not exist yet
+(`priorResearchRuns`, `existingCompanies`, `approvedKnowledge`, `humanDecisions`)
+are returned empty; asserted facts carry `sourceLabel` and empty `evidence`
+until the `evidence` module lands.
+
+- Reason: deliver the first usable read path without fabricating data from
+  modules that are not built.
+
+## 2026-09-10 — Added Product.category and Opportunity.objective (T-006)
+
+The canonical research-context DTO requires `product.category` and
+`opportunity.objective`; the T-004 schema lacked both. One migration adds those
+nullable columns alongside `opportunities.context_version`.
+
+- Reason: implement the canonical contract faithfully rather than returning
+  placeholder empty values for fields the operator can supply.
+
+---
+
 ## 2026-09-10 — Workspace TypeScript boundary: typecheck on source, build on dist (T-004 review)
 
 `apps/api` maps `@ai-sdr/database` to `../../packages/database/src/index.ts`
