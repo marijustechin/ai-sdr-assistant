@@ -1,7 +1,8 @@
 # Project State (Canonical)
 
-**Status:** Canonical, live snapshot. Last updated 2026-09-10 (post-review
-documentation reconciliation of O-005/T-006).
+**Status:** Canonical, live snapshot. Last updated 2026-09-14 (O-007 closed;
+O-008 finalized and committed the verified research toolchain); prior update
+2026-09-10 (post-review documentation reconciliation of O-005/T-006).
 **Companion:** `architecture.md`, `module-map.md`, `data-governance.md`,
 `research-context-contract.md`, `decisions.md`.
 
@@ -80,6 +81,34 @@ See `module-map.md` for the full intended module set and status markers.
   completed under O-002 (see
   `ops/done/2026-09-10-commit-push-complete-project-baseline.md`). The prior
   block on a missing `origin` remote is resolved.
+
+---
+
+## Immediate priority (manager, O-007 — CLOSED 2026-09-14; O-008 finalized the docs)
+
+Research capability and coverage are the immediate priority; product onboarding
+is postponed. O-007 is **closed/archived**
+(`ops/done/2026-09-14-equip-validate-research-toolchain.md`), with the manager
+toolchain documented in `research-toolchain.md`; O-008 finalized that
+documentation and committed it to `origin/main`.
+
+**Verified operating toolchain (2026-09-14):**
+
+- **Exa** (`websearch`) — discovery;
+- **Gemini Google Search** (`gemini_gemini_chat`, grounding on) — native
+  in-session grounded discovery;
+- **webfetch / Firecrawl** (`firecrawl_search` / `firecrawl_scrape` /
+  `firecrawl_parse`) — source retrieval and verification.
+
+Toolchain readiness does **not** mean the European market research is complete.
+The dated, non-canonical benchmark
+(`docs/benchmarks/2026-09-14-research-coverage-capability-test.md`) keeps the
+remaining coverage gaps visible: Germany thinly verified, France partly Belgian,
+many candidates `NOT_EVALUATED`, and Exa/Gemini usage and cost not observable.
+DeepSeek server-side web search was **not observed** in the tested
+account/model/endpoint configuration and is **not accepted as a verified research
+tool**. This is manager-environment tooling only: it does not implement
+`market-researcher` and creates no business records.
 
 ---
 

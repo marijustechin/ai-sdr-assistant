@@ -211,3 +211,25 @@ Every completed manager task must report:
 
 Manager tasks are archived to `ops/done/YYYY-MM-DD-slug.md`; the programmer
 archives to `soft/tasks/done/`.
+
+---
+
+## 9. Diagnostic and Process-Safety Rules (Harness)
+
+These rules bind the manager's use of its own tooling. They describe **observed
+behavior for OpenCode 1.18.30 desktop on Windows 11**, not claims about all
+OpenCode versions.
+
+- **Never print full resolved configuration or environment objects.** Some
+  endpoints return resolved values including secrets — for example the local
+  OpenCode server's `GET /config` returns the interpolated `GEMINI_API_KEY`.
+  Diagnostic output must be an **explicit allowlist of non-secret fields**
+  (statuses, booleans, counts, lengths, model/provider names, sanitized errors),
+  never a whole config/env dump.
+- **Clean up only processes started by the current operation, tracked by exact
+  process IDs.** Never use broad name or command-line kill filters
+  (`Stop-Process` / `taskkill` on e.g. `node`, `npx`, `houtini`): they can kill
+  OpenCode-hosted child processes, including MCP servers, and break the session.
+- **Distinguish observed behavior in this OpenCode version from general claims.**
+  State version-specific findings as observed in this version; do not generalize
+  to other versions without evidence.

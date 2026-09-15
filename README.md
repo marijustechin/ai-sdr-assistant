@@ -29,7 +29,7 @@ ai-sdr-assistant/
 └── soft/                  # software implementation workspace
     ├── AGENTS.md          # implementation operating contract
     ├── apps/              # api (NestJS + Fastify); web (planned UI)
-    ├── packages/          # database (single Prisma owner); contracts (planned)
+    ├── packages/          # database (single Prisma owner); contracts (implemented)
     ├── docs/              # implementation, testing, security, harness docs
     ├── harness/  scripts/ # programmer task template + verify.sh
     └── tasks/             # programmer task loop
@@ -68,10 +68,17 @@ Docker Compose for the local database. See [`soft/README.md`](soft/README.md).
 ## Current state
 
 See [`docs/system/project-state.md`](docs/system/project-state.md). In short: a
-clean API host, liveness/readiness endpoints, PostgreSQL with a Prisma migration
-and the core commercial schema are implemented; business feature modules, the
-control plane, research-context assembly, the market researcher, the worker,
-and the UI are not. The next planned functional slice remains the **Catalogue +
-Research Context API**. The root repository exists, `main` tracks `origin/main`,
-and baseline commit `0c6a10103519b9065654ad4ba8e51a6aa3d2058d` was pushed; the
-working tree was clean immediately after the push.
+clean API host, liveness/readiness endpoints, PostgreSQL with Prisma migrations,
+the core commercial schema, shared contracts, and the first vertical slice — the
+**Catalogue + Research Context API** — are implemented. Remaining business
+modules (`knowledge`, `evidence`, `research-records`, `market-researcher`,
+discovery, `approvals`, `jobs`), the worker, and the UI are not.
+
+The immediate priority is **research capability and coverage**; product
+onboarding is postponed. The manager research toolchain (Exa `websearch`,
+`webfetch`, the official Firecrawl MCP, and a Google Search-grounding Gemini MCP)
+is documented in [`docs/system/research-toolchain.md`](docs/system/research-toolchain.md).
+
+The root repository exists and `main` tracks `origin/main`; baseline commit
+`0c6a10103519b9065654ad4ba8e51a6aa3d2058d` and the Catalogue + Research Context
+slice (`0eb3f5c`) are on `main`.

@@ -12,6 +12,55 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-14 — Verified research toolchain marked; DeepSeek server-side search not accepted (O-007)
+
+The verified operating toolchain is marked:
+
+- **Exa** (`websearch`) — discovery;
+- **Gemini Google Search** (`gemini_gemini_chat`, grounding on) — native
+  in-session grounded discovery;
+- **webfetch / Firecrawl** (`firecrawl_search` / `firecrawl_scrape` /
+  `firecrawl_parse`) — source retrieval and verification.
+
+Server-side web search was **not observed** in the tested DeepSeek
+account/model/endpoint configuration on 2026-09-14. Both requests completed
+without `web_search_call` items or source annotations. This path is **not
+accepted as a verified research tool**. Documentation used:
+`https://api-docs.deepseek.com/guides/responses_api/` (Tools table: `web_search`
+/ `file_search` / `code_interpreter` / `computer_use` / `mcp` / other built-in
+tools — **Ignored**; `function` — **Supported**). A conflict is recorded without
+explanation: the same guide's "Input Items" note refers to `web_search_call`
+items being restored and concatenated, implying prior support.
+
+- Reason: record the verified toolchain and the non-categorical DeepSeek result so
+  no research flow relies on an unverified search path, and keep research-coverage
+  gaps visible — toolchain readiness does not mean the European market research is
+  complete.
+- Consequence: manager-environment only; no provider, permission or billing
+  change, no `soft/**` integration, and no database change.
+
+---
+
+## 2026-09-14 — Research capability is the immediate priority; product onboarding postponed (O-007)
+
+The immediate priority is market-research capability and coverage. Product
+onboarding work is **postponed**. The manager's research toolchain is equipped and
+recorded in `docs/system/research-toolchain.md`: built-in Exa `websearch` +
+`webfetch`, the official Firecrawl MCP over its keyless hosted endpoint, and a
+Google Search-grounding Gemini MCP (`@houtini/gemini-mcp`, Google AI Studio key
+via `GEMINI_API_KEY`). No paid plan was purchased and no paid overage was enabled.
+
+- Reason: coverage of sellers, manufacturers, distributors, specifications and
+  prices in local languages is the current bottleneck; the toolchain must be
+  validated before it is relied upon by any (still-unimplemented) research module.
+- Consequence: this documents manager-environment tooling only. It does **not**
+  implement `market-researcher`/`lead-discoverer` and does **not** authorize any
+  external integration in `soft/**`; that requires a separate delegated task.
+- Open item (resolved 2026-09-14): Gemini grounding was initially unverified; it
+  is now verified at the server level and natively in-session (see the entry
+  above and `research-toolchain.md`). The capability test in `docs/benchmarks/`
+  records the progression.
+
 ## 2026-09-10 — Business endpoints sit behind an internal API key (T-006)
 
 Every implemented business endpoint (Product/Offer/ProductFact, TargetMarket,
