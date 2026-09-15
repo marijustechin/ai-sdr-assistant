@@ -13,6 +13,7 @@ import type {
   OfferRecord,
   ProductFactRecord,
   ProductRecord,
+  UpdateProductData,
 } from '../domain/types.js';
 
 /** A Prisma client or an interactive-transaction client. */
@@ -26,6 +27,8 @@ function toProductRecord(product: Product): ProductRecord {
     description: product.description,
     category: product.category,
     lifecycleStatus: product.lifecycleStatus,
+    createdAt: product.createdAt,
+    updatedAt: product.updatedAt,
   };
 }
 
@@ -99,6 +102,37 @@ export class ProductsRepository {
     return product ? toProductRecord(product) : null;
   }
 
+  /** Most recently updated first; `id` breaks any timestamp tie deterministically. */
+  async listProducts(tx?: DbClient): Promise<ProductRecord[]> {
+    const products = await this.client(tx).product.findMany({
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    });
+    return products.map(toProductRecord);
+  }
+
+  async updateProduct(
+    id: string,
+    data: UpdateProductData,
+    tx?: DbClient,
+  ): Promise<ProductRecord> {
+    const update: Prisma.ProductUpdateInput = {};
+    if (data.name !== undefined) update.name = data.name;
+    if (data.scientificName !== undefined) {
+      update.scientificName = data.scientificName;
+    }
+    if (data.description !== undefined) update.description = data.description;
+    if (data.category !== undefined) update.category = data.category;
+    if (data.lifecycleStatus !== undefined) {
+      update.lifecycleStatus = data.lifecycleStatus;
+    }
+
+    const product = await this.client(tx).product.update({
+      where: { id },
+      data: update,
+    });
+    return toProductRecord(product);
+  }
+
   async createOffer(
     data: CreateOfferData,
     tx?: DbClient,
@@ -118,6 +152,18 @@ export class ProductsRepository {
   async findOffer(id: string, tx?: DbClient): Promise<OfferRecord | null> {
     const offer = await this.client(tx).offer.findUnique({ where: { id } });
     return offer ? toOfferRecord(offer) : null;
+  }
+
+  /** Offers belonging to one product; creation order, `id` breaks ties. */
+  async listOffersForProduct(
+    productId: string,
+    tx?: DbClient,
+  ): Promise<OfferRecord[]> {
+    const offers = await this.client(tx).offer.findMany({
+      where: { productId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    return offers.map(toOfferRecord);
   }
 
   async createFact(

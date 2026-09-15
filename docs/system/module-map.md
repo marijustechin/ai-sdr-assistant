@@ -12,8 +12,10 @@ in `data-governance.md`.
 > **Status note:** the first vertical slice is implemented — `products-and-offers`
 > (Product/Offer/ProductFact writes), `opportunities` (TargetMarket/Opportunity
 > + join + context-version increments), and a minimal `control-plane`
-> (`ResearchContextService` assembly with redaction). The remaining modules are
-> intended but not implemented; see `project-state.md`.
+> (`ResearchContextService` assembly with redaction). T-007 adds a minimal
+> `market-researcher` run envelope (+ `research_queries`) and the `evidence`
+> source/evidence/claim store. The remaining modules are intended but not
+> implemented; see `project-state.md`.
 
 **Service-to-service boundary:** every implemented business endpoint (the
 catalogue write routes and the research-context read) is gated by the
@@ -131,19 +133,31 @@ audit/reproducibility is a future ResearchRun/`research_contexts` capability
 
 ## 5. `evidence`
 
-- **Responsibility:** Single owner of source references and claims. Validates
-  claim types (FACT / INFERENCE / UNKNOWN), enforces citation/confidence rules,
-  deduplicates sources by URL, exports the source register (CSV).
-- **Inputs/outputs:** `RegisterSourceInput`, `PersistClaimInput`; entities +
-  validation results + CSV register.
-- **Tables read/written (owner):** `source_references`, `claims`, `claim_sources`,
-  and all source-join tables.
+- **Status:** implemented subset (T-007) — `POST/GET .../research-runs/:runId/
+  sources`, `.../evidence`, and `.../claims`, plus the bounded claim-correction
+  lifecycle (`POST .../claims/:claimId/corrections`; `GET .../claims` excludes
+  non-`CURRENT` claims unless `?includeHistory=true`). Source/evidence/claim
+  persistence with source dedup-by-URL, structural evidence/claim separation, and
+  stance-aware claim↔evidence links. CSV source-register export and cross-run
+  reuse planning remain future work.
+- **Responsibility:** Single owner of source references, evidence, and claims.
+  Validates claim types (FACT / INFERENCE / UNKNOWN), enforces citation/
+  confidence rules, deduplicates sources by URL, owns the correction lifecycle
+  (retraction/replacement, separate from claim type and evidence verification),
+  exports the source register (CSV, planned).
+- **Inputs/outputs:** `RegisterSourceInput`, `PersistEvidenceInput`,
+  `PersistClaimInput`, `CorrectClaimInput`; `SourceReference`, `Evidence`, `Claim`
+  entities + validation results + CSV register (planned).
+- **Tables read/written (owner):** `source_references`, `evidence`, `claims`,
+  `claim_evidence`, and all source-join tables.
 - **Events:** `evidence.source_registered`, `evidence.claim_persisted`,
   `evidence.claim_rejected`.
 - **Approval:** none (mechanical validation).
-- **Failure:** a FACT claim without a source is rejected; an UNKNOWN claim
-  carrying a price is rejected; partial source failures are recorded without
-  losing valid claims.
+- **Failure:** a FACT/INFERENCE claim without evidence is rejected; an UNKNOWN
+  claim carrying evidence is rejected; evidence links must belong to the same
+  run; a correction of an already-corrected claim is rejected, and a missing,
+  self, cross-run or non-current replacement (or a cycle) is rejected; partial
+  source failures are recorded without losing valid claims.
 
 ---
 
@@ -165,6 +179,12 @@ audit/reproducibility is a future ResearchRun/`research_contexts` capability
 
 ## 7. `market-researcher`
 
+- **Status:** implemented subset (T-007) — the run envelope
+  (`research_runs` + scope), the run-scoped `research_queries` log, and the
+  minimal run API (`POST/GET /opportunities/:id/research-runs`,
+  `GET/PATCH .../:runId`, `POST .../:runId/queries`) including the
+  `CONTEXT_CHANGED` resume guard. The AI research execution itself, budgets, and
+  suggestions/clarification requests remain planned.
 - **Responsibility:** Market research per target market → sourced findings +
   target-market suggestions + clarification requests. Never mutates business
   data; never authors product facts. A **context consumer**: sees only `taskId`
@@ -174,9 +194,10 @@ audit/reproducibility is a future ResearchRun/`research_contexts` capability
 - **Outputs:** `MarketResearchOutput` (observations, suggestions, competitors,
   import/export findings, risks, sources, unknowns, limitations).
 - **Tables read/written:** reads context/tasks/markets/facts/knowledge via
-  owning services; writes `research_runs` (**owner**) and
-  `research_run_target_markets` (**owner**), suggestions via `opportunities`,
-  records/findings via `research-records`, claims/sources via `evidence`.
+  owning services; writes `research_runs` (**owner**),
+  `research_run_target_markets` (**owner**), and `research_queries` (**owner**),
+  suggestions via `opportunities`, records/findings via `research-records`,
+  claims/sources via `evidence`.
 - **Events:** `market_research.completed`, `target_market_suggestion.created`,
   `clarification_request.created`.
 - **Approval:** suggestions stay `PENDING` until a human accepts/rejects.

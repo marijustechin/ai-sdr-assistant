@@ -40,6 +40,7 @@ ai-sdr-assistant/
 | Set | Role |
 |---|---|
 | [`docs/system/`](docs/system/) | **Canonical** system/business architecture, module map, data governance, research-context contract, decisions, project state |
+| [`docs/system/research-harness/`](docs/system/research-harness/) | **Canonical** market researcher operating harness (entry point + operating rules + persistence boundary) |
 | [`docs/redesign/`](docs/redesign/) | **Historical, superseded** proposal material — not current architecture |
 | [`soft/docs/`](soft/docs/) | Software implementation, testing, security, and coding-harness details; links to the canonical root docs |
 | [`legacy/`](legacy/) | Historical, non-live evidence; importable, never authoritative |
@@ -69,15 +70,21 @@ Docker Compose for the local database. See [`soft/README.md`](soft/README.md).
 
 See [`docs/system/project-state.md`](docs/system/project-state.md). In short: a
 clean API host, liveness/readiness endpoints, PostgreSQL with Prisma migrations,
-the core commercial schema, shared contracts, and the first vertical slice — the
-**Catalogue + Research Context API** — are implemented. Remaining business
-modules (`knowledge`, `evidence`, `research-records`, `market-researcher`,
-discovery, `approvals`, `jobs`), the worker, and the UI are not.
+the core commercial schema, shared contracts, the first vertical slice — the
+**Catalogue + Research Context API** — and a minimal **research persistence**
+slice (run + queries + sources/evidence/claims, O-010/T-007) are implemented. The
+remaining modules (`knowledge`, `research-records`, discovery, `approvals`,
+`jobs`), full `market-researcher` execution, the worker, and the UI are not.
 
 The immediate priority is **research capability and coverage**; product
 onboarding is postponed. The manager research toolchain (Exa `websearch`,
 `webfetch`, the official Firecrawl MCP, and a Google Search-grounding Gemini MCP)
 is documented in [`docs/system/research-toolchain.md`](docs/system/research-toolchain.md).
+The market researcher's operating harness — lifecycle, evidence/price rules,
+coverage/stopping rules, and the persistence boundary — is in
+[`docs/system/research-harness/`](docs/system/research-harness/) (O-009; the
+minimum resumable-run persistence it mapped is implemented under O-010/T-007,
+which is awaiting human review).
 
 The root repository exists and `main` tracks `origin/main`; baseline commit
 `0c6a10103519b9065654ad4ba8e51a6aa3d2058d` and the Catalogue + Research Context

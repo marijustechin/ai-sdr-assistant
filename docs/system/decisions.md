@@ -12,6 +12,55 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-15 — Bounded claim-correction lifecycle (retraction/replacement)
+
+Research claims gain a small, domain-specific correction lifecycle, owned by the
+`evidence` module: `claims.lifecycleStatus`
+(`CURRENT | RETRACTED | REPLACED`, default `CURRENT`) with `correctionReason`,
+`correctedAt`, and a self-referencing `replacedByClaimId`. The API exposes
+`POST /opportunities/:id/research-runs/:runId/claims/:claimId/corrections`
+(`{ kind: RETRACTION | REPLACEMENT, reason, replacementClaimId? }`) and
+`GET .../claims?includeHistory=true`. Original claims and their evidence links
+are preserved (never edited/deleted). The lifecycle is **separate** from
+`ClaimType` (FACT/INFERENCE/UNKNOWN) and from `EvidenceVerificationStatus`.
+Validation is transactional: the target must be a `CURRENT` claim of the same
+run; a replacement must be a different, `CURRENT` claim of the same run and must
+not create a cycle; correcting an already-corrected claim is a conflict.
+
+- Reason: overlapping corrections were previously expressed by appending more
+  `INFERENCE` claims, which does not formally supersede anything and pollutes
+  current results. A bounded lifecycle makes retraction/replacement explicit.
+- Consequence: this is **not** a generic versioning framework (no version
+  numbers, no generic version table); `product_facts` append-only versioning
+  remains a separate, still-planned concern. The research harness now requires
+  this mechanism for future corrections. No real research records were modified.
+
+---
+
+## 2026-09-15 — Research persistence: a first-class evidence entity (O-010/T-007)
+
+Research results are persisted in three separated layers with single write
+owners: `market-researcher` owns `research_runs` (now with `PAUSED` + a
+**separate** `pauseReason`, `errorCode` for `FAILED`, and a JSONB `checkpoint` +
+`checkpointAt`) and `research_queries`; `evidence` owns `source_references`
+(deduplicated by URL), `evidence` (a factual observation with a retrieval date
+and a `VERIFIED`/`UNVERIFIED` state), `claims` (`FACT`/`INFERENCE`/`UNKNOWN` +
+confidence), and the stance-aware `claim_evidence` link. This **refines** the
+previously planned join-only `claim_sources`: it could not represent an
+observation independent of a claim, nor one claim resting on many evidence
+records. A generic `search_results` table is deliberately **not** modelled. A
+minimal run + evidence API (create/list/get/patch run; queries; sources;
+evidence; claims) is exposed behind the internal API key; resume on a changed
+context is blocked with `CONTEXT_CHANGED` rather than silently rebasing.
+
+- Reason: the market-research harness requires provenance and an explicit
+  discovery → evidence → conclusion separation, plus resumable runs, before any
+  research execution is built.
+- Consequence: canonical `data-governance.md`/`module-map.md` updated; frozen
+  `research_contexts` snapshots, `research-records`, suggestions, and
+  clarifications remain separate future tasks. No research was executed and
+  nothing was committed or pushed.
+
 ## 2026-09-14 — Verified research toolchain marked; DeepSeek server-side search not accepted (O-007)
 
 The verified operating toolchain is marked:

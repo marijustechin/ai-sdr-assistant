@@ -20,6 +20,8 @@ export interface ProductRecord {
   description: string | null;
   category: string | null;
   lifecycleStatus: ProductLifecycleStatus;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface OfferRecord {
@@ -56,6 +58,18 @@ export interface CreateOfferData {
   productId: string;
   name: string;
   commercialStatus?: OfferCommercialStatus;
+}
+
+/**
+ * Partial Product update. An absent key is left unchanged; `null` clears a
+ * nullable text column.
+ */
+export interface UpdateProductData {
+  name?: string;
+  scientificName?: string | null;
+  description?: string | null;
+  category?: string | null;
+  lifecycleStatus?: ProductLifecycleStatus;
 }
 
 export interface CreateFactData {

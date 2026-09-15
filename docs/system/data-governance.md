@@ -55,13 +55,15 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `opportunity_companies` | Company↔opportunity join | `lead-discoverer` | plan |
 | `contacts` | People at companies | `contact-discovery` | plan |
 | `qualification_records` | Versioned qualification results | `lead-evaluator` | plan |
-| `research_runs` | A market-research run bound to a context version | `market-researcher` | impl |
+| `research_runs` | A market-research run bound to a context version (lifecycle + pause + checkpoint) | `market-researcher` | impl |
 | `research_run_target_markets` | ResearchRun↔target-market scope join | `market-researcher` | impl |
+| `research_queries` | Discovery/search queries issued during a research run | `market-researcher` | impl |
 | `research_records` | Structured research (MARKET/COMPANY/CONTACT/COMPETITOR/IMPORT_EXPORT) | `research-records` | plan |
 | `research_findings` | Findings within a research record | `research-records` | plan |
-| `source_references` | Retrieved sources (url, publisher, type, retrieval date) | `evidence` | plan |
-| `claims` | Typed claims (FACT/INFERENCE/UNKNOWN) with confidence | `evidence` | plan |
-| `claim_sources` | Claim↔source join | `evidence` | plan |
+| `source_references` | Retrieved sources (url, publisher, type; deduplicated by URL) | `evidence` | impl |
+| `evidence` | Factual observations extracted from a source during a run | `evidence` | impl |
+| `claims` | Typed claims (FACT/INFERENCE/UNKNOWN) with confidence | `evidence` | impl |
+| `claim_evidence` | Claim↔evidence join with stance (refines the earlier `claim_sources`) | `evidence` | impl |
 | `company_sources` | Company↔source join | `evidence` | plan |
 | `contact_sources` | Contact↔source join | `evidence` | plan |
 | `research_record_sources` | ResearchRecord↔source join | `evidence` | plan |
@@ -117,6 +119,33 @@ scope fields. Reads are served by its query/read-model service.
   `research_run_target_markets` (compound-unique). `ResearchContextService`
   composes snapshots from each module's read service and never writes another
   module's tables.
+- `research_runs` also carries the run lifecycle: a `PAUSED` status with a
+  **separate** `pauseReason` (`BUDGET_EXHAUSTED | ACCESS_BLOCKED |
+  CONTEXT_CHANGED | DIMINISHING_RETURNS | NEEDS_HUMAN`), `errorCode`/`errorNote`
+  for `FAILED`, and a JSONB `checkpoint` + `checkpointAt`. A reason is never
+  encoded as a status. `research_queries` (owner `market-researcher`) records the
+  discovery/search queries issued during a run.
+
+### `evidence` (sources, evidence, claims)
+
+- `evidence` is the single write-owner of `source_references`, `evidence`,
+  `claims`, and `claim_evidence`. `source_references` is deduplicated by URL;
+  `evidence` is a factual observation extracted from a source, carrying a
+  retrieval date and a `VERIFIED | UNVERIFIED` state; `claims` are conclusions
+  (`FACT | INFERENCE | UNKNOWN` + confidence) linked to evidence through
+  `claim_evidence` with an explicit stance (`SUPPORTS | REFUTES | CONTEXT`).
+- `claim_evidence` **refines** the earlier planned `claim_sources`: discovery
+  snippets are not evidence, evidence is not a conclusion, and one claim may
+  rest on many evidence records.
+- Cross-row rules (a `FACT`/`INFERENCE` claim needs ≥1 evidence link; an
+  `UNKNOWN` claim carries none; linked evidence must belong to the same run) are
+  enforced by the `evidence` module, not by a single-row DB constraint.
+- Claims also carry a bounded **correction lifecycle**, separate from claim type
+  and evidence verification: `lifecycleStatus`
+  (`CURRENT | RETRACTED | REPLACED`) with `correctionReason`/`correctedAt` and a
+  `replacedByClaimId` self-reference. Retraction/replacement never edits or
+  deletes the original claim or its evidence links; current claim reads exclude
+  non-`CURRENT` claims by default, and history is retrievable explicitly.
 
 ---
 

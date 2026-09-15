@@ -4,8 +4,8 @@
 #
 # Mandatory checks (failure => non-zero exit): required structure, correct
 # lockfile (pnpm-lock.yaml present, bun.lock absent), single Prisma schema owner,
-# expected business modules present, legacy scaffold archived, toolchain pinned
-# to Node 24 + pnpm 11, no committed secrets.
+# expected business modules present, legacy scaffold archived, Node within the
+# range declared by package.json `engines.node` + pnpm 11, no committed secrets.
 #
 # Usage: bash scripts/verify.sh  (or: pnpm verify)
 
@@ -160,14 +160,41 @@ else
   bad "legacy/api-scaffold-2026-09-09 missing (old scaffold must be archived)"
 fi
 
-# --- 5. Toolchain pinned to Node 24 + pnpm 11 (mandatory) --------------------
+# --- 5. Toolchain: declared Node range + pnpm 11 (mandatory) -----------------
+
+# Dotted-numeric version comparison: `version_ge A B` is true when A >= B.
+version_ge() {
+  local i x y
+  local -a a b
+  IFS='.' read -r -a a <<< "$1"
+  IFS='.' read -r -a b <<< "$2"
+  for i in 0 1 2; do
+    x="${a[i]:-0}"
+    y="${b[i]:-0}"
+    if ((10#$x > 10#$y)); then return 0; fi
+    if ((10#$x < 10#$y)); then return 1; fi
+  done
+  return 0
+}
 
 if command -v node >/dev/null 2>&1; then
   NODE_V="$(node --version 2>/dev/null || echo unknown)"
-  if [[ "$NODE_V" == v24.* ]]; then
-    ok "node version $NODE_V (Node 24 LTS)"
+  NODE_NUM="${NODE_V#v}"
+  # Single source of truth: the supported range declared in package.json
+  # `engines.node` (e.g. ">=24.20.0 <25"). No separate Node policy is defined
+  # here; `.nvmrc` pins the same minimum.
+  NODE_ENGINES="$(node -p "require('./package.json').engines.node" 2>/dev/null || echo '')"
+  NODE_MIN="$(printf '%s' "$NODE_ENGINES" | sed -n 's/.*>=\([0-9][0-9.]*\).*/\1/p')"
+  NODE_LT="$(printf '%s' "$NODE_ENGINES" | sed -n 's/.*<\([0-9][0-9]*\).*/\1/p')"
+
+  if [[ -z "$NODE_MIN" || -z "$NODE_LT" ]]; then
+    bad "cannot read package.json engines.node (got '${NODE_ENGINES:-empty}')"
+  elif [[ ! "$NODE_NUM" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    bad "node version $NODE_V (unparseable; requires >=${NODE_MIN} <${NODE_LT})"
+  elif version_ge "$NODE_NUM" "$NODE_MIN" && (( 10#${NODE_NUM%%.*} < 10#${NODE_LT} )); then
+    ok "node version $NODE_V (satisfies '${NODE_ENGINES}' from package.json engines)"
   else
-    bad "node version $NODE_V (expected Node 24.x; see .nvmrc)"
+    bad "node version $NODE_V (requires >=${NODE_MIN} <${NODE_LT}; see package.json engines/.nvmrc)"
   fi
 else
   bad "node not installed"

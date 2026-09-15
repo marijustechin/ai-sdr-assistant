@@ -39,3 +39,11 @@ export interface OpportunityContextData {
   opportunity: OpportunityRecord;
   targetMarkets: TargetMarketRecord[];
 }
+
+/**
+ * Opportunity plus its attached target markets, for product-scoped discovery
+ * (`opportunities` owns both). Read-only; no new commercial rule.
+ */
+export interface OpportunityDiscoveryRecord extends OpportunityRecord {
+  targetMarkets: TargetMarketRecord[];
+}

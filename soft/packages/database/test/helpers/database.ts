@@ -1,6 +1,11 @@
 import type { PrismaClient } from '../../src/index.js';
 
 const TABLES = [
+  'claim_evidence',
+  'evidence',
+  'claims',
+  'source_references',
+  'research_queries',
   'research_run_target_markets',
   'research_runs',
   'opportunity_target_markets',

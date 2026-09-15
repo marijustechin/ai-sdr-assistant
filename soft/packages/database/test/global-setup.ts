@@ -45,6 +45,9 @@ export default async function setup(): Promise<() => Promise<void>> {
   execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
     env: { ...process.env, DATABASE_URL: url },
     stdio: 'inherit',
+    // On Windows `pnpm` is only available as `pnpm.cmd`, which execFileSync
+    // cannot launch without a shell.
+    shell: process.platform === 'win32',
   });
   return async () => {};
 }

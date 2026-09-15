@@ -5,7 +5,7 @@
 > This file is the implementation-local description of the implemented schema;
 > the root canonical document wins on ownership/write rules.
 
-**Status:** Live (established by T-004; extended by T-006).
+**Status:** Live (established by T-004; extended by T-006 and T-007).
 **Companion:** `architecture.md`, `data-ownership.md`, `security.md`,
 `contracts/research-context.v1.md`.
 
@@ -22,6 +22,13 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
    │             │                │                    ▲
    └─ ProductFact ┘                └── ResearchRun ─────┘
         (exactly one subject)          N ──── M (scope join)
+                                        │
+                                        ├── ResearchQuery            (discovery log)
+                                        │
+                                        └── Evidence ── N ── M ── Claim
+                                              │  (claim_evidence)   │
+                                              └── SourceReference ──┘
+                                                  (deduplicated by URL)
 ```
 
 - A **Product** is stored once and is the canonical product identity.
@@ -32,7 +39,13 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 - An **Opportunity** targets multiple **TargetMarket**s through an explicit
   join.
 - A **ResearchRun** records that market research was requested/executed for one
-  Opportunity, scoped to target markets through an explicit join.
+  Opportunity, scoped to target markets through an explicit join, with a
+  lifecycle/pause status and a resumable checkpoint.
+- A **ResearchQuery** is a single discovery/search query issued during a run.
+- A **SourceReference** is a discovered source (deduplicated by URL); an
+  **Evidence** row is a factual observation extracted from a source during a
+  run; a **Claim** is a conclusion derived from evidence, linked through
+  **ClaimEvidence**.
 
 ---
 
@@ -46,8 +59,13 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `TargetMarket` | `target_markets` | country/region + market segment (deduplicated). | `opportunities` |
 | `Opportunity` | `opportunities` | Commercial work unit; belongs to one `offers`. | `opportunities` |
 | `OpportunityTargetMarket` | `opportunity_target_markets` | Join `opportunities` ↔ `target_markets`. | `opportunities` |
-| `ResearchRun` | `research_runs` | Auditable record that market research ran for one Opportunity. | `market-researcher` |
+| `ResearchRun` | `research_runs` | Auditable record that market research ran for one Opportunity (lifecycle + pause + checkpoint). | `market-researcher` |
 | `ResearchRunTargetMarket` | `research_run_target_markets` | Target-market scope of a `ResearchRun`. | `market-researcher` |
+| `ResearchQuery` | `research_queries` | A discovery/search query issued during a `ResearchRun`. | `market-researcher` |
+| `SourceReference` | `source_references` | A discovered source; deduplicated by URL. | `evidence` |
+| `Evidence` | `evidence` | A factual observation extracted from a source during a run. | `evidence` |
+| `Claim` | `claims` | A research conclusion derived from evidence. | `evidence` |
+| `ClaimEvidence` | `claim_evidence` | Claim↔evidence link with a stance. | `evidence` |
 
 Every model carries a `/// @owner <module>` tag in `schema.prisma` (§5 of
 `data-ownership.md`). Cross-boundary writes go through the owning module's
@@ -106,11 +124,64 @@ application service — no module writes another module's table.
 
 ### 3.6 `ResearchRun`
 
-- `status` — `ResearchRunStatus`: `QUEUED | RUNNING | COMPLETED | FAILED | CANCELLED`.
+- `status` — `ResearchRunStatus`: `QUEUED | RUNNING | PAUSED | COMPLETED | FAILED | CANCELLED`.
+- `pauseReason` — `ResearchRunPauseReason`: `BUDGET_EXHAUSTED | ACCESS_BLOCKED |
+  CONTEXT_CHANGED | DIMINISHING_RETURNS | NEEDS_HUMAN`. **Separate from
+  `status`**: a reason is never encoded as a status, and `FAILED` uses
+  `errorCode`/`errorNote` instead. `PAUSED`/`pauseReason` are cleared on resume.
+- `pauseNote`, `checkpoint` (JSONB), `checkpointAt` — nullable; the checkpoint
+  holds run-scoped progress (coverage + pending follow-ups), not a workflow.
 - `requestedAt` (default now), `startedAt`, `finishedAt` (nullable).
 - `errorCode` / `errorNote` (nullable) — failure-safe code or note.
 - `contextVersion` (int) — the research-context revision this run is bound to.
 - **Never** stores LLM chain-of-thought, credentials, or scraped pages.
+
+### 3.7 `ResearchQuery`
+
+- `queryText` (required), `provider` (nullable), `status`
+  (`ResearchQueryStatus`: `PENDING | RUNNING | SUCCEEDED | FAILED`),
+  `executedAt`, `resultCount`, `errorCode`/`errorNote` (nullable), `createdAt`.
+- Belongs to exactly one `ResearchRun` (cascade delete).
+
+### 3.8 `SourceReference`
+
+- `url` (required, **unique** — the same source is never stored twice),
+  `title`, `publisher`, `sourceType` (nullable), timestamps.
+- Holds source metadata only; page content is never stored.
+
+### 3.9 `Evidence`
+
+- `evidenceText` (required) — the quoted/paraphrased observation.
+- `verificationStatus` (`EvidenceVerificationStatus`: `VERIFIED | UNVERIFIED`)
+  — `UNVERIFIED` (a lead) stays distinguishable from `VERIFIED`.
+- `retrievedAt` (nullable) — when the source was fetched.
+- `sourceReferenceId` (FK, restrict) and `researchRunId` (FK, cascade).
+- Structurally separate from `Claim`: evidence is an observation, a claim is a
+  conclusion.
+
+### 3.10 `Claim` / `ClaimEvidence`
+
+- `Claim`: `type` (`ClaimType`: `FACT | INFERENCE | UNKNOWN`), `statement`
+  (required), `confidence` (`ClaimConfidence`: `HIGH | MEDIUM | LOW`),
+  `researchRunId` (FK, cascade).
+- `ClaimEvidence`: `claimId` + `evidenceId` (compound-unique) with
+  `stance` (`ClaimEvidenceStance`: `SUPPORTS | REFUTES | CONTEXT`), so one
+  claim may rest on many evidence records and conflicting evidence stays
+  explicit.
+- **Claim correction lifecycle (separate dimension).** `Claim.lifecycleStatus`
+  (`ClaimLifecycleStatus`: `CURRENT | RETRACTED | REPLACED`, default `CURRENT`),
+  plus `correctionReason`, `correctedAt`, and `replacedByClaimId` (self-FK,
+  `ON DELETE SET NULL`). A retraction or replacement never edits or deletes the
+  original statement or its evidence links; it records why and when, and (for a
+  replacement) which claim supersedes it. `lifecycleStatus` is kept distinct
+  from `type` (FACT/INFERENCE/UNKNOWN) and from
+  `EvidenceVerificationStatus`. Current claim reads exclude non-`CURRENT` claims
+  by default; history is retrievable explicitly.
+- Cross-row rules that Prisma cannot express are enforced in
+  `evidence` module services: a `FACT`/`INFERENCE` claim requires ≥1 evidence
+  link, an `UNKNOWN` claim carries none, all linked evidence must belong to
+  the same run, a correction must target a `CURRENT` claim of the same run, a
+  replacement must itself be `CURRENT`, and replacement chains must not cycle.
 
 ---
 
@@ -144,13 +215,30 @@ rules must be added as a new hand-authored migration.
 - `ProductFact` is **canonical product data** — authored only by humans or a
   trusted internal product-data source (see
   `contracts/research-context.v1.md` §10). It is *not* research output.
-- Research findings (what a researcher *observed* in the market) will live in
-  `research_records` / `research_findings` (owned by `research-records`), with
-  sources in `source_references` / `claims` (owned by `evidence`). Those tables
-  are **not** part of T-004 and are deliberately out of scope here.
+- Research findings (what a researcher *observed* in the market) are persisted in
+  the `evidence`-owned tables added by T-007 — `source_references`, `evidence`,
+  `claims`, `claim_evidence` — and the run-scoped `research_queries`. Structured
+  `research_records` / `research_findings` (owned by `research-records`) remain
+  planned and are out of scope here.
 - A research module **never** writes `product_facts`. If it discovers a product
   data gap it files a clarification request instead of inventing a fact.
 - Fact versioning/append-only (`SUPERSEDED`) semantics from
   `contracts/research-context.v1.md` §8 are planned; T-004 stores the `status`
   column but defers the append-only versioning mechanics to the
   `products-and-offers` module task.
+
+## 7. Research persistence boundary (T-007)
+
+The research store keeps three things apart on purpose:
+
+- **Discovery** (`research_queries`) — what was asked and with which tool; a
+  search snippet is discovery, not evidence.
+- **Evidence** (`evidence` + `source_references`) — an observation extracted
+  from a fetched, deduplicated source, with a retrieval date and a verification
+  status.
+- **Conclusions** (`claims` + `claim_evidence`) — assertions derived from
+  evidence, with type/confidence and an explicit per-evidence stance.
+
+A generic `search_results` table is deliberately **not** modelled. Domain-
+specific observations (e.g. price observations) are expected to reference
+`evidence` later rather than expanding this foundation now.

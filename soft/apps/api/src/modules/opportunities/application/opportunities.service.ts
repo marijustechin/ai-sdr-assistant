@@ -10,6 +10,7 @@ import type {
   CreateOpportunityData,
   CreateTargetMarketData,
   OpportunityContextData,
+  OpportunityDiscoveryRecord,
   OpportunityRecord,
   TargetMarketRecord,
 } from '../domain/types.js';
@@ -109,6 +110,21 @@ export class OpportunitiesService {
     const targetMarkets =
       await this.repository.listTargetMarketsForOpportunity(opportunityId);
     return { opportunity, targetMarkets };
+  }
+
+  /**
+   * Product-scoped discovery read: opportunities for the given offers, each
+   * with its attached target markets. Used by `products-and-offers` so an agent
+   * can resolve product → offer → opportunity → target markets.
+   */
+  async listOpportunitiesForOffers(
+    offerIds: string[],
+  ): Promise<OpportunityDiscoveryRecord[]> {
+    const rows = await this.repository.listOpportunitiesForOffers(offerIds);
+    return rows.map(({ opportunity, targetMarkets }) => ({
+      ...opportunity,
+      targetMarkets,
+    }));
   }
 
   /** Called by `products-and-offers` inside its fact-creation transaction. */

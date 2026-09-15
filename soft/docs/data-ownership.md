@@ -5,9 +5,10 @@
 > This file is the implementation-local view; the root canonical document wins
 > on conflict.
 
-**Status:** Implementation view. The `products-and-offers`, `opportunities`, and
-`control-plane` (research-context assembly) modules are implemented (T-006);
-other business modules are not yet implemented.
+**Status:** Implementation view. The `products-and-offers`, `opportunities`,
+`control-plane` (research-context assembly), `market-researcher` (run envelope +
+queries), and `evidence` (sources/evidence/claims) modules are implemented
+(T-006, T-007); other business modules are not yet implemented.
 **Companion:** `architecture.md`, `module-boundaries.md`, `task-execution.md`.
 
 This document defines the canonical table list, the single write-owner per table, read rules, cross-boundary coordination, and migration ownership.
@@ -50,11 +51,13 @@ This document defines the canonical table list, the single write-owner per table
 | `qualification_records` | Versioned qualification results | `lead-evaluator` |
 | `research_runs` | A market-research run bound to a context version | `market-researcher` |
 | `research_run_target_markets` | ResearchRun↔target-market scope join | `market-researcher` |
+| `research_queries` | Discovery/search queries issued during a run | `market-researcher` |
 | `research_records` | Structured research (MARKET / COMPANY / CONTACT / COMPETITOR / IMPORT_EXPORT) | `research-records` |
 | `research_findings` | Individual findings within a research record | `research-records` |
-| `source_references` | Retrieved sources (url, publisher, type, retrieval date) | `evidence` |
+| `source_references` | Retrieved sources (url, publisher, type; deduplicated by URL) | `evidence` |
+| `evidence` | Factual observations extracted from a source during a run | `evidence` |
 | `claims` | Typed claims (FACT / INFERENCE / UNKNOWN) with confidence | `evidence` |
-| `claim_sources` | Claim↔source join | `evidence` |
+| `claim_evidence` | Claim↔evidence join with stance (replaces the planned `claim_sources`) | `evidence` |
 | `company_sources` | Company↔source join | `evidence` |
 | `contact_sources` | Contact↔source join | `evidence` |
 | `research_record_sources` | ResearchRecord↔source join | `evidence` |

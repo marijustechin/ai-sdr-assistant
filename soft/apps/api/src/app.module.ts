@@ -6,6 +6,8 @@ import { ReadinessController } from './health/readiness.controller.js';
 import { ProductsAndOffersModule } from './modules/products-and-offers/products-and-offers.module.js';
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module.js';
 import { ControlPlaneModule } from './modules/control-plane/control-plane.module.js';
+import { MarketResearcherModule } from './modules/market-researcher/market-researcher.module.js';
+import { EvidenceModule } from './modules/evidence/evidence.module.js';
 
 @Module({
   imports: [
@@ -14,6 +16,8 @@ import { ControlPlaneModule } from './modules/control-plane/control-plane.module
     OpportunitiesModule,
     ProductsAndOffersModule,
     ControlPlaneModule,
+    MarketResearcherModule,
+    EvidenceModule,
   ],
   controllers: [HealthController, ReadinessController],
 })

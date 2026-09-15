@@ -76,13 +76,19 @@ GET  /opportunities/:opportunityId/research-runs/:runId                   # sing
     assembled** context (`frozenAt` = assembly time, `contextVersion` = the
     Opportunity's current revision). `?version=N` and frozen snapshots are
     **not implemented yet**.
-- `POST .../research-runs` freezes the current context into a new version,
-  creates a `research_runs` record bound to that version and `taskId`, and
-  returns `{ runId, contextVersion }`.
-  - **Planned:** this is the future immutable context-freeze capability for audit
-    and reproducibility. It is not implemented in the current slice.
+- `POST .../research-runs` creates a `research_runs` record for the opportunity,
+  binding it to the opportunity's **current** `contextVersion` and its attached
+  target markets, and returns the run.
+  - **Implemented (T-007), without freezing:** this does **not** yet create a
+    frozen `research_contexts` snapshot; it records the current revision. The
+    immutable freeze for audit/reproducibility remains planned.
 - `GET .../research-runs` lists runs (id, contextVersion, status, timestamps).
-  - **Planned.**
+  - **Implemented (T-007).**
+- `GET .../research-runs/:runId` is the resumable read (run + scope + pause/
+  checkpoint + queries).
+- `PATCH .../research-runs/:runId` applies lifecycle updates (pause/resume,
+  checkpoint, complete, fail) and blocks resume on a context change with
+  `CONTEXT_CHANGED` unless the change is explicitly acknowledged.
 
 ---
 
@@ -335,7 +341,8 @@ interface ClarificationRequest {
 | `Product`, `Offer` (sellable variant), `ProductFact`, `TargetMarket`, `Opportunity`, `OpportunityTargetMarket`, `ResearchRun`, `ResearchRunTargetMarket` tables | **implemented** (T-004) |
 | `status`/`visibility` fact model + CHECK constraints | **implemented** (T-004) |
 | `ResearchContextService` assembly/redaction + `GET /opportunities/:id/research-context` (current assembled context) | **implemented** (T-006) |
-| `research_contexts` frozen snapshots, research-run endpoints, Task scope, knowledge/approvals/companies/human-decision sections | **planned** |
+| Research-run endpoints (`POST/GET`, `GET/PATCH .../:runId`, run-scoped queries) | **implemented** (T-007) |
+| `research_contexts` frozen snapshots, Task scope, evidence resolution in contexts, knowledge/approvals/companies/human-decision sections | **planned** |
 | Per-opportunity commercial terms (`offer` price/quantity/delivery block), fact append-only versioning | **planned** |
 
 The implementation-level view (Zod location, redaction enforcement, test

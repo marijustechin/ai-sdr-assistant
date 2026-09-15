@@ -33,7 +33,9 @@ Rules:
 
 1. `AGENTS.md` (this file)
 2. `docs/system/*` (canonical system architecture, module map, data governance,
-   research-context contract) and `legacy/` evidence read rules
+   research-context contract, research toolchain, and the market researcher
+   operating harness at `docs/system/research-harness/AGENTS.md`) and `legacy/`
+   evidence read rules
 3. `docs/system/decisions.md`
 4. `soft/AGENTS.md` (implementation contract, for delegated work)
 5. `ops/current.md` (the single active manager task)
@@ -59,6 +61,7 @@ ai-sdr-assistant/                 # repository root (root manager workspace)
 ├── docs/
 │   ├── README.md                 # documentation hierarchy + boundaries
 │   ├── system/                   # CANONICAL system/business docs + decisions
+│   │   └── research-harness/     # researcher instructions (entry: AGENTS.md)
 │   └── redesign/                 # HISTORICAL, SUPERSEDED proposal material
 ├── legacy/                       # HISTORICAL, NON-LIVE input (never modified)
 └── soft/                         # SOFTWARE IMPLEMENTATION workspace
@@ -173,6 +176,13 @@ When work requires changing the software workspace:
    `soft/tasks/current.md`.
 4. The manager records the outcome in `docs/system/project-state.md` and, if the
    work created a consequential design choice, in `docs/system/decisions.md`.
+
+Before delegating **research** work (any task that executes, structures, or
+persists market research), the manager must read
+`docs/system/research-harness/AGENTS.md` and cite it in the delegated task's
+architecture references. That file does **not** auto-load because it lives under
+`docs/system/`; it is loaded by explicit reference, so locating it is not the
+same as reading it.
 
 The manager does not paste product descriptions or facts into prompts; delegated
 work obtains business context from PostgreSQL through the implementation's

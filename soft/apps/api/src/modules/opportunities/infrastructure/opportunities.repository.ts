@@ -140,6 +140,36 @@ export class OpportunitiesRepository {
     return link;
   }
 
+  /**
+   * Product-scoped discovery read: every opportunity whose offer belongs to one
+   * of `offerIds`, each with its attached target markets. Reads `offers` only
+   * to filter by `offerId`; ownership stays with each module.
+   */
+  async listOpportunitiesForOffers(
+    offerIds: string[],
+    tx?: DbClient,
+  ): Promise<Array<{ opportunity: OpportunityRecord; targetMarkets: TargetMarketRecord[] }>> {
+    if (offerIds.length === 0) {
+      return [];
+    }
+    const rows = await this.client(tx).opportunity.findMany({
+      where: { offerId: { in: offerIds } },
+      include: {
+        targetMarkets: {
+          include: { targetMarket: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map((row) => ({
+      opportunity: toOpportunityRecord(row),
+      targetMarkets: row.targetMarkets.map((link) =>
+        toTargetMarketRecord(link.targetMarket),
+      ),
+    }));
+  }
+
   async listTargetMarketsForOpportunity(
     opportunityId: string,
     tx?: DbClient,

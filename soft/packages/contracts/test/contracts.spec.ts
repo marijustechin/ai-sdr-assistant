@@ -1,10 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import {
   SCHEMA_VERSION,
+  CorrectClaimSchema,
   CreateProductFactSchema,
   CreateProductSchema,
   CreateOpportunitySchema,
+  CreateResearchRunSchema,
+  PersistClaimSchema,
+  PersistEvidenceSchema,
+  ProductResponseSchema,
+  RecordResearchQuerySchema,
+  RegisterSourceSchema,
   ResearchContextSchema,
+  UpdateProductSchema,
+  UpdateResearchRunSchema,
 } from '../src/index.js';
 
 describe('write contracts', () => {
@@ -67,6 +76,64 @@ describe('write contracts', () => {
         extra: 1,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('product read and update contracts', () => {
+  const sampleResponse = {
+    id: '11111111-1111-1111-1111-111111111111',
+    name: 'Thermo Abachi',
+    scientificName: null,
+    description: 'Heat-treated.',
+    category: 'hardwood timber',
+    lifecycleStatus: 'ACTIVE',
+    createdAt: '2026-09-15T10:00:00.000Z',
+    updatedAt: '2026-09-15T11:00:00.000Z',
+  };
+
+  it('accepts a valid product response and rejects unknown fields', () => {
+    expect(ProductResponseSchema.safeParse(sampleResponse).success).toBe(true);
+    expect(
+      ProductResponseSchema.safeParse({ ...sampleResponse, extra: 1 }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unsupported lifecycle in a product response', () => {
+    expect(
+      ProductResponseSchema.safeParse({
+        ...sampleResponse,
+        lifecycleStatus: 'PAUSED',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts partial product updates, including nullable clears', () => {
+    expect(UpdateProductSchema.safeParse({}).success).toBe(true);
+    expect(UpdateProductSchema.safeParse({ name: 'Abachi' }).success).toBe(true);
+    expect(
+      UpdateProductSchema.safeParse({ lifecycleStatus: 'ARCHIVED' }).success,
+    ).toBe(true);
+    expect(UpdateProductSchema.safeParse({ category: null }).success).toBe(true);
+    expect(
+      UpdateProductSchema.safeParse({ scientificName: null, description: null })
+        .success,
+    ).toBe(true);
+  });
+
+  it('rejects invalid or unsupported product updates', () => {
+    const invalid = [
+      { lifecycleStatus: 'PAUSED' },
+      { lifecycleStatus: 'RETIRED' },
+      { name: '' },
+      { name: 'x'.repeat(256) },
+      { category: 123 },
+      { unexpected: true },
+    ];
+    for (const value of invalid) {
+      expect(UpdateProductSchema.safeParse(value).success, JSON.stringify(value)).toBe(
+        false,
+      );
+    }
   });
 });
 
@@ -157,6 +224,165 @@ describe('research context contract', () => {
           ...sampleContext.facts,
           pending: [{ ...sampleContext.facts.pending[0], value: 'leaked' }],
         },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('research persistence contracts', () => {
+  it('accepts a bodyless run creation and rejects unknown fields', () => {
+    expect(CreateResearchRunSchema.safeParse({}).success).toBe(true);
+    expect(CreateResearchRunSchema.safeParse(undefined).success).toBe(true);
+    expect(
+      CreateResearchRunSchema.safeParse({ opportunityId: 'x' }).success,
+    ).toBe(false);
+  });
+
+  it('only allows a pause reason on a PAUSED run and requires one there', () => {
+    expect(
+      UpdateResearchRunSchema.safeParse({ status: 'PAUSED' }).success,
+    ).toBe(false);
+    expect(
+      UpdateResearchRunSchema.safeParse({
+        status: 'PAUSED',
+        pauseReason: 'BUDGET_EXHAUSTED',
+      }).success,
+    ).toBe(true);
+    expect(
+      UpdateResearchRunSchema.safeParse({
+        status: 'RUNNING',
+        pauseReason: 'NEEDS_HUMAN',
+      }).success,
+    ).toBe(false);
+    expect(
+      UpdateResearchRunSchema.safeParse({ status: 'FAILED' }).success,
+    ).toBe(false);
+    expect(
+      UpdateResearchRunSchema.safeParse({
+        status: 'FAILED',
+        errorCode: 'provider_unavailable',
+      }).success,
+    ).toBe(true);
+    expect(
+      UpdateResearchRunSchema.safeParse({
+        checkpoint: {
+          coverage: [
+            { targetMarketId: 'm1', dimension: 'suppliers', status: 'PARTIAL' },
+          ],
+          pendingFollowUps: [{ kind: 'SOURCE', ref: 'source-1' }],
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('validates query, source, and evidence payloads', () => {
+    expect(
+      RecordResearchQuerySchema.safeParse({
+        queryText: 'abachi suppliers LT',
+        provider: 'exa',
+        status: 'SUCCEEDED',
+        resultCount: 3,
+      }).success,
+    ).toBe(true);
+    expect(
+      RecordResearchQuerySchema.safeParse({ queryText: '' }).success,
+    ).toBe(false);
+
+    expect(
+      RegisterSourceSchema.safeParse({ url: 'https://example.invalid/a' })
+        .success,
+    ).toBe(true);
+    expect(RegisterSourceSchema.safeParse({ url: 'not-a-url' }).success).toBe(
+      false,
+    );
+
+    expect(
+      PersistEvidenceSchema.safeParse({
+        url: 'https://example.invalid/a',
+        evidenceText: 'A fetched observation.',
+        verificationStatus: 'VERIFIED',
+      }).success,
+    ).toBe(true);
+    expect(
+      PersistEvidenceSchema.safeParse({
+        url: 'https://example.invalid/a',
+        evidenceText: '',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires evidence for FACT/INFERENCE claims and forbids it for UNKNOWN', () => {
+    expect(
+      PersistClaimSchema.safeParse({
+        type: 'FACT',
+        statement: 'A fact.',
+      }).success,
+    ).toBe(false);
+    expect(
+      PersistClaimSchema.safeParse({
+        type: 'FACT',
+        statement: 'A fact.',
+        evidence: [{ evidenceId: 'e1', stance: 'SUPPORTS' }],
+      }).success,
+    ).toBe(true);
+    expect(
+      PersistClaimSchema.safeParse({
+        type: 'UNKNOWN',
+        statement: 'Not established.',
+        evidence: [{ evidenceId: 'e1' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      PersistClaimSchema.safeParse({
+        type: 'UNKNOWN',
+        statement: 'Not established.',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('validates a claim correction: retraction vs replacement', () => {
+    const replacementClaimId = '11111111-1111-4111-8111-111111111111';
+
+    expect(
+      CorrectClaimSchema.safeParse({
+        kind: 'REPLACEMENT',
+        reason: 'Price unit corrected to per linear metre.',
+        replacementClaimId,
+      }).success,
+    ).toBe(true);
+    expect(
+      CorrectClaimSchema.safeParse({
+        kind: 'RETRACTION',
+        reason: 'Superseded by a corrected inference.',
+      }).success,
+    ).toBe(true);
+
+    // A REPLACEMENT requires a replacement id; a RETRACTION must not carry one.
+    expect(
+      CorrectClaimSchema.safeParse({ kind: 'REPLACEMENT', reason: 'r' }).success,
+    ).toBe(false);
+    expect(
+      CorrectClaimSchema.safeParse({
+        kind: 'RETRACTION',
+        reason: 'r',
+        replacementClaimId,
+      }).success,
+    ).toBe(false);
+
+    // Reason is required, unknown fields are rejected, ids must be UUIDs.
+    expect(
+      CorrectClaimSchema.safeParse({ kind: 'RETRACTION', reason: '   ' })
+        .success,
+    ).toBe(false);
+    expect(
+      CorrectClaimSchema.safeParse({ kind: 'RETRACTION', reason: 'r', extra: 1 })
+        .success,
+    ).toBe(false);
+    expect(
+      CorrectClaimSchema.safeParse({
+        kind: 'REPLACEMENT',
+        reason: 'r',
+        replacementClaimId: 'not-a-uuid',
       }).success,
     ).toBe(false);
   });

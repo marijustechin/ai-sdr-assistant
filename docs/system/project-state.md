@@ -1,8 +1,14 @@
 # Project State (Canonical)
 
-**Status:** Canonical, live snapshot. Last updated 2026-09-14 (O-007 closed;
-O-008 finalized and committed the verified research toolchain); prior update
-2026-09-10 (post-review documentation reconciliation of O-005/T-006).
+**Status:** Canonical, live snapshot. Last updated 2026-09-15: **O-011 accepted**
+— the first bounded research wave (LT / FI / GB), its fresh-session recovery, the
+bounded claim-correction lifecycle (six replacements + three retractions
+applied), the product-scoped discovery API, and the admin product-management UI
+are committed; the database run remains `PAUSED` / `DIMINISHING_RETURNS` and
+European market research is **not** complete. Prior 2026-09-15: O-010/T-007
+research-result persistence implemented; O-009 harness archived. Earlier
+2026-09-14 (O-007 closed; O-008 verified research toolchain); 2026-09-10
+(O-005/T-006 documentation reconciliation).
 **Companion:** `architecture.md`, `module-map.md`, `data-governance.md`,
 `research-context-contract.md`, `decisions.md`.
 
@@ -22,14 +28,19 @@ PostgreSQL).
 | Readiness endpoint | `GET /ready` → `200 {"status":"ready"}` via safe `SELECT 1`; non-sensitive `503 {"status":"not_ready"}` on failure | `soft/apps/api/src/health/readiness.controller.ts` |
 | Central database | Local PostgreSQL 17 via project-scoped Docker Compose (host port 54329) | `soft/docker-compose.yml` |
 | Prisma foundation | Prisma 7, ESM `prisma-client` generator, `@prisma/adapter-pg`, `prisma.config.ts`; `soft/packages/database` is the single schema/migration owner | `soft/packages/database` |
-| Migrations | `20260910112935_init` and `20260910150428_research_context_fields` applied; `prisma migrate status` clean | `soft/packages/database/prisma/migrations` |
+| Migrations | `20260910112935_init`, `20260910150428_research_context_fields`, `20260915075316_research_persistence`, and `20260915120000_claim_corrections` applied; `prisma migrate status` clean | `soft/packages/database/prisma/migrations` |
 | Core commercial schema | `Product`, `Offer`, `ProductFact` (CHECK-constrained), `TargetMarket`, `Opportunity` (with `contextVersion`/`objective`), `OpportunityTargetMarket`, `ResearchRun`, `ResearchRunTargetMarket`; `Product.category` | `soft/packages/database/prisma/schema.prisma` |
-| Shared contracts | `@ai-sdr/contracts` (Zod 4 + TypeScript) implements the canonical `research_context_v1` and the write-side input schemas | `soft/packages/contracts` |
-| Initial feature modules | `products-and-offers` (Product/Offer/ProductFact writes), `opportunities` (TargetMarket/Opportunity + join + context-version increments), and a minimal `control-plane` (`ResearchContextService` assembly with redaction) | `soft/apps/api/src/modules` |
+| Research persistence schema | `ResearchRun` (lifecycle `PAUSED` + separate `pauseReason`, JSONB `checkpoint`), `ResearchQuery` (run-scoped discovery log), `SourceReference` (deduplicated by URL), `Evidence` (`VERIFIED`/`UNVERIFIED`), `Claim` (`FACT`/`INFERENCE`/`UNKNOWN` + confidence), `ClaimEvidence` (stance-aware link) (T-007); claim correction lifecycle `ClaimLifecycleStatus` (`CURRENT`/`RETRACTED`/`REPLACED`) with `correctionReason`/`correctedAt` and a `replacedByClaimId` self-reference | `soft/packages/database/prisma/schema.prisma` |
+| Shared contracts | `@ai-sdr/contracts` (Zod 4 + TypeScript) implements the canonical `research_context_v1` and the write-side input schemas, including the research contracts (`research.ts`) | `soft/packages/contracts` |
+| Initial feature modules | `products-and-offers` (Product/Offer/ProductFact writes), `opportunities` (TargetMarket/Opportunity + join + context-version increments), a minimal `control-plane` (`ResearchContextService` assembly with redaction), and the T-007 `market-researcher` (run envelope + queries) and `evidence` (sources/evidence/claims) modules | `soft/apps/api/src/modules` |
 | Catalogue + Research Context API | `POST /products`, `POST /products/:productId/offers`, `POST /product-facts`, `POST /target-markets`, `POST /opportunities`, `POST /opportunities/:opportunityId/target-markets`, `GET /opportunities/:opportunityId/research-context` | `soft/apps/api/src/modules` |
+| Product admin + discovery API | `GET /products`, `GET /products/:productId`, `PATCH /products/:productId` (list/read/update), and product-scoped discovery `GET /products/:productId/offers`, `GET /products/:productId/opportunities` (offers → opportunities → attached target markets); shared `ProductResponseSchema`/`UpdateProductSchema` | `soft/apps/api/src/modules/products-and-offers` |
+| Admin product-management UI | Next.js 16 admin app (`soft/apps/web`) implemented for product list → create → open → edit → change lifecycle, talking to the internal API server-side only (`INTERNAL_API_KEY` never exposed to the browser); deferred items documented in `soft/apps/web/docs/MISSING_API.md` | `soft/apps/web` |
+| Research persistence API | `POST/GET /opportunities/:id/research-runs`, `GET/PATCH .../:runId`, `POST/GET .../:runId/queries`, and `POST/GET .../:runId/sources|evidence|claims`; `POST .../claims/:claimId/corrections` with `GET .../claims?includeHistory=true`; `PATCH` pause/resume with the `CONTEXT_CHANGED` guard (T-007 + claim-correction lifecycle) | `soft/apps/api/src/modules/{market-researcher,evidence}` |
 | Internal-key boundary | Every business route requires `x-internal-api-key`; constant-time check, fail-closed non-sensitive `503` when `INTERNAL_API_KEY` is unconfigured, non-sensitive `401` otherwise; key never logged or returned. `GET /health`/`GET /ready` stay public | `soft/apps/api/src/security` |
-| Tests | Database integration tests (isolated `ai_sdr_test`), contract tests, and API integration tests including the catalogue/research-context slice (isolated `ai_sdr_test_api`); API health/readiness/env tests still pass | `soft/packages/database/test`, `soft/packages/contracts/test`, `soft/apps/api/test` |
+| Tests | Database integration tests (isolated `ai_sdr_test`), contract tests, and API integration tests including the catalogue/research-context slice and the claim-correction lifecycle (isolated `ai_sdr_test_api`); API health/readiness/env tests still pass | `soft/packages/database/test`, `soft/packages/contracts/test`, `soft/apps/api/test` |
 | Root manager workspace | Root `AGENTS.md`, `ops/` task loop, `docs/system/` canonical docs, root `.gitignore` | this repository root |
+| Market researcher operating harness | Canonical instructions (entry point + lifecycle, evidence/price rules, coverage/stopping rules, persistence boundary, synthetic verification). **Instructions only** — not the `market-researcher` module and not a data store | `docs/system/research-harness/` |
 
 The **Catalogue + Research Context API** vertical slice (O-005/T-006) is
 implemented and awaiting human review: an operator enters canonical product,
@@ -38,33 +49,41 @@ offer, product-fact, target-market, and opportunity data once, and `GET
 `research_context_v1` (CONFIRMED+OPERATIONAL values, PENDING/RESTRICTED redacted,
 SUPERSEDED omitted).
 
-`soft/apps/web` is a retained **planned UI** (implementation deferred), not
-implemented functionality.
+`soft/apps/web` is the **admin product-management UI** (product list → create →
+open → edit → change lifecycle) over the internal API. It is deliberately
+narrow: a specifications editor, product research status, product↔target-market
+association, and `DELETE`/search/pagination are **not** implemented; the deferred
+items and open questions are recorded in `soft/apps/web/docs/MISSING_API.md`.
 
 ---
 
 ## Not implemented
 
-- Business feature modules beyond the initial slice: `knowledge`, `evidence`,
-  `research-records`, `market-researcher`, `lead-discoverer`, `lead-evaluator`,
-  `company-intelligence`, `contact-discovery`, `outreach-drafter`, `approvals`,
-  `jobs`.
+- Business feature modules not yet implemented: `knowledge`, `research-records`,
+  `lead-discoverer`, `lead-evaluator`, `company-intelligence`,
+  `contact-discovery`, `outreach-drafter`, `approvals`, `jobs`. The
+  `market-researcher` and `evidence` modules are implemented as **minimal
+  subsets** (T-007: run envelope + `research_queries`; source/evidence/claim
+  persistence).
 - Control-plane task routing, executions, activities, approval routing, and Task
   scope. Only the `ResearchContextService` read-model assembler exists today;
   ResearchContext `scope` is derived from the Opportunity's attached target
   markets until the Task table lands.
-- Immutable Research Context snapshots (`research_contexts`) and the
-  research-run endpoints (`POST`/`GET /opportunities/:id/research-runs`). The
-  implemented `GET .../research-context` returns a **current assembled** context,
-  not a frozen research-run snapshot.
-- `market-researcher` (first AI vertical) and BullMQ `jobs`.
+- Immutable Research Context snapshots (`research_contexts`): the run endpoints
+  exist (T-007), but `POST .../research-runs` records the opportunity's current
+  `contextVersion` **without freezing** a snapshot; `GET .../research-context`
+  returns a **current assembled** context.
+- `research-records` records/findings, `target_market_suggestions`,
+  `clarification_requests`, and DB-backed report generation — none exist.
+- `market-researcher` AI execution/orchestration and BullMQ `jobs`.
 - Worker process (`soft/apps/worker`).
-- UI (`soft/apps/web`).
-- Per-opportunity commercial terms (`opportunity_offers`); fact append-only
-  versioning; research records/findings; sources/claims; companies/contacts.
-- `evidence` resolution, so asserted facts carry `sourceLabel` and an empty
-  `evidence` array; knowledge/companies/human-decision context sections are
-  empty.
+- Full UI surface beyond admin product management (see the implemented
+  `soft/apps/web` scope above).
+- Per-opportunity commercial terms (`opportunity_offers`) and fact append-only
+  versioning.
+- `evidence` resolution into the Research Context, so asserted facts carry
+  `sourceLabel` and an empty `evidence` array; knowledge/companies/
+  human-decision context sections are empty.
 
 See `module-map.md` for the full intended module set and status markers.
 
@@ -84,13 +103,37 @@ See `module-map.md` for the full intended module set and status markers.
 
 ---
 
-## Immediate priority (manager, O-007 — CLOSED 2026-09-14; O-008 finalized the docs)
+## Immediate priority (manager, O-011 accepted 2026-09-15)
 
 Research capability and coverage are the immediate priority; product onboarding
 is postponed. O-007 is **closed/archived**
 (`ops/done/2026-09-14-equip-validate-research-toolchain.md`), with the manager
 toolchain documented in `research-toolchain.md`; O-008 finalized that
 documentation and committed it to `origin/main`.
+
+**O-009 — the market researcher operating harness — is complete and archived**
+(`ops/done/2026-09-15-market-researcher-operating-harness.md`); it created the
+canonical harness under `docs/system/research-harness/`.
+
+**O-010/T-007 — research-result persistence — is complete and committed.** It
+added the `market-researcher` / `evidence` modules and the migration
+`20260915075316_research_persistence`, so the harness's minimum resumable
+scenario works over the API (run + queries + source/evidence/claim + checkpoint
++ pause/resume with a `CONTEXT_CHANGED` guard). The harness behavior is
+reconciled with the actual schema/API in
+`docs/system/research-harness/persistence-boundary.md` §4.
+
+**O-011 — the first real resumable European research wave (LT / FI / GB) — is
+accepted/closed** (`ops/done/2026-09-15-first-research-wave-lt-fi-gb.md`). It
+executed the wave through the verified manager toolchain, persisted records
+incrementally, demonstrated fresh-session recovery from the API alone, and added
+the bounded claim-correction lifecycle (six replacements + three retractions
+applied; migration `20260915120000_claim_corrections`). The database run
+`ba1fcdd0-…` remains **`PAUSED` / `DIMINISHING_RETURNS`** (`contextVersion 7`)
+with its checkpoint, usage counters and follow-ups unchanged. **European market
+research is not complete** (FI facade dedicated product and GB sauna GB-based
+cladding remain gaps; our product facts remain `UNKNOWN`). No paid call was
+made; no billing change.
 
 **Verified operating toolchain (2026-09-14):**
 
@@ -114,8 +157,8 @@ tool**. This is manager-environment tooling only: it does not implement
 
 ## Next planned functional slice
 
-**Knowledge + Approvals (human gate)** — the next slice after the implemented
-Catalogue + Research Context API (which is awaiting human review):
+**Knowledge + Approvals (human gate)** — the next functional slice after the
+accepted Catalogue + Research Context API and the accepted first research wave:
 
 - `knowledge` versioned entities (customer profiles, buyer personas, value
   propositions);
@@ -128,11 +171,15 @@ Ref: `module-map.md` §§4, 14; `research-context-contract.md` §10.
 
 ## Sequencing after the first slice (planned)
 
-The first slice (Catalogue + Research Context API) is implemented and awaiting
-review. Remaining sequence:
+The first slice (Catalogue + Research Context API), the research-result
+persistence slice (O-010/T-007), the first bounded research wave (O-011), the
+claim-correction lifecycle, the product-scoped discovery API, and the admin
+product-management UI are implemented and accepted. Remaining sequence:
 
-1. Knowledge + Approvals (human gate).
-2. Research-records + Market Researcher (+ jobs/worker).
-3. Discovery & intelligence (lead-discoverer → evaluator →
+1. Frozen `research_contexts` snapshots (so resume can read the run's frozen
+   context) and wiring `priorResearchRuns` into the Research Context.
+2. Knowledge + Approvals (human gate).
+3. Research-records + full Market Researcher execution (+ jobs/worker).
+4. Discovery & intelligence (lead-discoverer → evaluator →
    company-intelligence → contact-discovery).
-4. Outreach + inbox (post-MVP).
+5. Outreach + inbox (post-MVP).

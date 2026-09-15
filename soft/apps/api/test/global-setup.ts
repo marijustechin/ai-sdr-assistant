@@ -52,6 +52,9 @@ export default async function setup(): Promise<() => Promise<void>> {
       cwd: SOFT_ROOT,
       env: { ...process.env, DATABASE_URL: url },
       stdio: 'inherit',
+      // On Windows `pnpm` is only available as `pnpm.cmd`, which execFileSync
+      // cannot launch without a shell.
+      shell: process.platform === 'win32',
     },
   );
   process.env.DATABASE_URL = url;

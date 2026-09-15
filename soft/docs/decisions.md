@@ -13,6 +13,57 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-15 — Bounded claim-correction lifecycle: retraction/replacement (not versioning)
+
+`claims` gains a small correction lifecycle: `lifecycleStatus`
+(`CURRENT | RETRACTED | REPLACED`, default `CURRENT`), `correctionReason`,
+`correctedAt`, and a self-FK `replacedByClaimId`. The `evidence` module exposes
+`POST .../claims/:claimId/corrections` (`{ kind: RETRACTION | REPLACEMENT,
+reason, replacementClaimId? }`) and `GET .../claims?includeHistory=true`.
+Original claims and their evidence links are never edited or deleted. This is a
+**separate dimension** from `ClaimType` (FACT/INFERENCE/UNKNOWN) and from
+`EvidenceVerificationStatus`. Validation is transactional: the target must be
+`CURRENT` and in the same run; a replacement must be a different, `CURRENT`
+claim in the same run and must not form a cycle; a second correction of the same
+claim is a conflict.
+
+- Reason: overlapping corrections of research claims were previously expressed
+  by appending more `INFERENCE` claims, which is ambiguous and does not formally
+  supersede anything. A bounded, domain-specific lifecycle makes retraction and
+  replacement explicit and keeps current reads clean.
+- Consequence: this is **not** a generic versioning framework (no version
+  numbers, no generic entity-version table); the `products-and-offers` fact
+  append-only versioning remains separate and unimplemented. The research
+  harness is updated to require this mechanism for future corrections.
+
+## 2026-09-15 — Research persistence keeps discovery, evidence, and claims apart (T-007)
+
+A first-class `evidence` entity sits between sources and claims, replacing the
+previously planned `claim_sources` join: `source_references` (deduplicated by
+URL) ← `evidence` (observation + retrieval date + `VERIFIED`/`UNVERIFIED`) →
+`claim_evidence` (stance) → `claims` (`FACT`/`INFERENCE`/`UNKNOWN` +
+confidence). Run-scoped discovery is a separate `research_queries` table, and
+`research_runs` gains `PAUSED` + `pauseReason`/`pauseNote` and a JSONB
+`checkpoint`/`checkpointAt`. A `FACT`/`INFERENCE` claim requires ≥1 evidence
+link and an `UNKNOWN` claim carries none (service-enforced, because the rule
+spans rows). A generic `search_results` table was deliberately not introduced.
+
+- Reason: the harness requires provenance and an explicit discovery/evidence/
+  conclusion separation; a join-only `claim_sources` could not represent an
+  observation independent of a claim or multiple evidence records per claim.
+- Consequence: canonical `data-governance.md`/`module-map.md` were updated;
+  `research_contexts` freeze, `research-records`, suggestions, clarifications,
+  and job/worker orchestration remain separate future tasks.
+
+## 2026-09-15 — Test harness spawns `pnpm` through a shell on Windows (T-007)
+
+`packages/database/test/global-setup.ts` and `apps/api/test/global-setup.ts`
+pass `shell: process.platform === 'win32'` to `execFileSync`, because Windows
+only provides `pnpm.cmd`, which `execFileSync` cannot launch directly.
+
+- Reason: the integration tests must run on the Windows host without changing
+  how they run elsewhere (Node emits a `DEP0190` warning; arguments are static).
+
 ## 2026-09-10 — Internal API key guards business endpoints (T-006)
 
 Every business endpoint (product/offer/fact/target-market/opportunity creation

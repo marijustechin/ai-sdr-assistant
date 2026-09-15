@@ -14,6 +14,7 @@ wins; historical material never overrides it.
 | `docs/system/` | **Canonical (live)** | System/business architecture, module map, data governance, research-context contract, decisions, project state | Application code, test mechanics |
 | `docs/system/decisions.md` | **Canonical (live)** | Recorded consequential decisions + rationale | Superseded proposals |
 | `docs/system/research-toolchain.md` | **Canonical (live)** | Manager research toolchain: installed tools, auth, selection rules, limits | Live business state, provider secrets |
+| `docs/system/research-harness/` | **Canonical (live)** | Market researcher **operating harness**: entry point, lifecycle, evidence/price rules, coverage/stopping rules, persistence boundary, synthetic verification | Application code, live business state; implementing the `market-researcher` module |
 | `docs/benchmarks/` | **NON-CANONICAL — capability evidence** | Dated, explicitly labelled capability-test records | Authority; live business state |
 | `soft/AGENTS.md` | **Binding (implementation)** | Implementation contract (toolchain, code invariants, testing, schema) | Manager-level direction |
 | `soft/docs/` | **Implementation (live)** | Software implementation, testing, security, coding harness, data model, implementation contracts | Duplicating canonical system docs; editing the schema |
@@ -64,4 +65,5 @@ The canonical, reconciled versions of every redesign topic live in
 6. `docs/system/research-context-contract.md` — the cross-module contract.
 7. `docs/system/decisions.md` — recorded decisions.
 8. `docs/system/research-toolchain.md` — manager research toolchain operating context.
-9. `soft/docs/` — implementation, testing, security, harness details.
+9. `docs/system/research-harness/AGENTS.md` — market researcher operating harness (entry point).
+10. `soft/docs/` — implementation, testing, security, harness details.

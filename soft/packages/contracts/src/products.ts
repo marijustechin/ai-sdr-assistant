@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
 /**
- * Product, Offer, and ProductFact API contracts (write side).
+ * Product, Offer, and ProductFact API contracts.
  *
- * These schemas validate request bodies only. Response shapes for the research
- * context live in `research-context.ts` and implement the canonical
- * `docs/system/research-context-contract.md`.
+ * Write-side schemas validate request bodies. `ProductResponseSchema` is the
+ * public read shape returned by the Product admin endpoints; product timestamps
+ * are ISO-8601 strings on the wire (consistent with `research-context.ts`).
  */
 
 export const ProductLifecycleStatusSchema = z.enum([
@@ -36,6 +36,35 @@ export const CreateProductSchema = z.strictObject({
 export const CreateOfferSchema = z.strictObject({
   name: z.string().trim().min(1).max(255),
   commercialStatus: OfferStatusSchema.optional(),
+});
+
+/**
+ * Partial Product update. Only the fields the admin UI edits. `name` and
+ * `lifecycleStatus` are non-nullable; the nullable text columns may be cleared
+ * with `null`. Unknown fields are rejected.
+ */
+export const UpdateProductSchema = z.strictObject({
+  name: z.string().trim().min(1).max(255).optional(),
+  scientificName: z.string().trim().min(1).max(255).nullable().optional(),
+  description: z.string().trim().min(1).nullable().optional(),
+  category: z.string().trim().min(1).max(120).nullable().optional(),
+  lifecycleStatus: ProductLifecycleStatusSchema.optional(),
+});
+
+/**
+ * Public Product read shape. Intentionally small: identity, the stored text
+ * fields, lifecycle, and timestamps. No facts, offers, target markets, research
+ * status, or derived values.
+ */
+export const ProductResponseSchema = z.strictObject({
+  id: z.string().min(1),
+  name: z.string(),
+  scientificName: z.string().nullable(),
+  description: z.string().nullable(),
+  category: z.string().nullable(),
+  lifecycleStatus: ProductLifecycleStatusSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 
 /**
@@ -76,6 +105,8 @@ export const CreateProductFactSchema = z
   );
 
 export type CreateProductInput = z.infer<typeof CreateProductSchema>;
+export type UpdateProductInput = z.infer<typeof UpdateProductSchema>;
+export type ProductResponse = z.infer<typeof ProductResponseSchema>;
 export type CreateOfferInput = z.infer<typeof CreateOfferSchema>;
 export type CreateProductFactInput = z.infer<typeof CreateProductFactSchema>;
 export type FactStatus = z.infer<typeof FactStatusSchema>;

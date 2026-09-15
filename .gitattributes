@@ -10,3 +10,8 @@
 # migrations, and archived `soft/tasks/**` records retain the default
 # whitespace checking (`blank-at-eol`, `blank-at-eof`, `space-before-tab`).
 legacy/** whitespace=-trailing-space
+
+# Active shell scripts are POSIX and must stay LF on every platform (this
+# checkout uses core.autocrlf=true). Path-scoped to active scripts only; the
+# legacy/** whitespace exception above is unchanged.
+soft/scripts/*.sh text eol=lf

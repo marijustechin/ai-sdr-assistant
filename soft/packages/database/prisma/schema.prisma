@@ -149,11 +149,18 @@ model ResearchRun {
   finishedAt     DateTime?         @map("finished_at") @db.Timestamptz(6)
   errorCode      String?           @map("error_code") @db.VarChar(120)
   errorNote      String?           @map("error_note") @db.Text
+  pauseReason    ResearchRunPauseReason? @map("pause_reason")
+  pauseNote      String?           @map("pause_note") @db.Text
+  checkpoint     Json?             @map("checkpoint")
+  checkpointAt   DateTime?         @map("checkpoint_at") @db.Timestamptz(6)
   createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   opportunity   Opportunity               @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
   targetMarkets ResearchRunTargetMarket[]
+  queries       ResearchQuery[]
+  evidence      Evidence[]
+  claims        Claim[]
 
   @@index([opportunityId])
   @@map("research_runs")
@@ -173,6 +180,120 @@ model ResearchRunTargetMarket {
   @@unique([researchRunId, targetMarketId])
   @@index([targetMarketId])
   @@map("research_run_target_markets")
+}
+
+/// A single discovery/search query issued during a ResearchRun: what was asked,
+/// with which tool/provider, when it ran, and its outcome. Operational
+/// provenance only — never model reasoning or chain-of-thought.
+/// @owner market-researcher
+model ResearchQuery {
+  id            String              @id @default(uuid()) @db.Uuid
+  researchRunId String              @map("research_run_id") @db.Uuid
+  queryText     String              @map("query_text") @db.Text
+  provider      String?             @db.VarChar(120)
+  status        ResearchQueryStatus @default(PENDING)
+  executedAt    DateTime?           @map("executed_at") @db.Timestamptz(6)
+  resultCount   Int?                @map("result_count")
+  errorCode     String?             @map("error_code") @db.VarChar(120)
+  errorNote     String?             @map("error_note") @db.Text
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  researchRun ResearchRun @relation(fields: [researchRunId], references: [id], onDelete: Cascade)
+
+  @@index([researchRunId])
+  @@map("research_queries")
+}
+
+/// A concrete discovered source (usually a fetched URL), deduplicated by URL so
+/// the same source is not stored repeatedly. This is the raw reference; the
+/// factual observation extracted from it lives in `evidence`.
+/// @owner evidence
+model SourceReference {
+  id         String   @id @default(uuid()) @db.Uuid
+  url        String   @db.VarChar(2048)
+  title      String?  @db.VarChar(512)
+  publisher  String?  @db.VarChar(255)
+  sourceType String?  @map("source_type") @db.VarChar(64)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  evidence Evidence[]
+
+  @@unique([url])
+  @@map("source_references")
+}
+
+/// A factual observation extracted from a source during a run — the raw
+/// evidence. Deliberately separate from `claims` (the conclusions drawn from
+/// it), so evidence and inference cannot be collapsed.
+/// @owner evidence
+model Evidence {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  sourceReferenceId  String                     @map("source_reference_id") @db.Uuid
+  researchRunId      String                     @map("research_run_id") @db.Uuid
+  evidenceText       String                     @map("evidence_text") @db.Text
+  verificationStatus EvidenceVerificationStatus @default(UNVERIFIED) @map("verification_status")
+  retrievedAt        DateTime?                  @map("retrieved_at") @db.Timestamptz(6)
+  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sourceReference SourceReference @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict)
+  researchRun     ResearchRun     @relation(fields: [researchRunId], references: [id], onDelete: Cascade)
+  claimLinks      ClaimEvidence[]
+
+  @@index([sourceReferenceId])
+  @@index([researchRunId])
+  @@map("evidence")
+}
+
+/// A research conclusion/assertion derived from evidence. One claim may be
+/// supported, contradicted, or contextualised by many evidence records.
+///
+/// A claim also has a small **correction lifecycle** (`lifecycleStatus`) that is
+/// deliberately separate from `type` (FACT/INFERENCE/UNKNOWN) and from evidence
+/// verification: a claim may be `CURRENT`, `RETRACTED`, or `REPLACED`. Retracted/
+/// replaced claims are preserved (never edited or deleted); the correction
+/// records its reason and timestamp, and a replacement points at another claim.
+/// @owner evidence
+model Claim {
+  id               String              @id @default(uuid()) @db.Uuid
+  researchRunId    String              @map("research_run_id") @db.Uuid
+  type             ClaimType
+  statement        String              @db.Text
+  confidence       ClaimConfidence     @default(LOW)
+  lifecycleStatus  ClaimLifecycleStatus @default(CURRENT) @map("lifecycle_status")
+  correctionReason String?             @map("correction_reason") @db.Text
+  correctedAt      DateTime?           @map("corrected_at") @db.Timestamptz(6)
+  replacedByClaimId String?            @map("replaced_by_claim_id") @db.Uuid
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  researchRun   ResearchRun     @relation(fields: [researchRunId], references: [id], onDelete: Cascade)
+  evidenceLinks ClaimEvidence[]
+  replacedBy    Claim?          @relation("ClaimReplacement", fields: [replacedByClaimId], references: [id], onDelete: SetNull)
+  replaces      Claim[]         @relation("ClaimReplacement")
+
+  @@index([researchRunId])
+  @@index([lifecycleStatus])
+  @@map("claims")
+}
+
+/// Claim↔evidence link. `stance` keeps conflicting evidence explicit instead of
+/// silently averaging it into one conclusion.
+/// @owner evidence
+model ClaimEvidence {
+  id         String              @id @default(uuid()) @db.Uuid
+  claimId    String              @map("claim_id") @db.Uuid
+  evidenceId String              @map("evidence_id") @db.Uuid
+  stance     ClaimEvidenceStance @default(SUPPORTS)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  claim    Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@unique([claimId, evidenceId])
+  @@index([evidenceId])
+  @@map("claim_evidence")
 }
 
 enum ProductLifecycleStatus {
@@ -215,7 +336,63 @@ enum FactVisibility {
 enum ResearchRunStatus {
   QUEUED
   RUNNING
+  PAUSED
   COMPLETED
   FAILED
   CANCELLED
+}
+
+/// Why a `PAUSED` run stopped. Kept separate from the lifecycle status and from
+/// `error*` (which belong to `FAILED`).
+enum ResearchRunPauseReason {
+  BUDGET_EXHAUSTED
+  ACCESS_BLOCKED
+  CONTEXT_CHANGED
+  DIMINISHING_RETURNS
+  NEEDS_HUMAN
+}
+
+enum ResearchQueryStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// Whether an evidence item rests on a fetched, retrievable source (`VERIFIED`)
+/// or is still a lead (`UNVERIFIED`). `UNKNOWN` conclusions are claim types.
+enum EvidenceVerificationStatus {
+  VERIFIED
+  UNVERIFIED
+}
+
+/// Canonical claim types: a `FACT` is stated by fetched evidence, an
+/// `INFERENCE` is derived from evidence, an `UNKNOWN` is not established.
+enum ClaimType {
+  FACT
+  INFERENCE
+  UNKNOWN
+}
+
+enum ClaimConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+/// Correction lifecycle of a claim, kept separate from `ClaimType` and from
+/// `EvidenceVerificationStatus`. `REPLACED` claims carry a `replacedByClaimId`;
+/// `RETRACTED` claims do not.
+enum ClaimLifecycleStatus {
+  CURRENT
+  RETRACTED
+  REPLACED
+}
+
+/// How a piece of evidence relates to a claim, so conflicting evidence is not
+/// collapsed.
+enum ClaimEvidenceStance {
+  SUPPORTS
+  REFUTES
+  CONTEXT
 }

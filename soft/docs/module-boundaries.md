@@ -67,14 +67,14 @@ Each module is defined by: **responsibility, inputs, outputs, tables read, table
 
 ## 5. `evidence`
 
-- **Responsibility:** Single owner of source references and claims. Validates claim types (FACT / INFERENCE / UNKNOWN), enforces citation and confidence rules, deduplicates sources by URL, and exports the source register (CSV).
-- **Inputs:** `RegisterSourceInput`, `PersistClaimInput`, `ClaimValidationInput`.
-- **Outputs:** `SourceReference`, `Claim`, validation results, CSV register.
+- **Responsibility:** Single owner of source references, evidence, and claims. Validates claim types (FACT / INFERENCE / UNKNOWN), enforces citation and confidence rules, deduplicates sources by URL, and exports the source register (CSV). Also owns the bounded **claim-correction lifecycle** (retraction / replacement), kept separate from claim type and evidence verification.
+- **Inputs:** `RegisterSourceInput`, `PersistClaimInput`, `CorrectClaimInput`, `ClaimValidationInput`.
+- **Outputs:** `SourceReference`, `Claim` (incl. `lifecycleStatus` + correction metadata), validation results, CSV register.
 - **Tables read:** `source_references`, `claims`, source-join tables.
 - **Tables written:** `source_references`, `claims`, `claim_sources`, and all source-join tables (`company_sources`, `contact_sources`, `research_record_sources`, `outreach_draft_sources`).
 - **Emitted events:** `evidence.source_registered`, `evidence.claim_persisted`, `evidence.claim_rejected`.
 - **Approval requirements:** none (mechanical validation only).
-- **Failure behaviour:** a FACT claim without a source is rejected; an UNKNOWN claim carrying a price is rejected; partial source failures are recorded without losing valid claims.
+- **Failure behaviour:** a FACT claim without a source is rejected; an UNKNOWN claim carrying a price is rejected; partial source failures are recorded without losing valid claims. A correction of an already-corrected claim is rejected (conflict); a missing/self/cross-run/non-current replacement or a cycle is rejected (bad request); the correction write is transactional.
 
 > The operating rules (source policy, claim schema, price normalisation, non-comparable treatment, fixtures) are defined in `../legacy/docs/market-research-harness.md` (historical input) and remain the contract for this module until re-promoted into `soft/docs/`.
 
@@ -89,7 +89,7 @@ Each module is defined by: **responsibility, inputs, outputs, tables read, table
 - **Tables written:** `research_records`, `research_findings` (owner); `research_record_sources` via `evidence`.
 - **Emitted events:** `research_record.created`, `research_record.updated`.
 - **Approval requirements:** none — records are evidence, not mutations of business state.
-- **Failure behaviour:** invalid `type` is rejected; a record without required scope fields is rejected; findings are validated for `evidenceStatus` (VERIFIED / USER_PROVIDED / INFERRED / UNVERIFIED).
+- **Failure behaviour:** invalid `type` is rejected; a record without required scope fields is rejected; findings are validated for `evidenceStatus` (VERIFIED / USER_PROVIDED / INFERENCE / UNVERIFIED).
 
 ---
 
