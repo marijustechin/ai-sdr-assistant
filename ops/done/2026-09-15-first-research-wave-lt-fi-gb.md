@@ -419,4 +419,3 @@ wave** (LT / FI / GB) and the claim-correction work built on it.
    `ops/done/2026-09-15-finalize-first-milestone.md` and the final report.
 4. **Exclusions.** No unfinished or unrelated work was auto-included; anything
    excluded is reported in the finalization record.
-
