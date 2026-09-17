@@ -88,7 +88,7 @@ export default async function ProductDetailPage({
             </span>
           </div>
 
-          <ProductSectionNav />
+          <ProductSectionNav productId={product.id} active="overview" />
 
           <div className="max-w-3xl">
             <ProductForm

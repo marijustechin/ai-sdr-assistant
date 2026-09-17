@@ -161,6 +161,7 @@ model ResearchRun {
   queries       ResearchQuery[]
   evidence      Evidence[]
   claims        Claim[]
+  offerings     ResearchOffering[]
 
   @@index([opportunityId])
   @@map("research_runs")
@@ -218,6 +219,7 @@ model SourceReference {
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   evidence Evidence[]
+  offerings ResearchOffering[]
 
   @@unique([url])
   @@map("source_references")
@@ -240,6 +242,7 @@ model Evidence {
   sourceReference SourceReference @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict)
   researchRun     ResearchRun     @relation(fields: [researchRunId], references: [id], onDelete: Cascade)
   claimLinks      ClaimEvidence[]
+  offerings       ResearchOffering[]
 
   @@index([sourceReferenceId])
   @@index([researchRunId])
@@ -272,6 +275,7 @@ model Claim {
   evidenceLinks ClaimEvidence[]
   replacedBy    Claim?          @relation("ClaimReplacement", fields: [replacedByClaimId], references: [id], onDelete: SetNull)
   replaces      Claim[]         @relation("ClaimReplacement")
+  offerings     ResearchOffering[]
 
   @@index([researchRunId])
   @@index([lifecycleStatus])
@@ -294,6 +298,50 @@ model ClaimEvidence {
   @@unique([claimId, evidenceId])
   @@index([evidenceId])
   @@map("claim_evidence")
+}
+
+/// A structured, evidence-linked company offering observed during a run (e.g. a
+/// supplier's thermo-Abachi cladding listing). Stores only values explicitly
+/// recorded in the linked evidence/claim; an unrecorded field stays null and its
+/// enum stays `UNKNOWN`. Populated through the API with mandatory provenance
+/// (`sourceReferenceId` + `evidenceId`, optional `claimId`) and deduplicated by
+/// a per-run `fingerprint`, so re-importing the same observation cannot create a
+/// duplicate. Never authored from prose by the UI.
+/// @owner evidence
+model ResearchOffering {
+  id                  String             @id @default(uuid()) @db.Uuid
+  researchRunId       String             @map("research_run_id") @db.Uuid
+  companyText         String?            @map("company_text") @db.VarChar(255)
+  companyLocationText String?            @map("company_location_text") @db.VarChar(255)
+  marketServedText    String?            @map("market_served_text") @db.VarChar(255)
+  productText         String?            @map("product_text") @db.VarChar(512)
+  applicationText     String?            @map("application_text") @db.VarChar(255)
+  treatmentText       String?            @map("treatment_text") @db.VarChar(255)
+  dimensionsText      String?            @map("dimensions_text") @db.VarChar(255)
+  priceText           String?            @map("price_text") @db.Text
+  priceCurrency       String?            @map("price_currency") @db.VarChar(12)
+  priceUnit           String?            @map("price_unit") @db.VarChar(64)
+  vatStatus           OfferingVatStatus  @default(UNKNOWN) @map("vat_status")
+  priceBasis          OfferingPriceBasis @default(UNKNOWN) @map("price_basis")
+  sampleKind          OfferingSampleKind @default(UNKNOWN) @map("sample_kind")
+  matchType           OfferingMatchType  @default(UNKNOWN) @map("match_type")
+  sourceReferenceId   String             @map("source_reference_id") @db.Uuid
+  evidenceId          String             @map("evidence_id") @db.Uuid
+  claimId             String?            @map("claim_id") @db.Uuid
+  fingerprint         String             @db.VarChar(64)
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  researchRun     ResearchRun     @relation(fields: [researchRunId], references: [id], onDelete: Cascade)
+  sourceReference SourceReference @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict)
+  evidence        Evidence        @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+  claim           Claim?          @relation(fields: [claimId], references: [id], onDelete: SetNull)
+
+  @@unique([fingerprint])
+  @@index([researchRunId])
+  @@index([evidenceId])
+  @@index([claimId])
+  @@map("research_offerings")
 }
 
 enum ProductLifecycleStatus {
@@ -387,6 +435,37 @@ enum ClaimLifecycleStatus {
   CURRENT
   RETRACTED
   REPLACED
+}
+
+/// Recorded VAT treatment of an offering price. `UNKNOWN` means not recorded.
+enum OfferingVatStatus {
+  INCLUDED
+  EXCLUDED
+  NOT_STATED
+  UNKNOWN
+}
+
+/// Recorded commercial basis of an offering price. Never inferred.
+enum OfferingPriceBasis {
+  RETAIL_LIST
+  TRADE_B2B
+  UNKNOWN
+}
+
+/// Whether a recorded price is for a sample or a full product. Never inferred.
+enum OfferingSampleKind {
+  SAMPLE
+  FULL_PRODUCT
+  UNKNOWN
+}
+
+/// How an offering relates to the researched product. Never inferred from prose
+/// alone; the researcher records the classification explicitly.
+enum OfferingMatchType {
+  EXACT_MATCH
+  ADJACENT
+  SUBSTITUTE
+  UNKNOWN
 }
 
 /// How a piece of evidence relates to a claim, so conflicting evidence is not

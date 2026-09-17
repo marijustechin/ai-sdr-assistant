@@ -57,6 +57,28 @@ weaker sources). No pretend-precise scoring. Persisted as `claims.confidence`
   replacement) `replacedByClaimId`; the original claim and its evidence links
   are preserved. Current reads exclude non-`CURRENT` claims; history is
   retrievable with `?includeHistory=true`.
+- `research_offerings` — a structured, evidence-linked company offering. Fields:
+  `companyText`, `companyLocationText`, `marketServedText`, `productText`,
+  `applicationText`, `treatmentText`, `dimensionsText`, `priceText` (original
+  wording), `priceCurrency`, `priceUnit`, and the enums `vatStatus`
+  (`INCLUDED | EXCLUDED | NOT_STATED | UNKNOWN`), `priceBasis`
+  (`RETAIL_LIST | TRADE_B2B | UNKNOWN`), `sampleKind`
+  (`SAMPLE | FULL_PRODUCT | UNKNOWN`) and `matchType`
+  (`EXACT_MATCH | ADJACENT | SUBSTITUTE | UNKNOWN`).
+  - **Provenance is mandatory:** `sourceReferenceId` + `evidenceId` (same run),
+    optional CURRENT `claimId`. The API rejects evidence from another run, a
+    source mismatch, or a non-current claim.
+  - **Unknown values:** an unrecorded field is stored `null` and its enum
+    `UNKNOWN`; the UI renders "not recorded" and never invents a value.
+  - **Deduplication:** a deterministic per-run `fingerprint` (unique) means the
+    same observation imported twice is one record — safe to re-run.
+  - **Scope:** persist offerings for in-scope company/product/price evidence
+    during the run. General market findings remain claims and are **not**
+    required to become offerings.
+  - **Correction consistency:** if a linked claim is later `REPLACED`/`RETRACTED`,
+    the offering is flagged for review and its stored fields are shown as recorded
+    — they are never overwritten from the replacement; the linked claim stays
+    resolvable via `includeHistory=true`.
 
 A claim may rest on many evidence records (and vice versa). Discovery queries are
 recorded separately in `research_queries`; a search snippet is never evidence.

@@ -1,18 +1,22 @@
+import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   PrismaService,
   type Claim,
   type ClaimEvidence,
   type Evidence,
+  type ResearchOffering,
   type SourceReference,
 } from '@ai-sdr/database';
-import { ClaimCorrectionError } from '../domain/types.js';
+import { ClaimCorrectionError, OfferingError } from '../domain/types.js';
 import type {
   ClaimEvidenceStance,
   ClaimLifecycleStatus,
   ClaimRecord,
   CorrectClaimData,
+  CreateOfferingData,
   EvidenceRecord,
+  OfferingRecord,
   PersistClaimData,
   PersistEvidenceData,
   RegisterSourceData,
@@ -67,6 +71,55 @@ function toClaimRecord(claim: ClaimWithLinks): ClaimRecord {
       stance: link.stance as ClaimEvidenceStance,
     })),
   };
+}
+
+type OfferingWithEvidence = ResearchOffering & { evidence: EvidenceWithSource };
+
+function toOfferingRecord(offering: OfferingWithEvidence): OfferingRecord {
+  return {
+    id: offering.id,
+    researchRunId: offering.researchRunId,
+    companyText: offering.companyText,
+    companyLocationText: offering.companyLocationText,
+    marketServedText: offering.marketServedText,
+    productText: offering.productText,
+    applicationText: offering.applicationText,
+    treatmentText: offering.treatmentText,
+    dimensionsText: offering.dimensionsText,
+    priceText: offering.priceText,
+    priceCurrency: offering.priceCurrency,
+    priceUnit: offering.priceUnit,
+    vatStatus: offering.vatStatus,
+    priceBasis: offering.priceBasis,
+    sampleKind: offering.sampleKind,
+    matchType: offering.matchType,
+    sourceReferenceId: offering.sourceReferenceId,
+    evidenceId: offering.evidenceId,
+    claimId: offering.claimId,
+    fingerprint: offering.fingerprint,
+    createdAt: offering.createdAt,
+    updatedAt: offering.updatedAt,
+    evidence: toEvidenceRecord(offering.evidence),
+  };
+}
+
+/** Deterministic per-run idempotency key: identical submissions never duplicate. */
+function offeringFingerprint(data: CreateOfferingData): string {
+  const parts = [
+    data.researchRunId,
+    data.companyText,
+    data.companyLocationText,
+    data.marketServedText,
+    data.productText,
+    data.applicationText,
+    data.treatmentText,
+    data.dimensionsText,
+    data.priceText,
+    data.sourceReferenceId,
+  ]
+    .map((part) => (part ?? '').trim().toLowerCase())
+    .join('\u0000');
+  return createHash('sha256').update(parts, 'utf8').digest('hex');
 }
 
 /**
@@ -278,5 +331,88 @@ export class EvidenceRepository {
       });
       return toClaimRecord(full);
     });
+  }
+
+  /**
+   * Creates or updates an offering, deduplicated by a deterministic per-run
+   * fingerprint. Provenance is enforced: the evidence must belong to the run,
+   * its source must match, and any linked claim must be a CURRENT claim of the
+   * same run. Nothing is inferred — unrecorded fields stay null / `UNKNOWN`.
+   */
+  async createOffering(data: CreateOfferingData): Promise<OfferingRecord> {
+    return this.prisma.db.$transaction(async (tx) => {
+      const evidence = await tx.evidence.findFirst({
+        where: { id: data.evidenceId, researchRunId: data.researchRunId },
+        include: { sourceReference: true },
+      });
+      if (!evidence) {
+        throw new OfferingError('offering_evidence_not_in_run');
+      }
+      if (evidence.sourceReferenceId !== data.sourceReferenceId) {
+        throw new OfferingError('offering_source_mismatch');
+      }
+      if (data.claimId !== undefined) {
+        const claim = await tx.claim.findFirst({
+          where: { id: data.claimId, researchRunId: data.researchRunId },
+        });
+        if (!claim) {
+          throw new OfferingError('offering_claim_not_in_run');
+        }
+        if (claim.lifecycleStatus !== 'CURRENT') {
+          throw new OfferingError('offering_claim_not_current');
+        }
+      }
+
+      const fingerprint = offeringFingerprint(data);
+      const fields = {
+        companyText: data.companyText ?? null,
+        companyLocationText: data.companyLocationText ?? null,
+        marketServedText: data.marketServedText ?? null,
+        productText: data.productText ?? null,
+        applicationText: data.applicationText ?? null,
+        treatmentText: data.treatmentText ?? null,
+        dimensionsText: data.dimensionsText ?? null,
+        priceText: data.priceText ?? null,
+        priceCurrency: data.priceCurrency ?? null,
+        priceUnit: data.priceUnit ?? null,
+        ...(data.vatStatus !== undefined ? { vatStatus: data.vatStatus } : {}),
+        ...(data.priceBasis !== undefined
+          ? { priceBasis: data.priceBasis }
+          : {}),
+        ...(data.sampleKind !== undefined
+          ? { sampleKind: data.sampleKind }
+          : {}),
+        ...(data.matchType !== undefined ? { matchType: data.matchType } : {}),
+      };
+
+      const offering = await tx.researchOffering.upsert({
+        where: { fingerprint },
+        create: {
+          researchRunId: data.researchRunId,
+          sourceReferenceId: data.sourceReferenceId,
+          evidenceId: data.evidenceId,
+          claimId: data.claimId ?? null,
+          fingerprint,
+          ...fields,
+        },
+        update: {
+          sourceReferenceId: data.sourceReferenceId,
+          evidenceId: data.evidenceId,
+          claimId: data.claimId ?? null,
+          ...fields,
+        },
+        include: { evidence: { include: { sourceReference: true } } },
+      });
+      return toOfferingRecord(offering);
+    });
+  }
+
+  async listOfferingsForRun(researchRunId: string): Promise<OfferingRecord[]> {
+    const offerings = await this.prisma.db.researchOffering.findMany({
+      where: { researchRunId },
+      orderBy: [{ companyText: 'asc' }, { productText: 'asc' }],
+      include: { evidence: { include: { sourceReference: true } } },
+    });
+    return offerings.map(toOfferingRecord);
   }
 }

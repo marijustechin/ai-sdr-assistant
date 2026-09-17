@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
@@ -66,21 +66,40 @@ describe("INTERNAL_API_KEY boundary", () => {
     }
   });
 
-  it("never imports the server-only Product API from a client component", () => {
+  it("never imports the server-only Product or Research API from a client component", () => {
     for (const file of sourceFiles) {
       const source = read(file);
       if (!isClientModule(source)) {
         continue;
       }
       expect(source, file).not.toMatch(/from ["']@\/lib\/api\/products["']/);
+      expect(source, file).not.toMatch(/from ["']@\/lib\/api\/research["']/);
     }
   });
 
-  it("does not reference removed or deferred product fields", () => {
-    for (const file of sourceFiles) {
+  it("marks the research API module server-only and free of direct database access", () => {
+    const source = read(resolve(ROOT, "lib/api/research.ts"));
+    expect(source).toContain('import "server-only"');
+    expect(source).not.toMatch(/@ai-sdr\/database/);
+  });
+
+  it("keeps deferred fields out of the product UI code", () => {
+    const productUiFiles = sourceFiles.filter(
+      (file) =>
+        file.includes(`${sep}lib${sep}products${sep}`) ||
+        file.includes(`${sep}components${sep}products${sep}`),
+    );
+    for (const file of productUiFiles) {
       const source = read(file);
       expect(source, file).not.toContain("researchStatus");
       expect(source, file).not.toContain("targetMarket");
+    }
+  });
+
+  it("does not reference the deferred researchStatus product field anywhere", () => {
+    for (const file of sourceFiles) {
+      const source = read(file);
+      expect(source, file).not.toContain("researchStatus");
     }
   });
 });

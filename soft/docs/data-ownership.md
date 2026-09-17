@@ -58,6 +58,7 @@ This document defines the canonical table list, the single write-owner per table
 | `evidence` | Factual observations extracted from a source during a run | `evidence` |
 | `claims` | Typed claims (FACT / INFERENCE / UNKNOWN) with confidence | `evidence` |
 | `claim_evidence` | Claim↔evidence join with stance (replaces the planned `claim_sources`) | `evidence` |
+| `research_offerings` | Structured, evidence-linked company offerings (provenance + idempotent fingerprint) | `evidence` |
 | `company_sources` | Company↔source join | `evidence` |
 | `contact_sources` | Contact↔source join | `evidence` |
 | `research_record_sources` | ResearchRecord↔source join | `evidence` |

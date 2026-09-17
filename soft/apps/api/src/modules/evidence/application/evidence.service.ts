@@ -7,15 +7,17 @@ import {
 } from '@nestjs/common';
 import type {
   CorrectClaimInput,
+  CreateOfferingInput,
   PersistClaimInput,
   PersistEvidenceInput,
   RegisterSourceInput,
 } from '@ai-sdr/contracts';
 import { MarketResearcherService } from '../../market-researcher/application/research-runs.service.js';
-import { ClaimCorrectionError } from '../domain/types.js';
+import { ClaimCorrectionError, OfferingError } from '../domain/types.js';
 import type {
   ClaimRecord,
   EvidenceRecord,
+  OfferingRecord,
   SourceReferenceRecord,
 } from '../domain/types.js';
 import { EvidenceRepository } from '../infrastructure/evidence.repository.js';
@@ -165,5 +167,69 @@ export class EvidenceService {
       }
       throw error;
     }
+  }
+
+  /** Creates or updates an offering; idempotent by fingerprint. */
+  async createOffering(
+    opportunityId: string,
+    runId: string,
+    input: CreateOfferingInput,
+  ): Promise<OfferingRecord> {
+    await this.runs.assertRun(opportunityId, runId);
+    try {
+      return await this.repository.createOffering({
+        researchRunId: runId,
+        ...(input.companyText !== undefined
+          ? { companyText: input.companyText }
+          : {}),
+        ...(input.companyLocationText !== undefined
+          ? { companyLocationText: input.companyLocationText }
+          : {}),
+        ...(input.marketServedText !== undefined
+          ? { marketServedText: input.marketServedText }
+          : {}),
+        ...(input.productText !== undefined
+          ? { productText: input.productText }
+          : {}),
+        ...(input.applicationText !== undefined
+          ? { applicationText: input.applicationText }
+          : {}),
+        ...(input.treatmentText !== undefined
+          ? { treatmentText: input.treatmentText }
+          : {}),
+        ...(input.dimensionsText !== undefined
+          ? { dimensionsText: input.dimensionsText }
+          : {}),
+        ...(input.priceText !== undefined ? { priceText: input.priceText } : {}),
+        ...(input.priceCurrency !== undefined
+          ? { priceCurrency: input.priceCurrency }
+          : {}),
+        ...(input.priceUnit !== undefined ? { priceUnit: input.priceUnit } : {}),
+        ...(input.vatStatus !== undefined ? { vatStatus: input.vatStatus } : {}),
+        ...(input.priceBasis !== undefined
+          ? { priceBasis: input.priceBasis }
+          : {}),
+        ...(input.sampleKind !== undefined
+          ? { sampleKind: input.sampleKind }
+          : {}),
+        ...(input.matchType !== undefined ? { matchType: input.matchType } : {}),
+        sourceReferenceId: input.sourceReferenceId,
+        evidenceId: input.evidenceId,
+        ...(input.claimId !== undefined ? { claimId: input.claimId } : {}),
+      });
+    } catch (error) {
+      if (error instanceof OfferingError) {
+        throw new BadRequestException({ error: error.code });
+      }
+      throw error;
+    }
+  }
+
+  async listOfferings(
+    opportunityId: string,
+    runId: string,
+  ): Promise<OfferingRecord[]> {
+    await this.runs.assertRun(opportunityId, runId);
+    return this.repository.listOfferingsForRun(runId);
   }
 }

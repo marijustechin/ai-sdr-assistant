@@ -13,6 +13,29 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-15 — Evidence-linked offerings + manager write encoding fix (O-013 round 2)
+
+Added a bounded, evidence-owned `research_offerings` read model: a structured
+company offering with mandatory provenance (`sourceReferenceId` + `evidenceId`,
+optional `claimId`) and a deterministic per-run `fingerprint` (unique) so
+re-imports do not duplicate. Values are explicit only — an unrecorded field is
+null and its enum `UNKNOWN`; the UI never parses prose. Exposed as
+`POST/GET .../research-runs/:runId/offerings`, internal-key guarded.
+
+The corrupted Lithuanian/Finnish text was traced to the **manager's PowerShell
+write path** (BOM-less `.ps1` scripts read as CP1252, plus string-body
+encoding), not the API or web rendering. The API transport is proven correct by
+a non-ASCII round-trip integration test; the manager path now writes UTF-8
+bytes and reads scripts as UTF-8. Two historically double-encoded
+`research_queries` rows are reported for repair, not silently rewritten.
+
+- Reason: a sales-manager view needs structured company/offering/price fields
+  with provenance; the encoding defect had to be localized before a fix.
+- Consequence: run claims/evidence/corrections/checkpoint are unchanged; no
+  generic CRM or extraction framework. `product_facts` remain researcher-closed.
+
+## 2026-09-15 — Bounded claim-correction lifecycle: retraction/replacement (not versioning)
+
 ## 2026-09-15 — Bounded claim-correction lifecycle: retraction/replacement (not versioning)
 
 `claims` gains a small correction lifecycle: `lifecycleStatus`

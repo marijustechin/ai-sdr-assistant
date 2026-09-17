@@ -4,7 +4,10 @@
 — the first bounded research wave (LT / FI / GB), its fresh-session recovery, the
 bounded claim-correction lifecycle (six replacements + three retractions
 applied), the product-scoped discovery API, and the admin product-management UI
-are committed; the database run remains `PAUSED` / `DIMINISHING_RETURNS` and
+are committed, and **O-013 (read-only Research results dashboard) is accepted**
+(companies/offerings-led view, evidence-linked `research_offerings` read model,
+correction-consistent review flags, preserved filters, collapsed run details);
+the database run remains `PAUSED` / `DIMINISHING_RETURNS` and
 European market research is **not** complete. Prior 2026-09-15: O-010/T-007
 research-result persistence implemented; O-009 harness archived. Earlier
 2026-09-14 (O-007 closed; O-008 verified research toolchain); 2026-09-10
@@ -28,7 +31,7 @@ PostgreSQL).
 | Readiness endpoint | `GET /ready` → `200 {"status":"ready"}` via safe `SELECT 1`; non-sensitive `503 {"status":"not_ready"}` on failure | `soft/apps/api/src/health/readiness.controller.ts` |
 | Central database | Local PostgreSQL 17 via project-scoped Docker Compose (host port 54329) | `soft/docker-compose.yml` |
 | Prisma foundation | Prisma 7, ESM `prisma-client` generator, `@prisma/adapter-pg`, `prisma.config.ts`; `soft/packages/database` is the single schema/migration owner | `soft/packages/database` |
-| Migrations | `20260910112935_init`, `20260910150428_research_context_fields`, `20260915075316_research_persistence`, and `20260915120000_claim_corrections` applied; `prisma migrate status` clean | `soft/packages/database/prisma/migrations` |
+| Migrations | `20260910112935_init`, `20260910150428_research_context_fields`, `20260915075316_research_persistence`, `20260915120000_claim_corrections`, and `20260915140000_research_offerings` applied; `prisma migrate status` clean | `soft/packages/database/prisma/migrations` |
 | Core commercial schema | `Product`, `Offer`, `ProductFact` (CHECK-constrained), `TargetMarket`, `Opportunity` (with `contextVersion`/`objective`), `OpportunityTargetMarket`, `ResearchRun`, `ResearchRunTargetMarket`; `Product.category` | `soft/packages/database/prisma/schema.prisma` |
 | Research persistence schema | `ResearchRun` (lifecycle `PAUSED` + separate `pauseReason`, JSONB `checkpoint`), `ResearchQuery` (run-scoped discovery log), `SourceReference` (deduplicated by URL), `Evidence` (`VERIFIED`/`UNVERIFIED`), `Claim` (`FACT`/`INFERENCE`/`UNKNOWN` + confidence), `ClaimEvidence` (stance-aware link) (T-007); claim correction lifecycle `ClaimLifecycleStatus` (`CURRENT`/`RETRACTED`/`REPLACED`) with `correctionReason`/`correctedAt` and a `replacedByClaimId` self-reference | `soft/packages/database/prisma/schema.prisma` |
 | Shared contracts | `@ai-sdr/contracts` (Zod 4 + TypeScript) implements the canonical `research_context_v1` and the write-side input schemas, including the research contracts (`research.ts`) | `soft/packages/contracts` |
@@ -36,6 +39,7 @@ PostgreSQL).
 | Catalogue + Research Context API | `POST /products`, `POST /products/:productId/offers`, `POST /product-facts`, `POST /target-markets`, `POST /opportunities`, `POST /opportunities/:opportunityId/target-markets`, `GET /opportunities/:opportunityId/research-context` | `soft/apps/api/src/modules` |
 | Product admin + discovery API | `GET /products`, `GET /products/:productId`, `PATCH /products/:productId` (list/read/update), and product-scoped discovery `GET /products/:productId/offers`, `GET /products/:productId/opportunities` (offers → opportunities → attached target markets); shared `ProductResponseSchema`/`UpdateProductSchema` | `soft/apps/api/src/modules/products-and-offers` |
 | Admin product-management UI | Next.js 16 admin app (`soft/apps/web`) implemented for product list → create → open → edit → change lifecycle, talking to the internal API server-side only (`INTERNAL_API_KEY` never exposed to the browser); deferred items documented in `soft/apps/web/docs/MISSING_API.md` | `soft/apps/web` |
+| Research results dashboard (read-only) | Product → opportunities → research runs → run detail in the admin web app, leading with **companies and offerings** (structured, evidence-linked; filterable by market served, application and match class `EXACT_MATCH`/`ADJACENT`/`SUBSTITUTE`), CURRENT findings shown beside the offering they support, other current findings kept accessible, an explicit `includeHistory` correction view, coverage that explains investigated vs missing, and usage/limits/notes/discovery log behind a collapsed "Research details" control. Reads the API only; no prose parsing; no write actions. Backed by the evidence-owned `research_offerings` read model (migration `20260915140000_research_offerings`) | `soft/apps/web`, `soft/apps/api/src/modules/evidence` |
 | Research persistence API | `POST/GET /opportunities/:id/research-runs`, `GET/PATCH .../:runId`, `POST/GET .../:runId/queries`, and `POST/GET .../:runId/sources|evidence|claims`; `POST .../claims/:claimId/corrections` with `GET .../claims?includeHistory=true`; `PATCH` pause/resume with the `CONTEXT_CHANGED` guard (T-007 + claim-correction lifecycle) | `soft/apps/api/src/modules/{market-researcher,evidence}` |
 | Internal-key boundary | Every business route requires `x-internal-api-key`; constant-time check, fail-closed non-sensitive `503` when `INTERNAL_API_KEY` is unconfigured, non-sensitive `401` otherwise; key never logged or returned. `GET /health`/`GET /ready` stay public | `soft/apps/api/src/security` |
 | Tests | Database integration tests (isolated `ai_sdr_test`), contract tests, and API integration tests including the catalogue/research-context slice and the claim-correction lifecycle (isolated `ai_sdr_test_api`); API health/readiness/env tests still pass | `soft/packages/database/test`, `soft/packages/contracts/test`, `soft/apps/api/test` |
@@ -134,6 +138,16 @@ with its checkpoint, usage counters and follow-ups unchanged. **European market
 research is not complete** (FI facade dedicated product and GB sauna GB-based
 cladding remain gaps; our product facts remain `UNKNOWN`). No paid call was
 made; no billing change.
+
+**O-013 — the read-only research results dashboard — is accepted**
+(`ops/done/2026-09-15-research-results-dashboard.md`). It adds the evidence-owned
+`research_offerings` model (migration `20260915140000_research_offerings`) with
+mandatory provenance and idempotent fingerprint dedup, an offerings-led
+sales-manager view with market/application/match filters and correction-consistent
+review flags, and the harness requirement that future runs persist offerings via
+the API. The run and its records are unchanged. **Recorded follow-up:** four
+historical `research_queries` rows remain double-encoded (recoverable) and are
+queued for a future bounded repair with explicit approval.
 
 **Verified operating toolchain (2026-09-14):**
 

@@ -210,6 +210,66 @@ export const CorrectClaimSchema = z
     { message: 'a RETRACTION correction must not carry replacementClaimId' },
   );
 
+/**
+ * A structured, evidence-linked company offering. Every value is explicit; an
+ * unrecorded field is omitted (stored null / `UNKNOWN`) and never inferred.
+ * Provenance is mandatory: the offering names the source and evidence it came
+ * from, and optionally the CURRENT claim it supports.
+ */
+export const OfferingVatStatusSchema = z.enum([
+  'INCLUDED',
+  'EXCLUDED',
+  'NOT_STATED',
+  'UNKNOWN',
+]);
+
+export const OfferingPriceBasisSchema = z.enum([
+  'RETAIL_LIST',
+  'TRADE_B2B',
+  'UNKNOWN',
+]);
+
+export const OfferingSampleKindSchema = z.enum([
+  'SAMPLE',
+  'FULL_PRODUCT',
+  'UNKNOWN',
+]);
+
+export const OfferingMatchTypeSchema = z.enum([
+  'EXACT_MATCH',
+  'ADJACENT',
+  'SUBSTITUTE',
+  'UNKNOWN',
+]);
+
+const optionalText = (max: number) =>
+  z.string().trim().min(1).max(max).optional();
+
+export const CreateOfferingSchema = z
+  .strictObject({
+    companyText: optionalText(255),
+    companyLocationText: optionalText(255),
+    marketServedText: optionalText(255),
+    productText: optionalText(512),
+    applicationText: optionalText(255),
+    treatmentText: optionalText(255),
+    dimensionsText: optionalText(255),
+    priceText: optionalText(2000),
+    priceCurrency: optionalText(12),
+    priceUnit: optionalText(64),
+    vatStatus: OfferingVatStatusSchema.optional(),
+    priceBasis: OfferingPriceBasisSchema.optional(),
+    sampleKind: OfferingSampleKindSchema.optional(),
+    matchType: OfferingMatchTypeSchema.optional(),
+    sourceReferenceId: z.uuid(),
+    evidenceId: z.uuid(),
+    claimId: z.uuid().optional(),
+  })
+  .refine(
+    (value) => value.companyText !== undefined || value.productText !== undefined,
+    { message: 'an offering requires at least a company or a product text' },
+  );
+
 export type ResearchRunStatus = z.infer<typeof ResearchRunStatusSchema>;
 export type ResearchRunPauseReason = z.infer<
   typeof ResearchRunPauseReasonSchema
@@ -233,3 +293,8 @@ export type RegisterSourceInput = z.infer<typeof RegisterSourceSchema>;
 export type PersistEvidenceInput = z.infer<typeof PersistEvidenceSchema>;
 export type PersistClaimInput = z.infer<typeof PersistClaimSchema>;
 export type CorrectClaimInput = z.infer<typeof CorrectClaimSchema>;
+export type OfferingVatStatus = z.infer<typeof OfferingVatStatusSchema>;
+export type OfferingPriceBasis = z.infer<typeof OfferingPriceBasisSchema>;
+export type OfferingSampleKind = z.infer<typeof OfferingSampleKindSchema>;
+export type OfferingMatchType = z.infer<typeof OfferingMatchTypeSchema>;
+export type CreateOfferingInput = z.infer<typeof CreateOfferingSchema>;

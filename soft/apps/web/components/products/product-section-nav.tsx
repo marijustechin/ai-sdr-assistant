@@ -1,26 +1,42 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { researchIndexPath } from "@/lib/research/navigation";
 
-const SECTIONS = [
-  { id: "overview", label: "Overview", implemented: true },
-  { id: "research", label: "Research", implemented: false },
-  { id: "leads", label: "Leads", implemented: false },
-  { id: "history", label: "History", implemented: false },
+const PLANNED_SECTIONS = [
+  { id: "leads", label: "Leads" },
+  { id: "history", label: "History" },
 ] as const;
 
 /**
- * Section navigation for the product detail page. Only Overview exists today;
- * the remaining sections are shown as planned so the page structure is stable
- * when those modules arrive.
+ * Section navigation for the product detail page. Overview and Research are
+ * implemented; Leads and History are shown as planned so the page structure is
+ * stable when those modules arrive.
  */
-export function ProductSectionNav() {
+export function ProductSectionNav({
+  productId,
+  active,
+}: {
+  productId: string;
+  active: "overview" | "research";
+}) {
+  const sections = [
+    { id: "overview", label: "Overview", href: `/products/${encodeURIComponent(productId)}` },
+    {
+      id: "research",
+      label: "Research",
+      href: researchIndexPath(productId),
+    },
+  ] as const;
+
   return (
     <div
       className="mb-6 flex flex-wrap items-center gap-1 border-b border-border"
       role="tablist"
       aria-label="Product sections"
     >
-      {SECTIONS.map((section) =>
-        section.implemented ? (
+      {sections.map((section) =>
+        active === section.id ? (
           <span
             key={section.id}
             role="tab"
@@ -30,16 +46,29 @@ export function ProductSectionNav() {
             {section.label}
           </span>
         ) : (
-          <span
+          <Link
             key={section.id}
-            aria-disabled="true"
-            className="-mb-px flex items-center gap-2 border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground/70"
+            href={section.href}
+            role="tab"
+            aria-selected="false"
+            className={cn(
+              "-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground",
+            )}
           >
             {section.label}
-            <Badge tone="outline">Planned</Badge>
-          </span>
+          </Link>
         ),
       )}
+      {PLANNED_SECTIONS.map((section) => (
+        <span
+          key={section.id}
+          aria-disabled="true"
+          className="-mb-px flex items-center gap-2 border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground/70"
+        >
+          {section.label}
+          <Badge tone="outline">Planned</Badge>
+        </span>
+      ))}
     </div>
   );
 }

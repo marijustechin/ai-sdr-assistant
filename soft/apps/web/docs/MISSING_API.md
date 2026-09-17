@@ -29,6 +29,48 @@ Other existing product-domain endpoints (`POST /products/:productId/offers`,
 
 ---
 
+## Read-only Research results dashboard
+
+The research view is read-only and requires **no new endpoint or schema change**.
+It uses only existing reads:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/products/:productId/offers` | label offers by name |
+| `GET` | `/products/:productId/opportunities` | opportunities + attached target markets |
+| `GET` | `/opportunities/:id/research-runs` | run list (summaries) |
+| `GET` | `/opportunities/:id/research-runs/:runId` | run detail: scope, checkpoint, queries |
+| `GET` | `.../:runId/evidence` | evidence text/status/retrieval + source URL |
+| `GET` | `.../:runId/claims?includeHistory=true` | current claims, or full history |
+| `GET` | `.../:runId/offerings` | structured, evidence-linked company offerings |
+
+The **offerings** view is now the primary browsing surface: company/product,
+recorded location vs market served, application/treatment/dimensions, original
+price wording with currency/unit, VAT/basis/sample enums, and `matchType`
+(`EXACT_MATCH` / `ADJACENT` / `SUBSTITUTE` / `UNKNOWN`), each with its source and
+linked CURRENT finding. `POST .../offerings` exists but is the **population**
+path (manager/researcher), not used by the read-only UI; it is idempotent by a
+per-run fingerprint and requires provenance.
+
+Real gaps (documented, not worked around):
+
+- **Structured usage/limits are not persisted.** The checkpoint schema is
+  `{ coverage, pendingFollowUps, notes }`; discovery/retrieval counters live only
+  in the free-text `notes`. The dashboard shows the recorded notes **verbatim**
+  and states that structured usage fields are not available. It never parses
+  counters or assumes an unrecorded cost is `0`.
+- **Run scope** (target markets) is resolved from the opportunity's attached
+  markets returned by `GET /products/:id/opportunities`. There is no dedicated
+  run-scope read endpoint, and none is needed.
+- **Filters** use only fields the API returns (claim type, confidence, evidence
+  stance, lifecycle). No filter exists for price, geography, or application
+  because those are not structured fields.
+- **Prices** are not extracted from statements/evidence. Recorded price text
+  (units/currency/VAT/sample-vs-full-product wording) is displayed verbatim; no
+  normalisation or calculation is performed.
+
+---
+
 ## Deferred / future architectural decisions (NOT approved)
 
 These are open questions, not planned schema changes.

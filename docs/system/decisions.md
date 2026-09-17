@@ -12,6 +12,35 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-15 — Evidence-linked research offerings + manager write encoding fix
+
+A bounded, `evidence`-owned `research_offerings` model makes company offerings
+reviewable without a CRM: company/location/market-served, product, application,
+treatment, dimensions, original price wording with currency/unit, and explicit
+`vatStatus`/`priceBasis`/`sampleKind`/`matchType` enums. Provenance is
+mandatory (`source_references` + `evidence`, optional CURRENT `claim`), a
+deterministic per-run `fingerprint` prevents duplicates, and unrecorded values
+stay null/`UNKNOWN` (never inferred from prose). Exposed read/write over the
+internal API; the web is read-only.
+
+Separately, corrupted Lithuanian/Finnish text was localized to the **manager's
+PowerShell write path** (BOM-less scripts parsed as CP1252 and string-body
+encoding), not the API or web. The API round-trips non-ASCII correctly (proven
+by an integration test); the manager write pattern is fixed to UTF-8 bytes with
+UTF-8 script reading. Two historically double-encoded `research_queries` rows
+are reported, not rewritten.
+
+- Reason: the sales-manager view needs structured, provenance-backed
+  company/offering/price fields; the encoding defect had to be traced to the
+  responsible path.
+- Consequence: the research run's claims/evidence/corrections/checkpoint are
+  unchanged; no generic extraction/CRM framework. Historical records are
+  preserved.
+
+---
+
+## 2026-09-15 — Bounded claim-correction lifecycle (retraction/replacement)
+
 ## 2026-09-15 — Bounded claim-correction lifecycle (retraction/replacement)
 
 Research claims gain a small, domain-specific correction lifecycle, owned by the

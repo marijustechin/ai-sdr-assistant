@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SCHEMA_VERSION,
   CorrectClaimSchema,
+  CreateOfferingSchema,
   CreateProductFactSchema,
   CreateProductSchema,
   CreateOpportunitySchema,
@@ -383,6 +384,58 @@ describe('research persistence contracts', () => {
         kind: 'REPLACEMENT',
         reason: 'r',
         replacementClaimId: 'not-a-uuid',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('validates a provenance-linked offering and keeps values explicit', () => {
+    const sourceReferenceId = '11111111-1111-4111-8111-111111111111';
+    const evidenceId = '22222222-2222-4222-8222-222222222222';
+
+    expect(
+      CreateOfferingSchema.safeParse({
+        companyText: 'Coyletimber Ltd',
+        sourceReferenceId,
+        evidenceId,
+      }).success,
+    ).toBe(true);
+    expect(
+      CreateOfferingSchema.safeParse({
+        productText: 'Thermo Ayous Cladding',
+        priceText: 'GBP 7.00 per metre ex VAT',
+        priceCurrency: 'GBP',
+        priceUnit: 'per metre',
+        vatStatus: 'EXCLUDED',
+        sampleKind: 'FULL_PRODUCT',
+        matchType: 'EXACT_MATCH',
+        sourceReferenceId,
+        evidenceId,
+      }).success,
+    ).toBe(true);
+
+    // At least a company or a product is required.
+    expect(
+      CreateOfferingSchema.safeParse({ sourceReferenceId, evidenceId }).success,
+    ).toBe(false);
+    // Provenance is mandatory.
+    expect(CreateOfferingSchema.safeParse({ companyText: 'X' }).success).toBe(
+      false,
+    );
+    // Unknown fields and invalid enums are rejected.
+    expect(
+      CreateOfferingSchema.safeParse({
+        companyText: 'X',
+        sourceReferenceId,
+        evidenceId,
+        extra: 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      CreateOfferingSchema.safeParse({
+        companyText: 'X',
+        sourceReferenceId,
+        evidenceId,
+        matchType: 'NEAR_MATCH',
       }).success,
     ).toBe(false);
   });

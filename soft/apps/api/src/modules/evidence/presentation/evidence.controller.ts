@@ -11,10 +11,12 @@ import {
 } from '@nestjs/common';
 import {
   CorrectClaimSchema,
+  CreateOfferingSchema,
   PersistClaimSchema,
   PersistEvidenceSchema,
   RegisterSourceSchema,
   type CorrectClaimInput,
+  type CreateOfferingInput,
   type PersistClaimInput,
   type PersistEvidenceInput,
   type RegisterSourceInput,
@@ -96,5 +98,22 @@ export class EvidenceController {
     @Body(new ZodValidationPipe(CorrectClaimSchema)) body: CorrectClaimInput,
   ) {
     return this.service.correctClaim(opportunityId, runId, claimId, body);
+  }
+
+  @Post(':opportunityId/research-runs/:runId/offerings')
+  async createOffering(
+    @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
+    @Param('runId', new ParseUUIDPipe()) runId: string,
+    @Body(new ZodValidationPipe(CreateOfferingSchema)) body: CreateOfferingInput,
+  ) {
+    return this.service.createOffering(opportunityId, runId, body);
+  }
+
+  @Get(':opportunityId/research-runs/:runId/offerings')
+  async listOfferings(
+    @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
+    @Param('runId', new ParseUUIDPipe()) runId: string,
+  ) {
+    return this.service.listOfferings(opportunityId, runId);
   }
 }

@@ -108,3 +108,77 @@ export interface CorrectClaimData {
   reason: string;
   replacementClaimId?: string;
 }
+
+export type OfferingVatStatus =
+  | 'INCLUDED'
+  | 'EXCLUDED'
+  | 'NOT_STATED'
+  | 'UNKNOWN';
+export type OfferingPriceBasis = 'RETAIL_LIST' | 'TRADE_B2B' | 'UNKNOWN';
+export type OfferingSampleKind = 'SAMPLE' | 'FULL_PRODUCT' | 'UNKNOWN';
+export type OfferingMatchType =
+  | 'EXACT_MATCH'
+  | 'ADJACENT'
+  | 'SUBSTITUTE'
+  | 'UNKNOWN';
+
+/** Reasons an offering write is rejected. */
+export type OfferingErrorCode =
+  | 'offering_evidence_not_in_run'
+  | 'offering_source_mismatch'
+  | 'offering_claim_not_in_run'
+  | 'offering_claim_not_current';
+
+export class OfferingError extends Error {
+  constructor(readonly code: OfferingErrorCode) {
+    super(code);
+    this.name = 'OfferingError';
+  }
+}
+
+export interface OfferingRecord {
+  id: string;
+  researchRunId: string;
+  companyText: string | null;
+  companyLocationText: string | null;
+  marketServedText: string | null;
+  productText: string | null;
+  applicationText: string | null;
+  treatmentText: string | null;
+  dimensionsText: string | null;
+  priceText: string | null;
+  priceCurrency: string | null;
+  priceUnit: string | null;
+  vatStatus: OfferingVatStatus;
+  priceBasis: OfferingPriceBasis;
+  sampleKind: OfferingSampleKind;
+  matchType: OfferingMatchType;
+  sourceReferenceId: string;
+  evidenceId: string;
+  claimId: string | null;
+  fingerprint: string;
+  createdAt: Date;
+  updatedAt: Date;
+  evidence: EvidenceRecord;
+}
+
+export interface CreateOfferingData {
+  researchRunId: string;
+  companyText?: string;
+  companyLocationText?: string;
+  marketServedText?: string;
+  productText?: string;
+  applicationText?: string;
+  treatmentText?: string;
+  dimensionsText?: string;
+  priceText?: string;
+  priceCurrency?: string;
+  priceUnit?: string;
+  vatStatus?: OfferingVatStatus;
+  priceBasis?: OfferingPriceBasis;
+  sampleKind?: OfferingSampleKind;
+  matchType?: OfferingMatchType;
+  sourceReferenceId: string;
+  evidenceId: string;
+  claimId?: string;
+}

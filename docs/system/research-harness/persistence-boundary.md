@@ -51,6 +51,7 @@ implemented, `later` = a separate future task.
 | O6 | Persist evidence extracted from a source | `POST .../research-runs/:runId/evidence` | `evidence` (`evidence`) | impl | **impl** | now |
 | O7 | Persist typed claims linked to evidence + run | `POST .../research-runs/:runId/claims` | `claims`, `claim_evidence` (`evidence`) | impl | **impl** | now |
 | O7b | Retract or replace a claim (bounded correction lifecycle; separate from claim type and evidence verification) | `POST .../research-runs/:runId/claims/:claimId/corrections`; `GET .../claims?includeHistory=true` | `claims` (`evidence`) | impl | **impl** | now |
+| O7c | Persist structured, evidence-linked company offerings (explicit values, mandatory provenance, idempotent fingerprint) | `POST/GET .../research-runs/:runId/offerings` | `research_offerings` (`evidence`) | impl | **impl** | now |
 | O8 | Persist research records + findings | `research-records.createRecord/addFinding` | `research_records`, `research_findings` (`research-records`) | planned | — | later |
 | O9 | Target-market suggestions (human-gated) | `opportunities.createSuggestion(...)` + approvals | `target_market_suggestions` (`opportunities`) | planned | — | later |
 | O10 | Clarification requests for product-data gaps | `market-researcher` service | `clarification_requests` (`market-researcher`) | planned | — | later |

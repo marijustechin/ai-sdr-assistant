@@ -66,6 +66,7 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `Evidence` | `evidence` | A factual observation extracted from a source during a run. | `evidence` |
 | `Claim` | `claims` | A research conclusion derived from evidence. | `evidence` |
 | `ClaimEvidence` | `claim_evidence` | Claim↔evidence link with a stance. | `evidence` |
+| `ResearchOffering` | `research_offerings` | Structured, evidence-linked company offering (provenance + idempotent fingerprint). | `evidence` |
 
 Every model carries a `/// @owner <module>` tag in `schema.prisma` (§5 of
 `data-ownership.md`). Cross-boundary writes go through the owning module's
@@ -182,6 +183,24 @@ application service — no module writes another module's table.
   link, an `UNKNOWN` claim carries none, all linked evidence must belong to
   the same run, a correction must target a `CURRENT` claim of the same run, a
   replacement must itself be `CURRENT`, and replacement chains must not cycle.
+
+### 3.11 `ResearchOffering`
+
+- A structured, evidence-linked company offering observed during a run:
+  company / location / market served, product, application, treatment,
+  dimensions, price text (original wording) with currency/unit, and explicit
+  enums `vatStatus` (`INCLUDED | EXCLUDED | NOT_STATED | UNKNOWN`),
+  `priceBasis` (`RETAIL_LIST | TRADE_B2B | UNKNOWN`), `sampleKind`
+  (`SAMPLE | FULL_PRODUCT | UNKNOWN`) and `matchType`
+  (`EXACT_MATCH | ADJACENT | SUBSTITUTE | UNKNOWN`).
+- **Provenance is mandatory:** `sourceReferenceId` + `evidenceId` (restrict),
+  optional `claimId` (`SET NULL`). Service-enforced: the evidence must belong to
+  the run, its source must match, and a linked claim must be `CURRENT` in the
+  same run.
+- **No inference:** an unrecorded field is stored `null` and its enum `UNKNOWN`;
+  nothing is derived from prose by the UI. `fingerprint` is a deterministic
+  per-run key (unique) so re-importing the same observation cannot duplicate a
+  record. Run deletion cascades; sources/evidence are preserved by `RESTRICT`.
 
 ---
 

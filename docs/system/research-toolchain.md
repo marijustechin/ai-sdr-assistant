@@ -329,3 +329,32 @@ Rules:
 - MCP servers are started only at OpenCode launch; a newly added server and a
   closed/killed server connection are both resolved by a restart, not by config
   hot-reload.
+
+## 8. Text encoding when persisting via the API (observed defect)
+
+Non-ASCII research text (Lithuanian/Finnish, e.g. `ė š ū`) persisted by the
+manager's PowerShell HTTP calls was observed **double-encoded** in the database
+(UTF-8 bytes reinterpreted as CP1252, then re-encoded) — the API and web path
+are correct (an API integration test round-trips non-ASCII exactly); the defect
+is in the manager write path. Two known causes:
+
+1. **BOM-less `.ps1` scripts.** Windows PowerShell 5.1 reads a script without a
+   byte-order mark as ANSI/CP1252, so non-ASCII literals are already mangled
+   before any request. Save scripts as **UTF-8 with BOM** (or keep literals
+   ASCII-only).
+2. **String request bodies.** Send the JSON as **UTF-8 bytes**, not as a .NET
+   string:
+
+   ```powershell
+   $json  = $body | ConvertTo-Json -Depth 8
+   $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+   Invoke-RestMethod -Uri $uri -Method Post -Headers $h -Body $bytes `
+     -ContentType 'application/json; charset=utf-8'
+   ```
+
+   (`Invoke-RestMethod -Body $json` with a string body can encode non-ASCII as
+   Latin-1 and corrupt it.)
+
+Do not blindly transcode stored records. A single CP1252 round-trip is
+recoverable (`convert_from(convert_to(text,'WIN1252'),'UTF8')`); report affected
+rows and repair only with explicit human approval.

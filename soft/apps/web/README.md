@@ -1,12 +1,15 @@
 # AI SDR Assistant — Admin Web
 
-Administrative UI for the AI SDR Assistant. This is the first vertical slice of
-the admin interface: a dashboard shell plus the **Products** module.
+Administrative UI for the AI SDR Assistant: a dashboard shell, the **Products**
+module, and a read-only **Research results** view (product → opportunities →
+research runs → run detail).
 
-> **API connection:** the full Products workflow is live against the internal
-> API — list (`GET /products`), create (`POST /products`), open
-> (`GET /products/:id`), and edit (`PATCH /products/:id`). Deferred items are
-> listed in [`docs/MISSING_API.md`](./docs/MISSING_API.md).
+> **API connection:** the Products workflow is live against the internal API —
+> list (`GET /products`), create (`POST /products`), open (`GET /products/:id`),
+> and edit (`PATCH /products/:id`). The **Research results dashboard is
+> read-only**: it never resumes runs, searches, corrects claims or changes
+> checkpoints, and it derives no structured facts from free text. Deferred items
+> are listed in [`docs/MISSING_API.md`](./docs/MISSING_API.md).
 
 ## Stack
 
@@ -26,6 +29,8 @@ the admin interface: a dashboard shell plus the **Products** module.
 | `/products` | Products list (live `GET /products`) |
 | `/products/new` | New product form (live `POST /products`) |
 | `/products/[id]` | Product detail + edit (live `GET` / `PATCH`) |
+| `/products/[id]/research` | Opportunities and their research runs (read-only) |
+| `/products/[id]/research/[opportunityId]/[runId]` | Run overview, coverage, findings and correction history (read-only) |
 
 ## Getting started
 
@@ -49,6 +54,23 @@ screens show an explicit "not configured" notice instead of failing opaquely.
   research status in the domain and the UI does not invent one.
 - Specifications are `ProductFact` records and are not part of these forms;
   fact authoring is deferred pending a read path (see `docs/MISSING_API.md`).
+- The **Research results** view is read-only and leads with **companies and
+  offerings** (structured, evidence-linked, filterable by market served,
+  application and match class), with CURRENT findings shown beside the offering
+  they support and other current findings kept accessible. Usage/limits,
+  checkpoint notes and the full discovery log sit behind a collapsed "Research
+  details" control (the query total is shown in its summary).
+- It reads only existing endpoints
+  (`/products/:id/opportunities`, `/opportunities/:id/research-runs[/:runId]`,
+  `.../:runId/evidence`, `.../:runId/claims[?includeHistory=true]`,
+  `.../:runId/offerings`). Claim statements and recorded prices are shown
+  verbatim — nothing is parsed into structured prices, geography or application
+  in the browser.
+- `CURRENT` claims are the default findings; `REPLACED`/`RETRACTED` claims appear
+  only in the explicit `?history=1` correction view.
+- Coverage is grouped by the recorded country and segment; "COVERED" is
+  explained as recorded coverage, not a complete market assessment, and
+  sauna/bathhouse and exterior/facade stay distinct.
 
 ## Commands
 
@@ -75,12 +97,15 @@ app/
     layout.tsx            # sidebar + content shell
     page.tsx              # dashboard home
     products/…            # list, new, [id]
+    products/[id]/research/…   # research navigation + run detail (read-only)
 components/
   dashboard/              # shell, sidebar, page header, stat cards
   products/               # table, status badge, form, notices
+  research/               # run overview, coverage, follow-ups, claims, badges
   ui/                     # shadcn-style primitives
 lib/
-  api/                    # server-only API client, product calls, Server Actions
+  api/                    # server-only API client, product + research calls, actions
   products/               # contract adapter, lifecycle status, payload builders, mappers
+  research/               # read models: checkpoint, coverage, claims, navigation
   env.ts                  # API base URL + internal key
 ```

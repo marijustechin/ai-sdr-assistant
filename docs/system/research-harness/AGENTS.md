@@ -73,7 +73,8 @@ opportunityId
   → plan: countries, languages, synonyms, applications,
           supplier types, channels                          (operating-manual.md §4)
   → discover → retrieve → verify (iterate)                  (operating-manual.md §5–§7)
-  → checkpoint: persist run state + sources + claims        (persistence-boundary.md)
+  → persist sources + evidence + claims + evidence-linked offerings
+  → checkpoint: persist run state + coverage + follow-ups   (persistence-boundary.md)
   → coverage check → stop/pause/follow-up                   (coverage-and-stopping.md)
   → report: coverage matrix + gaps + suggestions            (operating-manual.md §8)
 ```

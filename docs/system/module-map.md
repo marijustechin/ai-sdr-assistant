@@ -149,7 +149,7 @@ audit/reproducibility is a future ResearchRun/`research_contexts` capability
   `PersistClaimInput`, `CorrectClaimInput`; `SourceReference`, `Evidence`, `Claim`
   entities + validation results + CSV register (planned).
 - **Tables read/written (owner):** `source_references`, `evidence`, `claims`,
-  `claim_evidence`, and all source-join tables.
+  `claim_evidence`, `research_offerings`, and all source-join tables.
 - **Events:** `evidence.source_registered`, `evidence.claim_persisted`,
   `evidence.claim_rejected`.
 - **Approval:** none (mechanical validation).
