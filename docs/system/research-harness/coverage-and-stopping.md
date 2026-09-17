@@ -107,6 +107,24 @@ its validated claims, and its coverage matrix with gaps, so it can resume.
 - Respect provider quota discipline (`research-toolchain.md` §6): one retry on
   a rate-limit notice, short inter-call delays, no aggressive retry loops, no
   purchased plans, no paid overages.
+- **Cost/tool permissions are part of the budget.** The request stores a
+  `costPolicy`: `FREE_ONLY` permits only tools with an established free tier;
+  `METERED_APPROVED` permits named providers within finite call limits. Check
+  permissions and limits *before* each call; count **attempted** calls (retries
+  and failures included) against the limit and persist the counters in the run
+  checkpoint (`providerUsage`) so a resume cannot exceed it.
+- Provider **permissions** (what the request allows) are separate from provider
+  **availability** (current quota/health), which is temporary and observed at run
+  time.
+- **Credit ceilings only where consumption is controllable.** A call-count limit
+  is always enforceable; a credit limit is a hard ceiling only where pre-call
+  consumption can be controlled. A provider that reports usage only *after* the
+  call (e.g. keyless Firecrawl credits) cannot be held to a strict credit
+  ceiling.
+- **Numerical limits ≠ provider quotas.** The request's numerical limits
+  (queries/sources/minutes/countries) and provider free quotas are independent;
+  provider-quota exhaustion can pause a run before the numerical limits are
+  reached.
 
 ## 6. Cost honesty
 
@@ -115,4 +133,13 @@ its validated claims, and its coverage matrix with gaps, so it can resume.
   not observable today; Firecrawl keyless reports `creditsUsed` per call.
 - Report the usage that *is* observable (e.g. Firecrawl credits), and mark the
   rest `UNKNOWN` with why.
+- **`UNKNOWN` cost is not proof of free usage.** When a tool reports no
+  usage/cost, record `UNKNOWN` (never `0`) and do not state that the calls were
+  free.
+- Keep **"no billing configuration changed / no plan purchased / no overage
+  enabled"** distinct from **"no billable usage"**: the former is within our
+  control, the latter is not provable when the tool reports nothing.
+- **Do not promise a hard euro spending cap.** No current tool exposes a
+  controllable monetary budget; bound `METERED_APPROVED` usage by approved call
+  counts instead.
 - The remaining budget/balance is not a spend target; do not spend to a balance.

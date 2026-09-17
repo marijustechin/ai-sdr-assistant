@@ -121,7 +121,24 @@ Follow `docs/system/research-toolchain.md` §5. Summary:
    as verified; any company or URL it produces from model knowledge is an
    unverified hypothesis, not a finding or source.
 
-Fallback when retrieval fails:
+**Cost/tool permissions gate every call.** Before using a provider, check the
+request's persisted permissions and limits (`checkProviderCall` in
+`@ai-sdr/contracts`) and count the attempt — including retries and failures —
+against any finite call limit; persist the counters in the run checkpoint. Under
+`FREE_ONLY`, use only tools with an established free tier (Exa, Firecrawl) and
+exclude potentially billable tools whose free usage cannot be established
+(`UNKNOWN` cost is not proof of free use). Provider *permissions* are separate
+from temporary provider *availability*.
+
+Fallback when discovery or retrieval fails:
+
+- **Grounded fallback (a valid candidate).** When the request permits it and the
+  provider is available, Gemini grounded discovery followed by `webfetch`
+  verification of the named pages is a valid fallback path. Redirect citations
+  or an inaccurate candidate list do not by themselves establish that this path
+  is unusable — verify or reject individual candidates. Pause only on an
+  observed access failure, exhausted permitted options, an applicable limit, or
+  the coverage rules.
 
 - Retry a **temporary** failure (429, 5xx, timeout) at most once, then stop that
   URL and record `FETCH_FAILED`.
@@ -240,3 +257,47 @@ through the API (T-007); if an output genuinely cannot be persisted, pause with
 Partial coverage is normal and is recorded as gaps in the checkpoint, not as a
 separate status: publish valid findings, keep failed retrievals recorded, and
 never discard validated evidence because another part failed.
+
+## 9. Researcher intake: picking up a queued research request
+
+An operator configures a request in the dashboard and submits it; the run is
+persisted as `QUEUED` and waits. The operator then hands the agent a prompt and
+supplies **no ids, descriptions, or files**:
+
+> **Operator prompt:** "Pick up the next queued market research request and run
+> it using the research harness."
+
+The researcher's procedure:
+
+1. **Discover.** `GET /research-requests?status=QUEUED` (internal key). Each row
+   carries `runId`, `opportunityId`, `productId`, `productName`, `countries` and
+   `goals` — enough to choose a request without any supplied id.
+2. **Read the intake.** `GET /research-requests/:runId` returns the persisted
+   `request.parameters` (countries, goals, segment policy/segments, questions,
+   constraints, execution limits) and the assembled `context` (product / offer /
+   opportunity / target markets + facts). Nothing is passed in a prompt or file.
+3. **Claim once.** `PATCH /opportunities/:opportunityId/research-runs/:runId`
+   with `{ "status": "RUNNING" }`. This is a compare-and-swap: exactly one
+   attempt moves `QUEUED → RUNNING`; a loser receives `409`
+   (`run_not_claimable` or `run_already_running`). Do not continue if the claim
+   fails.
+4. **Derive search vocabulary from context.** Build queries from
+   `product.name` / `category` / `scientificName` and the recorded goals — never
+   from a hardcoded product or timber/sauna vocabulary. Record each query through
+   `POST .../research-runs/:runId/queries`.
+5. **Persist outputs** through the run-scoped endpoints: sources, evidence,
+   claims, evidence-linked offerings, and checkpoints (`PATCH .../runId` with a
+   `checkpoint`). Use the canonical UTF-8 write helper
+   (`scripts/research/ResearchApi.psm1`; `research-toolchain.md` §8) and load
+   input as UTF-8.
+6. **Stay inside the approved scope.** Countries must be within
+   `parameters.countries`; effort within `parameters.limits` (queries, sources,
+   runtime, countries) and free-only (`costPolicy = FREE_ONLY`). Discovered
+   segments are **findings/proposals**, not approvals: record them as evidence or
+   claims (and, where appropriate, offerings); never mutate target markets
+   automatically (`AGENTS.md` §3). A recorded `UNSPECIFIED` segment means
+   "identify during research".
+7. **Finish or pause** using the normal lifecycle and completion report (§8).
+
+There is no background worker, scheduler, or automatic execution: a request is
+picked up only when the operator hands the agent the prompt above.

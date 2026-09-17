@@ -24,7 +24,7 @@ export function ProductSectionNav({
     { id: "overview", label: "Overview", href: `/products/${encodeURIComponent(productId)}` },
     {
       id: "research",
-      label: "Research",
+      label: "Market research",
       href: researchIndexPath(productId),
     },
   ] as const;

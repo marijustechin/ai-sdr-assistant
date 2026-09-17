@@ -38,9 +38,19 @@ export interface ResearchRunRecord {
   pauseNote: string | null;
   checkpoint: unknown;
   checkpointAt: Date | null;
+  requestParameters: unknown;
+  requestKey: string | null;
   createdAt: Date;
   updatedAt: Date;
   targetMarketIds: string[];
+}
+
+export interface CreateQueuedResearchRunData {
+  opportunityId: string;
+  contextVersion: number;
+  targetMarketIds: string[];
+  requestParameters: unknown;
+  requestKey?: string;
 }
 
 export interface ResearchRunSummary {

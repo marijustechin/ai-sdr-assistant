@@ -12,6 +12,63 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-17 — Explicit research cost/tool permissions (FREE_ONLY | METERED_APPROVED)
+
+The research request now stores an explicit `costPolicy`, chosen in the form and
+persisted with the request:
+- `FREE_ONLY` (default): only tools with an established free tier (Exa,
+  Firecrawl); potentially billable tools whose free usage cannot be established
+  (Gemini on a billing-enabled key) are excluded — `UNKNOWN` cost is not proof of
+  free use. Free provider quotas are finite and external, so provider-quota
+  exhaustion can pause a run **before** the request's numerical limits are
+  reached.
+- `METERED_APPROVED`: named providers within finite **call** limits; attempted
+  calls (including retries and failures) count, are checked before each call, and
+  are persisted in the run checkpoint (`providerUsage`) for resume.
+
+Rationale and constraints: provider **permissions** (request) are kept separate
+from provider **availability** (temporary quota/health). Credit-based ceilings
+are not offered because a provider that reports usage only *after* a call cannot
+be held to a strict ceiling; a hard euro spending cap is not enforceable with the
+current tools and is never promised. Fallback guidance was corrected:
+Gemini-grounded discovery followed by `webfetch` verification is a valid
+candidate fallback when permitted and available; a redirect citation or an
+inaccurate candidate list does not alone make it unusable. No new pause reasons
+were introduced — existing reasons remain sufficient.
+
+The existing rough-sawn request keeps its `FREE_ONLY` policy (a system default,
+not an operator choice) and its paused state; its Gemini calls are not
+retroactively labelled free or operator-approved.
+
+---
+
+## 2026-09-17 — A research request is a QUEUED ResearchRun (no parallel task framework)
+
+The product-independent market research request flow reuses the existing domain:
+`Offer` → `Opportunity` → `TargetMarket`/`OpportunityTargetMarket` →
+`ResearchRun`. A submitted request **is** a `QUEUED` `research_run` that carries
+its validated parameters in `research_runs.request_parameters` (JSONB) with a
+unique `request_key` for idempotency. No new request table and no parallel task
+framework were introduced.
+
+Submission is orchestrated by `control-plane` (which may call every owning
+service) inside a single `PrismaService.$transaction`; each owner still writes
+only its own tables. A submission never mutates an existing opportunity or run: it
+creates a **new** Opportunity and its target-market scope, so the paused LT/FI/GB
+run is untouched. Offer resolution is unambiguous-only (explicit operator-facing
+name, exactly one offer, or a minimal research-association offer); ambiguity is
+rejected rather than guessed, and no price/availability/delivery/suitability is
+invented. When the operator chooses "identify during research", the
+target-market segment is the explicit non-commercial marker `UNSPECIFIED` — no
+commercial segment is invented. Claiming a queued run is a compare-and-swap
+(`QUEUED → RUNNING`); a second attempt is rejected
+(`run_not_claimable` / `run_already_running`).
+
+The flow is product-independent: goals, limits and offering fields are generic,
+and Abachi is existing data, not a system-wide specialization.
+
+---
+
 ## 2026-09-17 — Research-text encoding: data-only repair + UTF-8 byte-body write rule
 
 Under explicit human authorization, the known manager-written non-ASCII

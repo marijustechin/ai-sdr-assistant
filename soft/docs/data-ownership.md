@@ -112,7 +112,13 @@ contact-discovery ─┘
 
 - `research_contexts` is owned by `control-plane`. It is a read-only materialization of the assembled `ResearchContext` at freeze time, referenced by `contextVersion`.
 - `research_runs` is owned by `market-researcher` and holds exactly one
-  `context_version` column — making each run reproducible.
+  `context_version` column — making each run reproducible. It also carries the
+  product-independent request fields `request_parameters` (JSONB, validated
+  operator goals/geography/segments/questions/constraints/limits) and
+  `request_key` (unique, idempotency); a research request is a `QUEUED` run, so no
+  separate request table exists. `control-plane` orchestrates submission by
+  calling the owning services inside one transaction; it never writes
+  `research_runs` directly.
 - A `ResearchRun`'s target-market scope is recorded in
   `research_run_target_markets` (owned by `market-researcher`) with a compound
   unique constraint on `(researchRunId, targetMarketId)`.

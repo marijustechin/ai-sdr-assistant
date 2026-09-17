@@ -71,10 +71,13 @@ Docker Compose for the local database. See [`soft/README.md`](soft/README.md).
 See [`docs/system/project-state.md`](docs/system/project-state.md). In short: a
 clean API host, liveness/readiness endpoints, PostgreSQL with Prisma migrations,
 the core commercial schema, shared contracts, the first vertical slice — the
-**Catalogue + Research Context API** — and a minimal **research persistence**
-slice (run + queries + sources/evidence/claims, O-010/T-007) are implemented. The
-remaining modules (`knowledge`, `research-records`, discovery, `approvals`,
-`jobs`), full `market-researcher` execution, the worker, and the UI are not.
+**Catalogue + Research Context API** — a minimal **research persistence** slice
+(run + queries + sources/evidence/claims, O-010/T-007), the admin product UI, and
+a **product-independent market research request flow** (O-017: configure/submit a
+request per product, researcher discovery + intake + one-time claim) are
+implemented. The remaining modules (`knowledge`, `research-records`, discovery,
+`approvals`, `jobs`), full `market-researcher` execution (there is no background
+worker, scheduler, or automatic execution), and the outreach UI are not.
 
 The immediate priority is **research capability and coverage**; product
 onboarding is postponed. The manager research toolchain (Exa `websearch`,

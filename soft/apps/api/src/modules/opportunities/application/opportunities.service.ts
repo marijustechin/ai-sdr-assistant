@@ -53,12 +53,60 @@ export class OpportunitiesService {
 
   async createOpportunity(
     input: CreateOpportunityData,
+    tx?: Prisma.TransactionClient,
   ): Promise<OpportunityRecord> {
-    const offer = await this.repository.findOfferById(input.offerId);
+    const offer = await this.repository.findOfferById(input.offerId, tx);
     if (!offer) {
       throw new NotFoundException({ error: 'offer_not_found' });
     }
-    return this.repository.createOpportunity(input);
+    return this.repository.createOpportunity(input, tx);
+  }
+
+  /**
+   * Resolves a `(country, segment)` target market, reusing an existing one or
+   * creating it. Safe inside a caller-provided transaction.
+   */
+  async ensureTargetMarket(
+    input: CreateTargetMarketData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<TargetMarketRecord> {
+    const existing = await this.repository.findTargetMarketByCountrySegment(
+      input.country,
+      input.segment,
+      tx,
+    );
+    if (existing) {
+      return existing;
+    }
+    try {
+      return await this.repository.createTargetMarket(input, tx);
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        const raced = await this.repository.findTargetMarketByCountrySegment(
+          input.country,
+          input.segment,
+          tx,
+        );
+        if (raced) {
+          return raced;
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Attaches a target market and bumps the opportunity context version within a
+   * caller-provided transaction (used by the research-request submission so all
+   * related writes commit or roll back together).
+   */
+  async attachTargetMarketWithinTransaction(
+    tx: Prisma.TransactionClient,
+    opportunityId: string,
+    targetMarketId: string,
+  ): Promise<void> {
+    await this.repository.attachTargetMarket(opportunityId, targetMarketId, tx);
+    await this.repository.bumpContextVersionForOpportunity(opportunityId, tx);
   }
 
   /**
@@ -109,6 +157,27 @@ export class OpportunitiesService {
     }
     const targetMarkets =
       await this.repository.listTargetMarketsForOpportunity(opportunityId);
+    return { opportunity, targetMarkets };
+  }
+
+  /**
+   * Transaction-aware context read: sees writes made earlier in the same
+   * transaction (used by the research-request submission to record the final
+   * `contextVersion` after attaching markets).
+   */
+  async getContextDataWithinTransaction(
+    tx: Prisma.TransactionClient,
+    opportunityId: string,
+  ): Promise<OpportunityContextData> {
+    const opportunity = await this.repository.findOpportunity(
+      opportunityId,
+      tx,
+    );
+    if (!opportunity) {
+      throw new NotFoundException({ error: 'opportunity_not_found' });
+    }
+    const targetMarkets =
+      await this.repository.listTargetMarketsForOpportunity(opportunityId, tx);
     return { opportunity, targetMarkets };
   }
 

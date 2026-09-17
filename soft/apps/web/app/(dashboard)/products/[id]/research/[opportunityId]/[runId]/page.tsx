@@ -146,6 +146,17 @@ export default async function ResearchRunPage({
         </IntegrationNotice>
       ) : run ? (
         <div className="space-y-4">
+          {run.status === "QUEUED" ? (
+            <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm">
+              <p className="font-medium">Queued — waiting for researcher</p>
+              <p className="text-muted-foreground">
+                The request is stored and discoverable by the researcher. This is
+                the persisted status; partial results appear here as they are
+                saved.
+              </p>
+            </div>
+          ) : null}
+
           <RunOverview
             run={run}
             opportunity={opportunity}

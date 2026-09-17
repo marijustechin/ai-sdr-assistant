@@ -5,12 +5,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma } from '@ai-sdr/database';
 import type {
   RecordResearchQueryInput,
   UpdateResearchRunInput,
 } from '@ai-sdr/contracts';
 import { OpportunitiesService } from '../../opportunities/application/opportunities.service.js';
 import type {
+  CreateQueuedResearchRunData,
   ResearchQueryRecord,
   ResearchRunRecord,
 } from '../domain/types.js';
@@ -50,6 +52,40 @@ export class MarketResearcherService {
       contextVersion: opportunity.contextVersion,
       targetMarketIds: targetMarkets.map((market) => market.id),
     });
+  }
+
+  /**
+   * Creates a `QUEUED` run from the product-independent request flow, persisting
+   * the validated request parameters. Accepts a caller transaction so the
+   * submission commits all related writes together.
+   */
+  async createQueuedRun(
+    input: CreateQueuedResearchRunData,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ResearchRunRecord> {
+    return this.repository.createQueuedRun(input, tx);
+  }
+
+  /** Idempotency lookup for the request flow. */
+  async findRunByRequestKey(
+    requestKey: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<ResearchRunRecord | null> {
+    return this.repository.findRunByRequestKey(requestKey, tx);
+  }
+
+  /** Discovery read: all runs awaiting a researcher (oldest first). */
+  async listQueuedRuns(): Promise<ResearchRunRecord[]> {
+    return this.repository.listQueuedRuns();
+  }
+
+  /** Run by id, without an opportunity path segment (intake read). */
+  async getRunById(runId: string): Promise<ResearchRunRecord> {
+    const run = await this.repository.findRun(runId);
+    if (!run) {
+      throw new NotFoundException({ error: 'research_run_not_found' });
+    }
+    return run;
   }
 
   async listRuns(opportunityId: string) {
@@ -118,6 +154,22 @@ export class MarketResearcherService {
           opportunityContextVersion: currentVersion,
         });
       }
+    }
+
+    if (input.status === 'RUNNING' && run.status === 'QUEUED') {
+      // Claiming a queued request is a compare-and-swap: exactly one execution
+      // attempt can move QUEUED -> RUNNING; a concurrent loser is rejected.
+      const claimed = await this.repository.claimQueuedRun(runId);
+      if (!claimed) {
+        throw new ConflictException({ error: 'run_not_claimable' });
+      }
+      return this.getRunById(runId);
+    }
+
+    if (input.status === 'RUNNING' && run.status === 'RUNNING') {
+      // The run is already claimed/started; a second execution attempt must not
+      // succeed. (Resuming a PAUSED run is a different, allowed transition.)
+      throw new ConflictException({ error: 'run_already_running' });
     }
 
     return this.repository.updateRun(runId, {

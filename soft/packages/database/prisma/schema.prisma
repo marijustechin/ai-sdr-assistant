@@ -153,6 +153,13 @@ model ResearchRun {
   pauseNote      String?           @map("pause_note") @db.Text
   checkpoint     Json?             @map("checkpoint")
   checkpointAt   DateTime?         @map("checkpoint_at") @db.Timestamptz(6)
+  /// Validated operator request parameters (goals, geography, segment policy,
+  /// questions, constraints, execution limits). Null for runs not created from
+  /// the product-independent request flow.
+  requestParameters Json?         @map("request_parameters")
+  /// Optional client idempotency key so a double-click/retry cannot create a
+  /// duplicate research request.
+  requestKey     String?           @unique @map("request_key") @db.VarChar(120)
   createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 

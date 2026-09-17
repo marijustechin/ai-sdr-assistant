@@ -6,6 +6,7 @@ import {
   type ResearchRun,
 } from '@ai-sdr/database';
 import type {
+  CreateQueuedResearchRunData,
   CreateResearchRunData,
   RecordResearchQueryData,
   ResearchQueryRecord,
@@ -38,6 +39,8 @@ function toRunRecord(run: RunWithScope): ResearchRunRecord {
     pauseNote: run.pauseNote,
     checkpoint: run.checkpoint,
     checkpointAt: run.checkpointAt,
+    requestParameters: run.requestParameters ?? null,
+    requestKey: run.requestKey,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
     targetMarketIds: run.targetMarkets.map((scope) => scope.targetMarketId),
@@ -109,12 +112,76 @@ export class ResearchRunsRepository {
     return toRunRecord(run);
   }
 
-  async findRun(runId: string): Promise<ResearchRunRecord | null> {
-    const run = await this.prisma.db.researchRun.findUnique({
+  /**
+   * Creates a `QUEUED` run from the product-independent request flow. Unlike
+   * `createRun` (which starts a run immediately), this leaves the run waiting for
+   * the researcher to claim, and persists the validated request parameters.
+   */
+  async createQueuedRun(
+    data: CreateQueuedResearchRunData,
+    tx?: DbClient,
+  ): Promise<ResearchRunRecord> {
+    const run = await this.client(tx).researchRun.create({
+      data: {
+        opportunityId: data.opportunityId,
+        contextVersion: data.contextVersion,
+        status: 'QUEUED',
+        requestParameters: data.requestParameters as Prisma.InputJsonValue,
+        ...(data.requestKey !== undefined ? { requestKey: data.requestKey } : {}),
+        targetMarkets: {
+          create: data.targetMarketIds.map((targetMarketId) => ({
+            targetMarketId,
+          })),
+        },
+      },
+      include: RUN_INCLUDE,
+    });
+    return toRunRecord(run);
+  }
+
+  async findRun(
+    runId: string,
+    tx?: DbClient,
+  ): Promise<ResearchRunRecord | null> {
+    const run = await this.client(tx).researchRun.findUnique({
       where: { id: runId },
       include: RUN_INCLUDE,
     });
     return run ? toRunRecord(run) : null;
+  }
+
+  /** Idempotency lookup: a repeat submission returns its already-created run. */
+  async findRunByRequestKey(
+    requestKey: string,
+    tx?: DbClient,
+  ): Promise<ResearchRunRecord | null> {
+    const run = await this.client(tx).researchRun.findUnique({
+      where: { requestKey },
+      include: RUN_INCLUDE,
+    });
+    return run ? toRunRecord(run) : null;
+  }
+
+  /** Runs awaiting a researcher, oldest first (discovery order). */
+  async listQueuedRuns(tx?: DbClient): Promise<ResearchRunRecord[]> {
+    const runs = await this.client(tx).researchRun.findMany({
+      where: { status: 'QUEUED' },
+      include: RUN_INCLUDE,
+      orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }],
+    });
+    return runs.map(toRunRecord);
+  }
+
+  /**
+   * Compare-and-swap claim: moves a run `QUEUED → RUNNING` exactly once. Returns
+   * `false` when another attempt already claimed it (or it was not queued).
+   */
+  async claimQueuedRun(runId: string, tx?: DbClient): Promise<boolean> {
+    const result = await this.client(tx).researchRun.updateMany({
+      where: { id: runId, status: 'QUEUED' },
+      data: { status: 'RUNNING', startedAt: new Date() },
+    });
+    return result.count === 1;
   }
 
   async listRunsForOpportunity(

@@ -33,8 +33,14 @@ audit/reproducibility is a future ResearchRun/`research_contexts` capability
 
 ## 1. `control-plane` — Assistant Manager
 
-- **Status:** implemented subset (T-006) — `ResearchContextService` assembly and
-  redaction, exposed as `GET /opportunities/:id/research-context`. Task routing,
+- **Status:** implemented subset (T-006 for context, 2026-09-17 for requests) —
+  `ResearchContextService` assembly and redaction, exposed as
+  `GET /opportunities/:id/research-context`, and the **product-independent
+  research request flow** (`POST /research-requests`,
+  `GET /research-requests?status=QUEUED`, `GET /research-requests/:runId`), which
+  orchestrates the owning modules in one transaction (resolve/create Offer via
+  `products-and-offers`, create Opportunity + target markets via
+  `opportunities`, create a `QUEUED` run via `market-researcher`). Task routing,
   `tasks`/`executions`/`activities`, approval routing, and `research_contexts`
   snapshots remain planned.
 - **Responsibility:** Task routing/orchestration (including task **scope**),
@@ -179,11 +185,13 @@ audit/reproducibility is a future ResearchRun/`research_contexts` capability
 
 ## 7. `market-researcher`
 
-- **Status:** implemented subset (T-007) — the run envelope
+- **Status:** implemented subset (T-007, extended 2026-09-17) — the run envelope
   (`research_runs` + scope), the run-scoped `research_queries` log, and the
   minimal run API (`POST/GET /opportunities/:id/research-runs`,
   `GET/PATCH .../:runId`, `POST .../:runId/queries`) including the
-  `CONTEXT_CHANGED` resume guard. The AI research execution itself, budgets, and
+  `CONTEXT_CHANGED` resume guard. It also owns the **queued research request**
+  fields (`request_parameters` JSONB, `request_key` unique) and the one-time
+  `QUEUED → RUNNING` claim. The AI research execution itself, budgets, and
   suggestions/clarification requests remain planned.
 - **Responsibility:** Market research per target market → sourced findings +
   target-market suggestions + clarification requests. Never mutates business

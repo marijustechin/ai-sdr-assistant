@@ -154,6 +154,23 @@ export class ProductsRepository {
     return offer ? toOfferRecord(offer) : null;
   }
 
+  /**
+   * Case-insensitive lookup of one product's offer by name. May return more than
+   * one match only if names differ by case, so callers treat multiple matches as
+   * ambiguous.
+   */
+  async findOfferByNameForProduct(
+    productId: string,
+    name: string,
+    tx?: DbClient,
+  ): Promise<OfferRecord | null> {
+    const offer = await this.client(tx).offer.findFirst({
+      where: { productId, name: { equals: name, mode: 'insensitive' } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    return offer ? toOfferRecord(offer) : null;
+  }
+
   /** Offers belonging to one product; creation order, `id` breaks ties. */
   async listOffersForProduct(
     productId: string,

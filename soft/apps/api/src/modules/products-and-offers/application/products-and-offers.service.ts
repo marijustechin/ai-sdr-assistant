@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma } from '@ai-sdr/database';
 import type { CreateOfferInput, ProductResponse, UpdateProductInput } from '@ai-sdr/contracts';
 import type {
   CreateFactData,
@@ -51,16 +52,32 @@ export class ProductsAndOffersService {
   async createOffer(
     productId: string,
     input: CreateOfferInput,
+    tx?: Prisma.TransactionClient,
   ): Promise<OfferRecord> {
-    const product = await this.repository.findProduct(productId);
+    const product = await this.repository.findProduct(productId, tx);
     if (!product) {
       throw new NotFoundException({ error: 'product_not_found' });
     }
-    return this.repository.createOffer({
-      productId,
-      name: input.name,
-      commercialStatus: input.commercialStatus,
-    });
+    return this.repository.createOffer(
+      {
+        productId,
+        name: input.name,
+        commercialStatus: input.commercialStatus,
+      },
+      tx,
+    );
+  }
+
+  /**
+   * Case-insensitive lookup of one product's offer by its operator-facing name.
+   * Used only to disambiguate offer resolution in the research-request flow.
+   */
+  async findOfferByNameForProduct(
+    productId: string,
+    name: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<OfferRecord | null> {
+    return this.repository.findOfferByNameForProduct(productId, name, tx);
   }
 
   /**
@@ -144,12 +161,15 @@ export class ProductsAndOffersService {
   }
 
   /** Offers belonging to one product (404 for an unknown product). */
-  async listOffersForProduct(productId: string): Promise<OfferRecord[]> {
-    const product = await this.repository.findProduct(productId);
+  async listOffersForProduct(
+    productId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<OfferRecord[]> {
+    const product = await this.repository.findProduct(productId, tx);
     if (!product) {
       throw new NotFoundException({ error: 'product_not_found' });
     }
-    return this.repository.listOffersForProduct(productId);
+    return this.repository.listOffersForProduct(productId, tx);
   }
 
   /**

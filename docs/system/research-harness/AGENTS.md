@@ -61,9 +61,18 @@ retrieval date, supporting evidence, and a verification status.
 6. **No parallel store.** Do not persist research as a Markdown/CSV database. If
    the API cannot persist an output, record the gap and pause; do not substitute
    Markdown for PostgreSQL (`persistence-boundary.md`).
-7. **No paid calls and no quota overrun.** Use free quotas; never purchase a
-   plan or enable paid overage. Unknown tool cost stays `UNKNOWN`, never `0`
-   (`coverage-and-stopping.md` §6, `research-toolchain.md` §6).
+7. **Spend only what the request permits.** The request stores a `costPolicy`:
+   - `FREE_ONLY` — use only tools with an established free tier (Exa, Firecrawl);
+     exclude potentially billable tools whose free usage cannot be established
+     (`UNKNOWN` cost is not proof of free use). Free provider quotas are finite
+     and external, so a run can pause on provider-quota exhaustion **before** the
+     request's numerical limits are reached.
+   - `METERED_APPROVED` — only the named providers, only within their finite call
+     limits; attempted calls (including retries and failures) count, so check
+     before each call and persist the counters for resume.
+   Never purchase a plan or enable paid overage beyond the request's permission,
+   and never promise a euro spending cap. Unknown tool cost stays `UNKNOWN`,
+   never `0` (`coverage-and-stopping.md` §5–§6, `research-toolchain.md` §6).
 
 ## 4. The run loop (start here)
 
@@ -83,6 +92,14 @@ opportunityId
 version, coverage matrix, source/evidence/claim ids) through the API (T-007).
 If a required output is genuinely unpersistable, follow
 `persistence-boundary.md` — do not invent a store.
+
+**Queued requests (operator-submitted).** A run may arrive as a research request
+configured in the dashboard. Discover it with `GET /research-requests?status=QUEUED`,
+read its persisted parameters and product context with
+`GET /research-requests/:runId`, then claim it exactly once with
+`PATCH .../research-runs/:runId { "status": "RUNNING" }` before executing — see
+`operating-manual.md` §9. The operator supplies no ids, descriptions, or files;
+the exact prompt is recorded there.
 
 ## 5. Supporting instructions
 

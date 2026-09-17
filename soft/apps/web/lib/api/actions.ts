@@ -1,10 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { CreateProductSchema, UpdateProductSchema } from "@ai-sdr/contracts";
+import {
+  CreateProductSchema,
+  CreateResearchRequestSchema,
+  UpdateProductSchema,
+} from "@ai-sdr/contracts";
 import { createProduct, updateProduct } from "./products";
+import { submitResearchRequest } from "./research-requests";
 import { describeApiError } from "./errors";
 import type { ProductActionResult } from "@/lib/products/types";
+import type { ResearchRequestActionResult } from "@/lib/research-requests/types";
 
 function fieldErrorsFrom(
   issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>,
@@ -82,6 +88,40 @@ export async function updateProductAction(
     return {
       ok: false,
       message: describeApiError(error, "The product could not be updated."),
+    };
+  }
+}
+
+/**
+ * Submit a product-independent market research request via
+ * `POST /research-requests`. Runs on the server (key stays server-side) and
+ * re-validates against `CreateResearchRequestSchema`; the payload already
+ * includes the product id and an idempotency `requestKey`.
+ */
+export async function submitResearchRequestAction(
+  values: unknown,
+): Promise<ResearchRequestActionResult> {
+  const parsed = CreateResearchRequestSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message:
+        "The research request could not be submitted: please correct the highlighted fields.",
+      fieldErrors: fieldErrorsFrom(parsed.error.issues),
+    };
+  }
+
+  try {
+    const request = await submitResearchRequest(parsed.data);
+    revalidatePath(`/products/${parsed.data.productId}/research`);
+    return { ok: true, request };
+  } catch (error) {
+    return {
+      ok: false,
+      message: describeApiError(
+        error,
+        "The research request could not be submitted.",
+      ),
     };
   }
 }

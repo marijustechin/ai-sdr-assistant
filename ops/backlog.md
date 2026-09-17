@@ -5,8 +5,8 @@ agent must not start any of these without a new `ops/current.md`.
 
 ## Active
 
-- None. (Last completed: O-016 — research-text encoding repair + verified
-  researcher UTF-8 write/read path.)
+- None. (Last completed: O-017 — product-independent market research request flow
+  + explicit cost/tool permissions; accepted 2026-09-17.)
 
 ## Next (candidate, priority order)
 
@@ -34,8 +34,25 @@ agent must not start any of these without a new `ops/current.md`.
    repaired data-only. The 9 ASCII search queries were left unchanged (may be
    intentional).
 
+8. **Enforce research cost/tool limits in an execution engine (not only the
+   harness).** O-017 stores `FREE_ONLY`/`METERED_APPROVED` permissions and
+   `checkpoint.providerUsage` counters, but enforcement is currently
+   agent-followed, not platform-enforced. A future runner/jobs slice should
+   refuse over-limit provider calls and persist counters transactionally. No
+   current tool exposes a controllable monetary budget, so a strict euro ceiling
+   remains out of scope.
+
 ## Completed (for reference)
 
+- O-017 — Product-independent market research request flow — **accepted**;
+  archived `ops/done/2026-09-17-market-research-request-flow.md`. Product →
+  Market research → New market research → Submit → "Queued — waiting for
+  researcher"; the request persists as a `QUEUED` run and is discovered/intaken/
+  claimed through the API (no supplied ids); Abachi and Cacao share one flow;
+  verified end to end with a real queued run. Also adds explicit cost/tool
+  permissions (`FREE_ONLY` default; `METERED_APPROVED` with finite provider call
+  limits). **Known limitation:** provider call limits are agent-enforced through
+  the harness, not by an execution engine. Both research runs preserved.
 - O-016 — Repair research-text encoding end to end — **accepted**; archived
   `ops/done/2026-09-17-research-text-encoding.md`. Repaired 22 encoding-damaged
   text fields data-only (4 double-encoded `research_queries`; 6 `U+FFFD` fields;

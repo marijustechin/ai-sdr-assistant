@@ -59,7 +59,7 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `TargetMarket` | `target_markets` | country/region + market segment (deduplicated). | `opportunities` |
 | `Opportunity` | `opportunities` | Commercial work unit; belongs to one `offers`. | `opportunities` |
 | `OpportunityTargetMarket` | `opportunity_target_markets` | Join `opportunities` ↔ `target_markets`. | `opportunities` |
-| `ResearchRun` | `research_runs` | Auditable record that market research ran for one Opportunity (lifecycle + pause + checkpoint). | `market-researcher` |
+| `ResearchRun` | `research_runs` | Auditable record that market research ran (or was requested) for one Opportunity: lifecycle + pause + checkpoint + validated request parameters (`request_parameters`) and idempotency key (`request_key`); a research request is a `QUEUED` run. | `market-researcher` |
 | `ResearchRunTargetMarket` | `research_run_target_markets` | Target-market scope of a `ResearchRun`. | `market-researcher` |
 | `ResearchQuery` | `research_queries` | A discovery/search query issued during a `ResearchRun`. | `market-researcher` |
 | `SourceReference` | `source_references` | A discovered source; deduplicated by URL. | `evidence` |

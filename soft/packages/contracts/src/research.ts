@@ -82,6 +82,25 @@ export const ResearchRunCheckpointSchema = z.strictObject({
       }),
     )
     .optional(),
+  /**
+   * Run-scoped provider usage counters so call limits and resume state survive a
+   * pause. `attemptedCalls` counts every attempt, including retries and
+   * failures; `creditsUsed` is recorded only where the provider reports it
+   * (which does not by itself guarantee a ceiling).
+   */
+  providerUsage: z
+    .array(
+      z.strictObject({
+        provider: z.string().trim().min(1).max(40),
+        attemptedCalls: z.number().int().min(0),
+        succeeded: z.number().int().min(0).optional(),
+        failed: z.number().int().min(0).optional(),
+        retries: z.number().int().min(0).optional(),
+        creditsUsed: z.number().min(0).optional(),
+        lastAttemptAt: z.string().max(40).optional(),
+      }),
+    )
+    .optional(),
   notes: z.string().max(4000).optional(),
 });
 

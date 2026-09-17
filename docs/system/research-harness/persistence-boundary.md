@@ -145,6 +145,21 @@ versioning) rather than redesigning them.
   retracted/replaced claims; `GET .../claims?includeHistory=true` returns the
   full preserved history.
 
+**Product-independent research request flow (2026-09-17).** `research_runs` gains
+`requestParameters` (JSONB, validated operator parameters) and `requestKey`
+(unique, idempotency); owner stays `market-researcher`. A request **is** a
+`QUEUED` run — no parallel task framework or duplicated lifecycle.
+
+- `POST /research-requests` — submit `{ productId, offerName?, requestKey?,
+  parameters }`; resolves/creates the Offer and Opportunity and creates the
+  `QUEUED` run in one transaction (double-click/retry safe via `requestKey`).
+- `GET /research-requests?status=QUEUED` — researcher discovery (no supplied ids).
+- `GET /research-requests/:runId` — researcher intake: persisted
+  `request.parameters` (goals, geography, segment policy, questions, constraints,
+  execution limits) plus the assembled `context`.
+- `PATCH .../research-runs/:runId { status: 'RUNNING' }` claims a queued run
+  exactly once (compare-and-swap).
+
 **Writer note (non-ASCII text).** The API/database/web path round-trips
 non-ASCII exactly, but a manager writing through Windows PowerShell must send
 the JSON as UTF-8 **bytes** with `charset=utf-8` (a .NET *string* body is
@@ -164,8 +179,15 @@ display time, and never blindly transcode records.
 ```text
 { coverage: [ { targetMarketId, dimension, status, note } ],
   pendingFollowUps: [ { kind, ref, note } ],
+  providerUsage?: [ { provider, attemptedCalls, succeeded?, failed?,
+                      retries?, creditsUsed?, lastAttemptAt? } ],
   notes?: string }
 ```
+
+`providerUsage` persists per-provider **attempted** call counters (retries and
+failures included) so that a resumed run can check the request's
+`METERED_APPROVED` call limits before issuing further calls. Provider
+permissions live in the request parameters; these counters record usage.
 
 **Lifecycle status vs pause/block reason (normative — keep them separate):**
 

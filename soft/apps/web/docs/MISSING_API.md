@@ -71,6 +71,23 @@ Real gaps (documented, not worked around):
 
 ---
 
+## Market research request flow (implemented 2026-09-17)
+
+| Method | Path | Purpose | UI |
+|---|---|---|---|
+| `POST` | `/research-requests` | Submit a request (creates a `QUEUED` run) | `/products/[id]/research/new` |
+| `GET` | `/research-requests?status=QUEUED` | Queued requests for discovery | `/products/[id]/research` |
+| `GET` | `/research-requests/:runId` | Persisted parameters + product context | researcher intake (not shown) |
+
+The form loads the product identity from the API (the operator never repeats a
+description) and submits `productId` + validated `parameters` + an idempotency
+`requestKey` generated per form instance. The button says "Submit research
+request"; the result is shown as **"Queued — waiting for researcher"**. No
+research runs automatically, and internal Offer/Opportunity ids never appear in
+the UI.
+
+---
+
 ## Deferred / future architectural decisions (NOT approved)
 
 These are open questions, not planned schema changes.
@@ -92,8 +109,11 @@ These are open questions, not planned schema changes.
 
 - Research is **run-scoped** (`ResearchRun.status`), reached via
   Opportunity → Offer → Product. `Product` has no research-status field.
-- A product-level research indicator needs a decision: a persisted field
-  (schema change) or a derived read model on a read endpoint. The UI shows none.
+- A request can now be created from a product
+  (`/products/[id]/research/new`), but the product page still has no single
+  aggregated research-status field: status is read from each run. A product-level
+  indicator would need a persisted field (schema change) or a derived read model;
+  it is not implemented.
 
 ### Product ↔ TargetMarket association
 

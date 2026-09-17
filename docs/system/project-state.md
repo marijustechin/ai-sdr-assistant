@@ -1,9 +1,11 @@
 # Project State (Canonical)
 
-**Status:** Canonical, live snapshot. Last updated 2026-09-17 (**O-016
-accepted** — research-text encoding repaired data-only, and the researcher
-UTF-8 write/read helper fixed and verified end to end). Prior 2026-09-15:
-**O-011 accepted**
+**Status:** Canonical, live snapshot. Last updated 2026-09-17 (**O-017
+accepted** — product-independent market research request flow, verified end to
+end with a real queued run, plus explicit cost/tool permissions; and **O-016
+accepted** — research-text encoding repaired data-only, researcher UTF-8
+write/read helper fixed and verified end to end). Prior 2026-09-15: **O-011
+accepted**
 — the first bounded research wave (LT / FI / GB), its fresh-session recovery, the
 bounded claim-correction lifecycle (six replacements + three retractions
 applied), the product-scoped discovery API, and the admin product-management UI
@@ -45,6 +47,7 @@ PostgreSQL).
 | Research results dashboard (read-only) | Product → opportunities → research runs → run detail in the admin web app, leading with **companies and offerings** (structured, evidence-linked; filterable by market served, application and match class `EXACT_MATCH`/`ADJACENT`/`SUBSTITUTE`), CURRENT findings shown beside the offering they support, other current findings kept accessible, an explicit `includeHistory` correction view, coverage that explains investigated vs missing, and usage/limits/notes/discovery log behind a collapsed "Research details" control. Reads the API only; no prose parsing; no write actions. Backed by the evidence-owned `research_offerings` read model (migration `20260915140000_research_offerings`) | `soft/apps/web`, `soft/apps/api/src/modules/evidence` |
 | Research persistence API | `POST/GET /opportunities/:id/research-runs`, `GET/PATCH .../:runId`, `POST/GET .../:runId/queries`, and `POST/GET .../:runId/sources|evidence|claims`; `POST .../claims/:claimId/corrections` with `GET .../claims?includeHistory=true`; `PATCH` pause/resume with the `CONTEXT_CHANGED` guard (T-007 + claim-correction lifecycle) | `soft/apps/api/src/modules/{market-researcher,evidence}` |
 | Internal-key boundary | Every business route requires `x-internal-api-key`; constant-time check, fail-closed non-sensitive `503` when `INTERNAL_API_KEY` is unconfigured, non-sensitive `401` otherwise; key never logged or returned. `GET /health`/`GET /ready` stay public | `soft/apps/api/src/security` |
+| Product-independent research request flow | Product → **Market research** → **New market research** form (countries/regions, goals, optional segments with "identify during research", questions/constraints, one bounded standard scope with expandable technical limits, review summary) → `POST /research-requests` persists validated parameters on a `QUEUED` run and shows **"Queued — waiting for researcher"**; researcher discovery/intake `GET /research-requests?status=QUEUED` / `GET /research-requests/:runId`; one-time `QUEUED → RUNNING` claim; explicit cost/tool permissions (`FREE_ONLY` default, or `METERED_APPROVED` with finite per-provider call limits) persisted with the request and enforced by a pure `checkProviderCall` helper, with resume counters in `checkpoint.providerUsage`. Reuses `Offer`/`Opportunity`/`TargetMarket`/`ResearchRun`; no parallel task framework. Migration `20260917130000_research_requests` (`request_parameters` JSONB + unique `request_key`) | `soft/apps/web`, `soft/apps/api/src/modules/control-plane`, `soft/apps/api/src/modules/market-researcher` |
 | Tests | Database integration tests (isolated `ai_sdr_test`), contract tests, and API integration tests including the catalogue/research-context slice and the claim-correction lifecycle (isolated `ai_sdr_test_api`); API health/readiness/env tests still pass | `soft/packages/database/test`, `soft/packages/contracts/test`, `soft/apps/api/test` |
 | Root manager workspace | Root `AGENTS.md`, `ops/` task loop, `docs/system/` canonical docs, root `.gitignore` | this repository root |
 | Market researcher operating harness | Canonical instructions (entry point + lifecycle, evidence/price rules, coverage/stopping rules, persistence boundary, synthetic verification). **Instructions only** — not the `market-researcher` module and not a data store | `docs/system/research-harness/` |
@@ -175,6 +178,27 @@ string); it is verified end to end (PowerShell input → request → API → dat
 API read) for Lithuanian and Finnish against an isolated database by
 `scripts/research/Test-ResearchWriteEncoding.ps1`. A non-ASCII round-trip
 regression test guards the persistence layer (`research-toolchain.md` §8).
+
+**O-017 — the product-independent market research request flow — is accepted**
+(archived `ops/done/2026-09-17-market-research-request-flow.md`), including a real
+request → queue → researcher → persisted-results run and explicit cost/tool
+permissions (`FREE_ONLY` default; `METERED_APPROVED` with finite provider call
+limits). **Known limitation:** provider call limits are agent-enforced through the
+harness, not by an execution engine (see below). An operator can configure a market research request
+for **any** product in the dashboard and submit it; the request is persisted in
+PostgreSQL as a `QUEUED` research run (validated parameters in
+`research_runs.request_parameters`, idempotency `request_key`) and shown as
+"Queued — waiting for researcher". The researcher discovers queued requests and
+reads the persisted parameters + assembled context through the API without any
+human-supplied ids, and claims a run exactly once. It reuses the existing
+`Offer`/`Opportunity`/`TargetMarket`/`ResearchRun` domain (no parallel task
+framework; the derived opportunity name is the product name plus a research
+suffix; segments default to the explicit `UNSPECIFIED` marker when the operator
+chooses "identify during research"). Abachi and Cacao beans run the same flow with
+no code changes; the existing paused LT/FI/GB run and its scope are unchanged.
+No background worker, scheduler, or automatic execution exists — the operator
+hands the agent the prompt in `research-harness/operating-manual.md` §9. Migration
+`20260917130000_research_requests`.
 
 **Verified operating toolchain (2026-09-14):**
 

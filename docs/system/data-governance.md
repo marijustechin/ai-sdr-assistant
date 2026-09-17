@@ -125,7 +125,11 @@ scope fields. Reads are served by its query/read-model service.
   CONTEXT_CHANGED | DIMINISHING_RETURNS | NEEDS_HUMAN`), `errorCode`/`errorNote`
   for `FAILED`, and a JSONB `checkpoint` + `checkpointAt`. A reason is never
   encoded as a status. `research_queries` (owner `market-researcher`) records the
-  discovery/search queries issued during a run.
+  discovery/search queries issued during a run. Since 2026-09-17 `research_runs`
+  also carries the product-independent request fields `request_parameters` (JSONB,
+  validated operator goals/geography/segments/questions/constraints/limits) and
+  `request_key` (unique, idempotency); a **research request is a `QUEUED`
+  `research_run`** — no separate request table and no parallel task framework.
 
 ### `evidence` (sources, evidence, claims)
 
