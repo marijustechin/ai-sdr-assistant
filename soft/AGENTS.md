@@ -42,9 +42,10 @@ never broaden it beyond the higher layers.
 - **Node version activation.** When an agent is started from the repository root
   and runs any `soft/` pnpm, Prisma, test, build, lint, or verification command,
   it must first activate the Node version declared by `.nvmrc` (currently Node
-  24.20.0). Do not rely on the host default Node version. A safe pattern for a
-  root-started agent is `nvm exec 24.20.0 pnpm --dir soft <command>`; inside
-  `soft/`, load `$NVM_DIR/nvm.sh` and run `nvm use` first.
+  24.20.0). Do not rely on the host default Node version. On Windows this is
+  **nvm-windows** (not the Linux `nvm` and not WSL): run `nvm use 24.20.0` once,
+  then run the command in the same shell
+  (`nvm use 24.20.0; pnpm --dir soft <command>`).
 
 ## 3. Architecture Invariants
 

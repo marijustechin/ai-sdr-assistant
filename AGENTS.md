@@ -81,10 +81,11 @@ ai-sdr-assistant/                 # repository root (root manager workspace)
 When an agent is started from the repository root and runs any `soft/` pnpm,
 Prisma, test, build, lint, or verification command, it must **first activate the
 Node version declared by `soft/.nvmrc`** (currently Node 24.20.0). Do not rely
-on the host default Node version. A safe pattern for a root-started agent is:
+on the host default Node version. On Windows this is **nvm-windows** (not the
+Linux `nvm`); select the version once, then run the command in the same shell.
 
-```bash
-nvm exec 24.20.0 pnpm --dir soft <command>
+```powershell
+nvm use 24.20.0; pnpm --dir soft <command>
 ```
 
 ---

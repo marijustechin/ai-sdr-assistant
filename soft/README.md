@@ -36,6 +36,13 @@ Bounded feature modules are NestJS modules under
 
 - Node.js 24 LTS (see `.nvmrc`) and pnpm 11 (`packageManager` + `pnpm-workspace.yaml`)
 - TypeScript, NestJS + Fastify, PostgreSQL + Prisma (v7), Zod, Docker Compose
+- **Windows runtime (required):** Node **24.20.0** and pnpm **11.26.0** via
+  **nvm-windows** (`nvm use 24.20.0`) plus `corepack prepare pnpm@11.26.0
+  --activate`. The exact install/upgrade procedure — run in an **admin**
+  PowerShell with **OpenCode quit** (the previous standalone Node is a machine
+  MSI and its `node.exe` is locked by OpenCode's MCP children) — is in
+  [`../docs/system/research-toolchain.md`](../docs/system/research-toolchain.md)
+  §4.0. Restart OpenCode afterwards so MCP servers inherit the new environment.
 
 ## Database (local development)
 

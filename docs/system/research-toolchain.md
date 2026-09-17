@@ -202,6 +202,70 @@ is not interpolated for dynamically added servers and causes `server unavailable
 
 ## 4. Reproduce on Windows (exact steps)
 
+### 4.0 Required Node.js runtime via nvm-windows (do this first)
+
+The project requires Node **24.20.0** (`soft/.nvmrc`) and pnpm **11.26.0**
+(`soft/package.json` `engines` + `packageManager`). On Windows, use
+**nvm-windows** (the Go port); **not** the Linux `nvm` and **not** WSL.
+
+**Why this is a short manual step.** Removing the existing standalone Node and
+installing nvm-windows requires **administrator/UAC** (the standalone Node is a
+machine MSI and its PATH entry is machine-scoped), and the standalone
+`C:\Program Files\nodejs\node.exe` is **locked while OpenCode runs** (its
+Node-based MCP children, e.g. the Gemini MCP, run from that node). The swap
+therefore must run with **OpenCode quit** in a single **admin** PowerShell. Do
+not kill OpenCode/MCP child processes.
+
+```powershell
+# ADMIN PowerShell, with OpenCode QUIT (no node.exe from Program Files running)
+
+# Recovery first (only if the migration is aborted): restore the previous Node
+# winget install --id OpenJS.NodeJS.22 --version 24.19.0 --accept-package-agreements --accept-source-agreements
+
+# 1) Uninstall the standalone Node (machine MSI; removes C:\Program Files\nodejs)
+winget uninstall --id OpenJS.NodeJS.22 --silent --accept-source-agreements
+#   fallback: msiexec /x {89850E15-F7D6-476D-972E-F8F5215E4498} /qn /norestart
+
+# 2) Install nvm-windows 1.2.2 (official installer; it asks for the nvm root and
+#    the Node symlink and adds %NVM_HOME%/%NVM_SYMLINK% to PATH).
+#    On this machine the chosen paths were:
+#      NVM_HOME    = C:\Users\msmig\AppData\Local\nvm
+#      NVM_SYMLINK = C:\nvm4w\nodejs
+$nvmSetup = "$env:LOCALAPPDATA\Temp\opencode\nvm-setup-1.2.2.exe"
+# if missing: https://github.com/coreybutler/nvm-windows/releases/download/1.2.2/nvm-setup.exe
+& $nvmSetup /S
+```
+
+Then open a **new** PowerShell (normal user) and run:
+
+```powershell
+nvm install 24.20.0
+nvm use 24.20.0
+node --version          # v24.20.0
+corepack enable
+corepack prepare pnpm@11.26.0 --activate
+pnpm.cmd --version      # 11.26.0
+```
+
+Notes:
+- **Installed and verified on this machine (2026-09-17):** nvm-windows 1.2.2
+  (`nvm root` = `C:\Users\msmig\AppData\Local\nvm`), Node **24.20.0** selected,
+  `node`/`npm`/`npx` resolving from `C:\nvm4w\nodejs` (`NVM_SYMLINK`), and
+  **pnpm 11.26.0** via corepack. No temporary PATH overrides are used; the
+  previous staged Node is not on PATH.
+- nvm-windows provides `node`/`npm`/`npx` via the `NVM_SYMLINK`
+  (`C:\nvm4w\nodejs`); changing versions with `nvm use` may need an elevated
+  shell.
+- `corepack` (bundled with Node) provides `pnpm.cmd`, matching `packageManager`.
+- Remove the obsolete user PATH entry `%APPDATA%\npm` only after `pnpm.cmd`
+  resolves through corepack (the standalone Node's only global tool was
+  `pnpm@11.26.0`; nothing else is lost).
+- **Restart OpenCode afterwards** so MCP servers and shells inherit the updated
+  environment (MCP servers are spawned only at OpenCode launch). This was done:
+  the running `dev:api` process resolves to `C:\nvm4w\nodejs\node.exe`.
+- Recovery (abort): `winget install --id OpenJS.NodeJS.22 --version 24.19.0
+  --accept-package-agreements --accept-source-agreements`.
+
 ### 4.1 Exa (built-in discovery)
 
 1. Set the enable flag at **User** scope so the desktop app inherits it, then

@@ -5,10 +5,7 @@ agent must not start any of these without a new `ops/current.md`.
 
 ## Active
 
-- **O-014 — Finalize and commit the research results dashboard (O-013)** — close
-  O-013, sync project state/backlog, take and restore-verify a new local database
-  backup (incl. the 18 offerings), run the gates, and commit/push the reviewed
-  changes. Status: **IN PROGRESS** in `ops/current.md`.
+- None. (Last completed: O-015 — Windows nvm runtime setup.)
 
 ## Next (candidate, priority order)
 
@@ -38,6 +35,13 @@ agent must not start any of these without a new `ops/current.md`.
 
 ## Completed (for reference)
 
+- O-015 — Replace standalone Node with nvm-windows on Windows — **accepted**;
+  archived `ops/done/2026-09-17-windows-nvm-runtime-setup.md`. nvm-windows 1.2.2,
+  Node 24.20.0 (`C:\nvm4w\nodejs`), pnpm 11.26.0 via corepack; `verify.sh` 60/0
+  and `/health` + `/ready`.
+- O-014 — Finalize and commit the research results dashboard (O-013) —
+  completed; backed up and restored the DB (incl. 18 offerings) and pushed the
+  milestone (`623b9dd`).
 - O-013 — Research results dashboard (read-only; rounds 1–3) — **accepted**;
   archived `ops/done/2026-09-15-research-results-dashboard.md`. Adds the
   evidence-owned `research_offerings` read model, an offerings-led view, and the
