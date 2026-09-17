@@ -60,7 +60,9 @@ weaker sources). No pretend-precise scoring. Persisted as `claims.confidence`
 - `research_offerings` — a structured, evidence-linked company offering. Fields:
   `companyText`, `companyLocationText`, `marketServedText`, `productText`,
   `applicationText`, `treatmentText`, `dimensionsText`, `priceText` (original
-  wording), `priceCurrency`, `priceUnit`, and the enums `vatStatus`
+  wording), `priceAmountNumeric` (**only** when the linked evidence states an
+  unambiguous single amount with its currency/unit/VAT basis — never a range, a
+  "from/around" figure, or multiple bases), `priceCurrency`, `priceUnit`, and the enums `vatStatus`
   (`INCLUDED | EXCLUDED | NOT_STATED | UNKNOWN`), `priceBasis`
   (`RETAIL_LIST | TRADE_B2B | UNKNOWN`), `sampleKind`
   (`SAMPLE | FULL_PRODUCT | UNKNOWN`) and `matchType`
@@ -109,17 +111,23 @@ Rules:
    unit (ideally with a date). Otherwise record `UNVERIFIED` evidence and label
    the ambiguity (unit/basis) in the evidence text — there is no `AMBIGUOUS`
    enum.
-3. **Normalise only when the conversion inputs are known.** If converting to a
+3. **Record a numeric amount only when the source states it.** When the source
+   gives a number on the same basis (currency/unit/VAT already captured), record
+   it in `research_offerings.price_amount_numeric` alongside the verbatim
+   `price_text`. Never parse prose to derive it, and never convert currency or
+   unit. A price that has wording but no recorded number is "not recorded
+   numerically" — it is excluded from the run summary's ranges, never shown as 0.
+4. **Normalise only when the conversion inputs are known.** If converting to a
    common unit (e.g. €/m²), store the **original** value and the **derived**
    value; mark the derived value `INFERENCE` with the exact conversion inputs
    (exchange rate + date, or the dimension calculation). If inputs are unknown,
    do not normalise.
-4. If no B2B price is found, leave `B2B price = UNKNOWN`. Do not invent a
+5. If no B2B price is found, leave `B2B price = UNKNOWN`. Do not invent a
    discount factor or infer a price from a retail price.
-5. **Non-comparable products** (different species, thickness, profile, treatment,
+6. **Non-comparable products** (different species, thickness, profile, treatment,
    region) may be recorded for context and clearly labelled `NOT_COMPARABLE`;
    they are never averaged into the target product's price.
-6. Keep the original value and calculation together so the derivation is
+7. Keep the original value and calculation together so the derivation is
    auditable.
 
 ## 3. Required separations

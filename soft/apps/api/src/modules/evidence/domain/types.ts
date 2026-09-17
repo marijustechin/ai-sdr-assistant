@@ -147,6 +147,7 @@ export interface OfferingRecord {
   treatmentText: string | null;
   dimensionsText: string | null;
   priceText: string | null;
+  priceAmountNumeric: number | null;
   priceCurrency: string | null;
   priceUnit: string | null;
   vatStatus: OfferingVatStatus;
@@ -172,6 +173,7 @@ export interface CreateOfferingData {
   treatmentText?: string;
   dimensionsText?: string;
   priceText?: string;
+  priceAmountNumeric?: number;
   priceCurrency?: string;
   priceUnit?: string;
   vatStatus?: OfferingVatStatus;

@@ -155,7 +155,9 @@ export function offeringFilterHref(
 /** Explicit list of what was NOT recorded for this offering (never guessed). */
 export function offeringUncertainty(offering: OfferingRead): string[] {
   const missing: string[] = [];
-  if (!offering.priceText?.trim()) missing.push("Price not recorded");
+  if (!offering.priceText?.trim() && offering.priceAmountNumeric === null) {
+    missing.push("Price not recorded");
+  }
   if (offering.vatStatus === "UNKNOWN") missing.push("VAT treatment unknown");
   if (!offering.companyLocationText?.trim()) {
     missing.push("Company location not recorded");

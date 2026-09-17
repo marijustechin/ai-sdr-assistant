@@ -1,9 +1,10 @@
 # Project State (Canonical)
 
-**Status:** Canonical, live snapshot. Last updated 2026-09-17 (**O-017
-accepted** — product-independent market research request flow, verified end to
-end with a real queued run, plus explicit cost/tool permissions; and **O-016
-accepted** — research-text encoding repaired data-only, researcher UTF-8
+**Status:** Canonical, live snapshot. Last updated 2026-09-17 (**O-018
+accepted** — run Summary + Back-to-top cursor + verified numeric-price backfill;
+**O-017 accepted** — product-independent market research request flow, verified
+end to end with a real queued run, plus explicit cost/tool permissions; and
+**O-016 accepted** — research-text encoding repaired data-only, researcher UTF-8
 write/read helper fixed and verified end to end). Prior 2026-09-15: **O-011
 accepted**
 — the first bounded research wave (LT / FI / GB), its fresh-session recovery, the
@@ -44,7 +45,7 @@ PostgreSQL).
 | Catalogue + Research Context API | `POST /products`, `POST /products/:productId/offers`, `POST /product-facts`, `POST /target-markets`, `POST /opportunities`, `POST /opportunities/:opportunityId/target-markets`, `GET /opportunities/:opportunityId/research-context` | `soft/apps/api/src/modules` |
 | Product admin + discovery API | `GET /products`, `GET /products/:productId`, `PATCH /products/:productId` (list/read/update), and product-scoped discovery `GET /products/:productId/offers`, `GET /products/:productId/opportunities` (offers → opportunities → attached target markets); shared `ProductResponseSchema`/`UpdateProductSchema` | `soft/apps/api/src/modules/products-and-offers` |
 | Admin product-management UI | Next.js 16 admin app (`soft/apps/web`) implemented for product list → create → open → edit → change lifecycle, talking to the internal API server-side only (`INTERNAL_API_KEY` never exposed to the browser); deferred items documented in `soft/apps/web/docs/MISSING_API.md` | `soft/apps/web` |
-| Research results dashboard (read-only) | Product → opportunities → research runs → run detail in the admin web app, leading with **companies and offerings** (structured, evidence-linked; filterable by market served, application and match class `EXACT_MATCH`/`ADJACENT`/`SUBSTITUTE`), CURRENT findings shown beside the offering they support, other current findings kept accessible, an explicit `includeHistory` correction view, coverage that explains investigated vs missing, and usage/limits/notes/discovery log behind a collapsed "Research details" control. Reads the API only; no prose parsing; no write actions. Backed by the evidence-owned `research_offerings` read model (migration `20260915140000_research_offerings`) | `soft/apps/web`, `soft/apps/api/src/modules/evidence` |
+| Research results dashboard (read-only) | Product → opportunities → research runs → run detail in the admin web app, leading with **companies and offerings** (structured, evidence-linked; filterable by market served, application and match class `EXACT_MATCH`/`ADJACENT`/`SUBSTITUTE`), CURRENT findings shown beside the offering they support, other current findings kept accessible, an explicit `includeHistory` correction view, coverage that explains investigated vs missing, and usage/limits/notes/discovery log behind a collapsed "Research details" control. Reads the API only; no prose parsing; no write actions. Backed by the evidence-owned `research_offerings` read model (migration `20260915140000_research_offerings`). A compact **run Summary** sits between Run overview and the offerings list: distinct identified companies (fallback: normalized `companyText`), offering counts by match type, offerings with usable prices, Lowest/Highest observed prices within comparable groups (substitutes never combined with exact matches; correction-flagged/unresolved offerings excluded with a reason), and a gaps indication from the checkpoint; `research_offerings` gained an optional `price_amount_numeric` (migration `20260917160000_research_offering_price_amount`) recorded explicitly (never parsed from prose; no conversion) | `soft/apps/web`, `soft/apps/api/src/modules/evidence` |
 | Research persistence API | `POST/GET /opportunities/:id/research-runs`, `GET/PATCH .../:runId`, `POST/GET .../:runId/queries`, and `POST/GET .../:runId/sources|evidence|claims`; `POST .../claims/:claimId/corrections` with `GET .../claims?includeHistory=true`; `PATCH` pause/resume with the `CONTEXT_CHANGED` guard (T-007 + claim-correction lifecycle) | `soft/apps/api/src/modules/{market-researcher,evidence}` |
 | Internal-key boundary | Every business route requires `x-internal-api-key`; constant-time check, fail-closed non-sensitive `503` when `INTERNAL_API_KEY` is unconfigured, non-sensitive `401` otherwise; key never logged or returned. `GET /health`/`GET /ready` stay public | `soft/apps/api/src/security` |
 | Product-independent research request flow | Product → **Market research** → **New market research** form (countries/regions, goals, optional segments with "identify during research", questions/constraints, one bounded standard scope with expandable technical limits, review summary) → `POST /research-requests` persists validated parameters on a `QUEUED` run and shows **"Queued — waiting for researcher"**; researcher discovery/intake `GET /research-requests?status=QUEUED` / `GET /research-requests/:runId`; one-time `QUEUED → RUNNING` claim; explicit cost/tool permissions (`FREE_ONLY` default, or `METERED_APPROVED` with finite per-provider call limits) persisted with the request and enforced by a pure `checkProviderCall` helper, with resume counters in `checkpoint.providerUsage`. Reuses `Offer`/`Opportunity`/`TargetMarket`/`ResearchRun`; no parallel task framework. Migration `20260917130000_research_requests` (`request_parameters` JSONB + unique `request_key`) | `soft/apps/web`, `soft/apps/api/src/modules/control-plane`, `soft/apps/api/src/modules/market-researcher` |
@@ -199,6 +200,23 @@ no code changes; the existing paused LT/FI/GB run and its scope are unchanged.
 No background worker, scheduler, or automatic execution exists — the operator
 hands the agent the prompt in `research-harness/operating-manual.md` §9. Migration
 `20260917130000_research_requests`.
+
+**O-018 — the research run Summary, Back-to-top cursor and verified numeric-price
+backfill — is accepted** (archived `ops/done/2026-09-17-run-summary-and-price-amount.md`).
+The run view shows a compact, whole-run **Summary** (distinct identified
+companies; offering counts; "Usable prices" / "Price recorded, not structured
+yet" / "No price recorded"; Lowest/Highest **observed** prices within comparable
+groups, with dimensions shown beside each extreme; gaps), plus the Back-to-top
+cursor/focus fix and an additive
+`research_offerings.price_amount_numeric` (migration
+`20260917160000_research_offering_price_amount`) populated by a bounded, verified
+backfill of 10 offerings (ranges/multiple-basis prices left unstructured;
+original wording/provenance preserved; no conversion). Operator acceptance covers
+the **implemented research flow and Summary** — the research identifies relevant
+companies and potential customers — and does **not** imply complete market
+coverage. Non-blocking follow-up recorded in `ops/backlog.md` (price-grouping
+robustness: display-preserving unit-label canonicalization and a canonical company
+id are deferred; do not merge across unknown/materially different conditions).
 
 **Verified operating toolchain (2026-09-14):**
 

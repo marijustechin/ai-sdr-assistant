@@ -270,4 +270,41 @@ describe('Research offerings API (integration)', () => {
     expect(offerings[0]?.companyText).toBe(lithuanian);
     expect(offerings[0]?.priceText).toBe(lithuanian);
   });
+
+  it('persists an explicit numeric price amount alongside the original wording', async () => {
+    const { opportunityId, runId } = await seedRun();
+    const evidence = await addEvidence(opportunityId, runId);
+
+    const created = await api('POST', offeringsUrl(opportunityId, runId), {
+      companyText: 'Gebhardt Holz-Zentrum GmbH',
+      productText: 'Abachi Schnittholz 52 mm KD',
+      priceText: '2.221,73 € pro m³ UVP (inkl. MwSt.)',
+      priceAmountNumeric: 2221.73,
+      priceCurrency: 'EUR',
+      priceUnit: 'm³',
+      vatStatus: 'INCLUDED',
+      priceBasis: 'RETAIL_LIST',
+      sampleKind: 'FULL_PRODUCT',
+      matchType: 'EXACT_MATCH',
+      sourceReferenceId: evidence.sourceReferenceId,
+      evidenceId: evidence.id,
+    });
+    expect(created.statusCode).toBe(201);
+    expect((created.json() as Json).priceAmountNumeric).toBe(2221.73);
+
+    const list = (
+      await api('GET', offeringsUrl(opportunityId, runId))
+    ).json() as Array<Json>;
+    expect(list[0]?.priceAmountNumeric).toBe(2221.73);
+    // The original wording and provenance are preserved unchanged.
+    expect(list[0]?.priceText).toBe('2.221,73 € pro m³ UVP (inkl. MwSt.)');
+
+    const invalid = await api('POST', offeringsUrl(opportunityId, runId), {
+      companyText: 'Bad amount',
+      priceAmountNumeric: -5,
+      sourceReferenceId: evidence.sourceReferenceId,
+      evidenceId: evidence.id,
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
 });

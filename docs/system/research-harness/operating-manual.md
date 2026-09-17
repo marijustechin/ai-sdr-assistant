@@ -190,8 +190,13 @@ same batch: cite the `evidenceId` (and its `sourceReferenceId`) and, when one
 exists, the CURRENT `claimId`. Record only values the source states — company,
 location, market served, product, application, treatment, dimensions, and the
 **original price wording** with currency/unit — and set the explicit enums
-(`vatStatus`, `priceBasis`, `sampleKind`, `matchType`). Leave anything unstated
-null / `UNKNOWN`; never infer a value. Re-imports are deduplicated by a
+(`vatStatus`, `priceBasis`, `sampleKind`, `matchType`). When the source states an
+**unambiguous** price — a single amount with its currency, unit and VAT basis —
+also record it as `priceAmountNumeric` (keeping the verbatim `priceText`). Do
+**not** put a range, a "from/around" figure, or multiple bases (e.g. per pack and
+per m², or wholesale and retail) into one number; leave those unstructured and
+label the ambiguity. Leave anything unstated null / `UNKNOWN`; never infer a
+value. Re-imports are deduplicated by a
 deterministic per-run fingerprint, so re-running is safe. **Not every finding
 becomes an offering** — general market findings stay claims. The dashboard is a
 read-only view of these persisted offerings; do not rely on populating it by

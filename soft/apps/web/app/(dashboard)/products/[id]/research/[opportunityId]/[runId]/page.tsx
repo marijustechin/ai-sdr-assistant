@@ -13,6 +13,7 @@ import { FollowUpsSection } from "@/components/research/follow-ups-section";
 import { OfferingsView } from "@/components/research/offerings-view";
 import { ResearchDetails } from "@/components/research/research-details";
 import { RunOverview } from "@/components/research/run-overview";
+import { RunSummary } from "@/components/research/run-summary";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { ApiError } from "@/lib/api/client";
 import { describeApiError } from "@/lib/api/errors";
@@ -26,6 +27,7 @@ import {
   listRunOfferings,
 } from "@/lib/api/research";
 import { parseCheckpoint } from "@/lib/research/checkpoint";
+import { buildRunSummary } from "@/lib/research/summary";
 import {
   currentClaims,
   filterClaims,
@@ -112,6 +114,9 @@ export default async function ResearchRunPage({
   const current = currentClaims(claims);
   const unlinked = unlinkedCurrentClaims(current, offerings);
   const historyMode = filters.history === true;
+  // Run-scoped summary: computed from ALL offerings + full claim history, so the
+  // offering filters below never change it.
+  const summary = buildRunSummary(offerings, claims, checkpoint);
 
   return (
     <>
@@ -163,6 +168,8 @@ export default async function ResearchRunPage({
             offerName={offerName}
             markets={markets}
           />
+
+          <RunSummary summary={summary} />
 
           <OfferingsView
             offerings={offerings}

@@ -64,7 +64,7 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `evidence` | Factual observations extracted from a source during a run | `evidence` | impl |
 | `claims` | Typed claims (FACT/INFERENCE/UNKNOWN) with confidence | `evidence` | impl |
 | `claim_evidence` | Claim↔evidence join with stance (refines the earlier `claim_sources`) | `evidence` | impl |
-| `research_offerings` | Structured, evidence-linked company offerings (provenance + idempotent fingerprint) | `evidence` | impl |
+| `research_offerings` | Structured, evidence-linked company offerings (provenance + idempotent fingerprint); verbatim `price_text` plus an optional explicit `price_amount_numeric` (never parsed from prose, never converted) | `evidence` | impl |
 | `company_sources` | Company↔source join | `evidence` | plan |
 | `contact_sources` | Contact↔source join | `evidence` | plan |
 | `research_record_sources` | ResearchRecord↔source join | `evidence` | plan |

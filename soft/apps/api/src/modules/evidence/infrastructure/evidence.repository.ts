@@ -87,6 +87,10 @@ function toOfferingRecord(offering: OfferingWithEvidence): OfferingRecord {
     treatmentText: offering.treatmentText,
     dimensionsText: offering.dimensionsText,
     priceText: offering.priceText,
+    priceAmountNumeric:
+      offering.priceAmountNumeric === null
+        ? null
+        : Number(offering.priceAmountNumeric),
     priceCurrency: offering.priceCurrency,
     priceUnit: offering.priceUnit,
     vatStatus: offering.vatStatus,
@@ -373,6 +377,7 @@ export class EvidenceRepository {
         treatmentText: data.treatmentText ?? null,
         dimensionsText: data.dimensionsText ?? null,
         priceText: data.priceText ?? null,
+        priceAmountNumeric: data.priceAmountNumeric ?? null,
         priceCurrency: data.priceCurrency ?? null,
         priceUnit: data.priceUnit ?? null,
         ...(data.vatStatus !== undefined ? { vatStatus: data.vatStatus } : {}),

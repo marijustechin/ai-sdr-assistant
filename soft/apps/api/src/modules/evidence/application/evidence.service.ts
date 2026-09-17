@@ -201,6 +201,9 @@ export class EvidenceService {
           ? { dimensionsText: input.dimensionsText }
           : {}),
         ...(input.priceText !== undefined ? { priceText: input.priceText } : {}),
+        ...(input.priceAmountNumeric !== undefined
+          ? { priceAmountNumeric: input.priceAmountNumeric }
+          : {}),
         ...(input.priceCurrency !== undefined
           ? { priceCurrency: input.priceCurrency }
           : {}),

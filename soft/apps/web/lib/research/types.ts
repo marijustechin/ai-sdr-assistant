@@ -170,6 +170,7 @@ export interface OfferingRead {
   treatmentText: string | null;
   dimensionsText: string | null;
   priceText: string | null;
+  priceAmountNumeric: number | null;
   priceCurrency: string | null;
   priceUnit: string | null;
   vatStatus: OfferingVatStatus;

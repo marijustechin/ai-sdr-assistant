@@ -12,6 +12,30 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-17 — Research run Summary + minimal numeric price amount
+
+The run view gains a compact, **run-scoped Summary** between Run overview and
+Companies and offerings. It reports distinct identified companies (deduplicated
+by the explicit `companyText` field — the documented fallback, since no canonical
+company id exists; source domains and marketplaces are never counted as
+companies), offering counts by exact/adjacent/substitute, the number of offerings
+with usable prices, Lowest/Highest observed prices within comparable groups, and a
+gaps indication from the checkpoint. It is whole-run and deliberately **not**
+affected by the offering filters (those still change only the results list).
+
+Price ranges need numbers, and the model stored only verbatim `priceText` plus
+enums; parsing prose is forbidden. The minimal structured support is an optional
+`research_offerings.price_amount_numeric` (Decimal), recorded **only** when the
+source states a number on the same basis. Original wording and provenance are
+preserved; no currency/unit conversion is done; correction-flagged or unresolved
+offerings are excluded from extrema with a stated reason; a missing value is never
+shown as `0`. Groups separate substitutes from exact matches and split by
+currency, unit, VAT basis, retail/wholesale basis, sample/full-product and
+treatment. The Back-to-top control gains `cursor-pointer` and a visible focus
+ring; keyboard access and reduced-motion behavior are preserved.
+
+---
+
 ## 2026-09-17 — Explicit research cost/tool permissions (FREE_ONLY | METERED_APPROVED)
 
 The research request now stores an explicit `costPolicy`, chosen in the form and

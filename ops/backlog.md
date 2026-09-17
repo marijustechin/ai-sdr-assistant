@@ -5,8 +5,8 @@ agent must not start any of these without a new `ops/current.md`.
 
 ## Active
 
-- None. (Last completed: O-017 — product-independent market research request flow
-  + explicit cost/tool permissions; accepted 2026-09-17.)
+- None. (Last completed: O-018 — research run Summary, verified numeric-price
+  backfill and Back-to-top cursor; accepted 2026-09-17.)
 
 ## Next (candidate, priority order)
 
@@ -41,9 +41,28 @@ agent must not start any of these without a new `ops/current.md`.
    refuse over-limit provider calls and persist counters transactionally. No
    current tool exposes a controllable monetary budget, so a strict euro ceiling
    remains out of scope.
+9. **Price-grouping robustness (non-blocking, from O-018).** The run Summary
+   groups prices by, among others, the raw free-text `treatmentText` and the exact
+   unit label. Consequences to revisit (none block acceptance): (a) groups can
+   separate on wording-only differences — e.g. part of the split between Gebhardt
+   (`…Qualität A/B`) and Theile (`…parallel besäumt`) is recorded grade/format
+   wording; (b) equivalent unit labels (`per metre`/`per linear metre`;
+   `qm`/`per m2`/`m²`; `m³`/`cbm`) would separate groups if they coexisted in one
+   run — a display-preserving canonicalization for grouping would fix this without
+   conversion. Do **not** merge across unknown or materially different conditions
+   (e.g. area-vs-volume bases, unknown grade). A canonical company id would also
+   replace the name-based dedup fallback.
 
 ## Completed (for reference)
 
+- O-018 — Research run Summary and Back-to-top cursor — **accepted**; archived
+  `ops/done/2026-09-17-run-summary-and-price-amount.md`. Adds the run-scoped
+  Summary (companies; offering counts; usable/unstructured/no-price states;
+  Lowest/Highest observed prices within comparable groups; gaps), the Back-to-top
+  cursor/focus fix, and an optional `research_offerings.price_amount_numeric`
+  (migration `20260917160000_research_offering_price_amount`) with a bounded,
+  verified backfill of 10 offerings. Acceptance covers the implemented research
+  flow and Summary; it does **not** imply complete market coverage.
 - O-017 — Product-independent market research request flow — **accepted**;
   archived `ops/done/2026-09-17-market-research-request-flow.md`. Product →
   Market research → New market research → Submit → "Queued — waiting for

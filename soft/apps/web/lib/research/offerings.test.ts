@@ -25,6 +25,7 @@ function offering(overrides: Partial<OfferingRead>): OfferingRead {
     treatmentText: "thermal modification 190-215 C",
     dimensionsText: null,
     priceText: "GBP 7.00 per metre excluding VAT (inc VAT GBP 8.40)",
+    priceAmountNumeric: null,
     priceCurrency: "GBP",
     priceUnit: "per metre",
     vatStatus: "EXCLUDED",

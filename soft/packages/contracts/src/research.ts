@@ -274,6 +274,9 @@ export const CreateOfferingSchema = z
     treatmentText: optionalText(255),
     dimensionsText: optionalText(255),
     priceText: optionalText(2000),
+    /** Explicit numeric amount on the same basis as `priceText`; never parsed
+     * from prose. Omitted means "not recorded numerically". */
+    priceAmountNumeric: z.number().positive().max(1_000_000_000_000).optional(),
     priceCurrency: optionalText(12),
     priceUnit: optionalText(64),
     vatStatus: OfferingVatStatusSchema.optional(),

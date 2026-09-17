@@ -33,8 +33,9 @@ export function BackToTop() {
       tabIndex={visible ? 0 : -1}
       className={cn(
         "fixed bottom-6 right-6 z-40 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium shadow-md transition-opacity",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         visible
-          ? "opacity-100 motion-safe:transition-opacity"
+          ? "cursor-pointer opacity-100 motion-safe:transition-opacity"
           : "pointer-events-none opacity-0",
       )}
     >

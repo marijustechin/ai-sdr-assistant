@@ -326,6 +326,9 @@ model ResearchOffering {
   treatmentText       String?            @map("treatment_text") @db.VarChar(255)
   dimensionsText      String?            @map("dimensions_text") @db.VarChar(255)
   priceText           String?            @map("price_text") @db.Text
+  /// Explicit numeric amount stated by the source, on the same basis as
+  /// `priceText`; never parsed from prose. Null means not recorded numerically.
+  priceAmountNumeric  Decimal?           @map("price_amount_numeric") @db.Decimal(18, 6)
   priceCurrency       String?            @map("price_currency") @db.VarChar(12)
   priceUnit           String?            @map("price_unit") @db.VarChar(64)
   vatStatus           OfferingVatStatus  @default(UNKNOWN) @map("vat_status")

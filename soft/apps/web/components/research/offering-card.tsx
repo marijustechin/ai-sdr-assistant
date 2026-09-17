@@ -45,7 +45,10 @@ export function OfferingCard({
     claimReview.state === "REPLACED" || claimReview.state === "RETRACTED";
 
   return (
-    <li className="rounded-lg border border-border p-4">
+    <li
+      id={`offering-${offering.id}`}
+      className="scroll-mt-4 rounded-lg border border-border p-4"
+    >
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={MATCH_TYPE_TONE[offering.matchType]}>
           {MATCH_TYPE_LABEL[offering.matchType]}

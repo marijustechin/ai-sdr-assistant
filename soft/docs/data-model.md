@@ -66,7 +66,7 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `Evidence` | `evidence` | A factual observation extracted from a source during a run. | `evidence` |
 | `Claim` | `claims` | A research conclusion derived from evidence. | `evidence` |
 | `ClaimEvidence` | `claim_evidence` | Claim↔evidence link with a stance. | `evidence` |
-| `ResearchOffering` | `research_offerings` | Structured, evidence-linked company offering (provenance + idempotent fingerprint). | `evidence` |
+| `ResearchOffering` | `research_offerings` | Structured, evidence-linked company offering (provenance + idempotent fingerprint); verbatim `price_text` plus an optional explicit `price_amount_numeric` (recorded only when the source states it; never parsed from prose or converted). | `evidence` |
 
 Every model carries a `/// @owner <module>` tag in `schema.prisma` (§5 of
 `data-ownership.md`). Cross-boundary writes go through the owning module's

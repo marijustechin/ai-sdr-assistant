@@ -69,6 +69,17 @@ Real gaps (documented, not worked around):
   (units/currency/VAT/sample-vs-full-product wording) is displayed verbatim; no
   normalisation or calculation is performed.
 
+### Run Summary and numeric prices (2026-09-17)
+
+The run view shows a compact, **run-scoped Summary** immediately after Run
+overview (companies; offering counts; usable/priced offerings; Lowest/Highest
+observed within comparable groups; remaining gaps). Price ranges use only an
+**explicitly recorded** numeric amount, `research_offerings.price_amount_numeric`;
+price text is still never parsed in the browser, and no currency or unit
+conversion is performed. Offerings with price wording but no numeric amount, and
+correction-flagged/unresolved offerings, are excluded from the ranges and listed
+as exclusions. Missing values render as "not recorded", never `0`.
+
 ---
 
 ## Market research request flow (implemented 2026-09-17)
