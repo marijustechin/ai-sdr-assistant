@@ -63,6 +63,8 @@ ai-sdr-assistant/                 # repository root (root manager workspace)
 │   ├── system/                   # CANONICAL system/business docs + decisions
 │   │   └── research-harness/     # researcher instructions (entry: AGENTS.md)
 │   └── redesign/                 # HISTORICAL, SUPERSEDED proposal material
+├── scripts/
+│   └── research/                 # manager-env research API write client + E2E check
 ├── legacy/                       # HISTORICAL, NON-LIVE input (never modified)
 └── soft/                         # SOFTWARE IMPLEMENTATION workspace
     ├── AGENTS.md                 # binding contract for implementation
@@ -74,6 +76,9 @@ ai-sdr-assistant/                 # repository root (root manager workspace)
 - `soft/` is the **only** place application/API/business source lives.
 - `docs/system/` is the **canonical** system/business documentation set.
 - `docs/redesign/` is **historical proposal material** — not current authority.
+- `scripts/research/` holds **manager-environment operating tooling** (the
+  canonical research API write client and its end-to-end verification). It is not
+  application/business code and holds no live business state.
 - `legacy/` is **historical, non-live** input; never authoritative, never edited.
 
 ### Runtime activation for `soft/` commands

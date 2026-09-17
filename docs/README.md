@@ -15,6 +15,7 @@ wins; historical material never overrides it.
 | `docs/system/decisions.md` | **Canonical (live)** | Recorded consequential decisions + rationale | Superseded proposals |
 | `docs/system/research-toolchain.md` | **Canonical (live)** | Manager research toolchain: installed tools, auth, selection rules, limits | Live business state, provider secrets |
 | `docs/system/research-harness/` | **Canonical (live)** | Market researcher **operating harness**: entry point, lifecycle, evidence/price rules, coverage/stopping rules, persistence boundary, synthetic verification | Application code, live business state; implementing the `market-researcher` module |
+| `scripts/research/` | **Manager (live)** | Canonical research API write client + end-to-end write-encoding verification | Application/business code; live business state |
 | `docs/benchmarks/` | **NON-CANONICAL — capability evidence** | Dated, explicitly labelled capability-test records | Authority; live business state |
 | `soft/AGENTS.md` | **Binding (implementation)** | Implementation contract (toolchain, code invariants, testing, schema) | Manager-level direction |
 | `soft/docs/` | **Implementation (live)** | Software implementation, testing, security, coding harness, data model, implementation contracts | Duplicating canonical system docs; editing the schema |

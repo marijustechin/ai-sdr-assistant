@@ -180,6 +180,17 @@ becomes an offering** — general market findings stay claims. The dashboard is 
 read-only view of these persisted offerings; do not rely on populating it by
 hand after the run.
 
+**Write non-ASCII text through the canonical helper (required).** Persist
+queries, sources, evidence, claims, and offerings with
+`scripts/research/ResearchApi.psm1` (`Write-ResearchJson`) — never a raw
+`Invoke-RestMethod -Body <string>`, which silently best-fit-maps non-CP1252
+characters (e.g. Lithuanian `ė`) on Windows PowerShell. Keep scripts ASCII-only
+and pass non-ASCII text from a UTF-8 file or as .NET strings; the helper sends
+UTF-8 bytes with `charset=utf-8`. **Load that input as UTF-8 as well** — correct
+byte-sending cannot repair a string already corrupted at read time (e.g.
+`Get-Content` without `-Encoding`, or non-ASCII literals in a BOM-less `.ps1`).
+See `research-toolchain.md` §8.
+
 **Freshness.** Record the source's publication/update date when available and
 the retrieval date always. Prefer the most recent authoritative source for a
 volatile claim (price, availability, leadership). Flag stale evidence

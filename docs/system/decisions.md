@@ -12,6 +12,45 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-17 — Research-text encoding: data-only repair + UTF-8 byte-body write rule
+
+Under explicit human authorization, the known manager-written non-ASCII
+corruption was repaired **in place, data only**: the four double-encoded
+`research_queries.query_text` rows (lossless CP1252↔UTF-8 round trip) and the six
+`U+FFFD`-damaged fields (`source_references.title`/`publisher`,
+`evidence.evidence_text`; `U+FFFD` + `-` → `ė`). The repair ran through a
+bounded, idempotent, compare-and-swap maintenance script inside the single schema
+owner (`soft/packages/database/scripts/repair-research-encoding.mjs`), with exact
+before/after undo data kept outside Git. Only those rows/columns changed; the run
+envelope, claim lifecycle, prices and `retrievedAt` were preserved.
+
+**Reason / prevention.** The defect is in the manager PowerShell write path, not
+the API/database/web path. `Invoke-RestMethod` with a .NET **string** body
+encodes through Windows-1252 with best-fit fallback, silently turning `ė` into
+`e` (reproduced 2026-09-17: `U+0117` transmitted as `0x65`). The canonical rule
+is to send UTF-8 **bytes** with `charset=utf-8` and to save scripts as UTF-8
+**with BOM** (`research-toolchain.md` §8).
+
+**Follow-up (human-authorized).** The same scan found a broader set of records
+whose diacritics were silently best-fit-stripped with **no** `U+FFFD` marker. On
+the human's 2026-09-17 decision, the 12 high-confidence, source-verified
+prose/quote records (4 `source_references` titles, 1 `claims` statement, 7
+`evidence` texts) were restored in place with the same idempotent compare-and-swap
+script, each token confirmed against the live source page; the 9 search queries
+were left ASCII (may be intentional). The manager must never guess a character,
+never "fix" corrupted text at display time, and never blindly transcode stored
+records without explicit approval.
+
+**Canonical write path.** Research writes go through
+`scripts/research/ResearchApi.psm1` (`Write-ResearchJson`), which sends the body
+as UTF-8 **bytes** with `charset=utf-8`; the module is ASCII-only so it is
+correct with or without a BOM. It is verified end to end (PowerShell input →
+request → API → database → API read) for Lithuanian and Finnish by
+`scripts/research/Test-ResearchWriteEncoding.ps1`, run against an **isolated**
+database (it refuses the real `:3003`).
+
+---
+
 ## 2026-09-15 — Evidence-linked research offerings + manager write encoding fix
 
 A bounded, `evidence`-owned `research_offerings` model makes company offerings

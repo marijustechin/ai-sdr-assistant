@@ -20,7 +20,7 @@ obtain providers through implementation work under `soft/AGENTS.md`.
 | OS | Windows 11 Pro (10.0.26200) |
 | Shell | Windows PowerShell 5.1 (`npx.ps1` blocked by execution policy) |
 | OpenCode | 1.18.30 desktop (`OPENCODE_CLIENT=desktop`), binary at `%LOCALAPPDATA%\Programs\@opencode-aidesktop\OpenCode.exe` |
-| Node | v24.19.0 |
+| Node | v24.20.0 (nvm-windows, `C:\nvm4w\nodejs`; see §4.0) |
 | Config | global `~/.config/opencode/opencode.jsonc` (project has none) |
 | Providers | DeepSeek API auth only (`~/.local/share/opencode/auth.json`) |
 | Pre-existing MCP | none |
@@ -396,29 +396,62 @@ Rules:
 
 ## 8. Text encoding when persisting via the API (observed defect)
 
-Non-ASCII research text (Lithuanian/Finnish, e.g. `ė š ū`) persisted by the
-manager's PowerShell HTTP calls was observed **double-encoded** in the database
-(UTF-8 bytes reinterpreted as CP1252, then re-encoded) — the API and web path
-are correct (an API integration test round-trips non-ASCII exactly); the defect
-is in the manager write path. Two known causes:
+Non-ASCII research text (Lithuanian/Finnish, e.g. `ė š ū ą ä ö`) persisted by
+the manager's PowerShell HTTP calls was observed corrupted in the database. The
+API, the database and the web path round-trip non-ASCII exactly (covered by an
+API integration test and a database round-trip test); the defect is in the
+**manager write path**. Two observed mechanisms:
 
 1. **BOM-less `.ps1` scripts.** Windows PowerShell 5.1 reads a script without a
    byte-order mark as ANSI/CP1252, so non-ASCII literals are already mangled
-   before any request. Save scripts as **UTF-8 with BOM** (or keep literals
-   ASCII-only).
-2. **String request bodies.** Send the JSON as **UTF-8 bytes**, not as a .NET
-   string:
+   before any request. Save scripts as **UTF-8 with BOM**, or keep request
+   literals ASCII-only (build them from code points).
+2. **String request bodies.** `Invoke-RestMethod -Body $jsonString` encodes the
+   body through `[Text.Encoding]::Default` (Windows-1252 on this host) using
+   .NET **best-fit** fallback, so a non-CP1252 character is silently replaced
+   with an ASCII lookalike — no error. Reproduced 2026-09-17 (PowerShell
+   5.1.26100.9168): a body string containing `ė` (U+0117) was transmitted as
+   ASCII `e` (`0x65`), i.e. silent data loss.
 
-   ```powershell
-   $json  = $body | ConvertTo-Json -Depth 8
-   $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-   Invoke-RestMethod -Uri $uri -Method Post -Headers $h -Body $bytes `
-     -ContentType 'application/json; charset=utf-8'
-   ```
+**Required write pattern — send bytes with an explicit charset:**
 
-   (`Invoke-RestMethod -Body $json` with a string body can encode non-ASCII as
-   Latin-1 and corrupt it.)
+```powershell
+$json  = $body | ConvertTo-Json -Depth 8
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+Invoke-RestMethod -Uri $uri -Method Post -Headers $h -Body $bytes `
+  -ContentType 'application/json; charset=utf-8'
+```
 
-Do not blindly transcode stored records. A single CP1252 round-trip is
-recoverable (`convert_from(convert_to(text,'WIN1252'),'UTF8')`); report affected
-rows and repair only with explicit human approval.
+Verified 2026-09-17: the byte body transmits `ė` as `C4 97` and the API stores it
+verbatim, while the string body transmits `65` (`e`).
+
+Never mutate stored text merely to fix a display, and never blindly transcode
+records. A single CP1252 round-trip is losslessly recoverable
+(`convert_from(convert_to(text,'WIN1252'),'UTF8')`). A `U+FFFD` replacement
+character is **lossy**: recover it only from preserved content or the original
+source URL, never by guessing a letter. Report affected rows and repair only with
+explicit human approval, recording exact before/after values outside Git (see
+`ops/done/` repair records).
+
+**Canonical helper (required for research writes).** Use
+`scripts/research/ResearchApi.psm1` (`Write-ResearchJson` / `Get-ResearchJson`)
+for every research write instead of a hand-rolled `Invoke-RestMethod`. It always
+sends the body as UTF-8 **bytes** with `charset=utf-8` and decodes responses as
+UTF-8. Its end-to-end verification is
+`scripts/research/Test-ResearchWriteEncoding.ps1`, which drives PowerShell input →
+request → API → database → API read for Lithuanian and Finnish text against an
+**isolated** database; the procedure is in `scripts/research/README.md`.
+
+**Load input as UTF-8 too (required).** Sending bytes correctly cannot repair an
+input string that was already corrupted when it was read. Always load non-ASCII
+input explicitly as UTF-8 — `[System.IO.File]::ReadAllText($path, (New-Object
+System.Text.UTF8Encoding($false)))`, `Get-Content -Raw -Encoding UTF8`, or a
+value built from code points — and never rely on the default ANSI/CP1252 reading
+of non-ASCII literals in a BOM-less `.ps1`. (`Write-ResearchJson -BodyFile`
+already reads the file as UTF-8.) The verification driver asserts the expected
+characters are present in the input *before* sending, so a mis-loaded input fails
+loudly instead of being persisted corrupted.
+
+**Execution policy.** On this host the policy is Restricted. Use
+`-ExecutionPolicy Bypass` as a **process-scoped** override on the documented
+invocation only; never change the machine- or user-scope execution policy.

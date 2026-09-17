@@ -145,6 +145,20 @@ versioning) rather than redesigning them.
   retracted/replaced claims; `GET .../claims?includeHistory=true` returns the
   full preserved history.
 
+**Writer note (non-ASCII text).** The API/database/web path round-trips
+non-ASCII exactly, but a manager writing through Windows PowerShell must send
+the JSON as UTF-8 **bytes** with `charset=utf-8` (a .NET *string* body is
+silently best-fit-mapped to Windows-1252) and must save scripts as UTF-8 **with
+BOM** or keep them ASCII-only. **Use the canonical helper**
+`scripts/research/ResearchApi.psm1` (`Write-ResearchJson`), verified end to end
+by `scripts/research/Test-ResearchWriteEncoding.ps1` against an isolated
+database. **Load non-ASCII input as UTF-8** as well (explicit UTF-8 file read or
+code points): sending bytes correctly cannot repair an input string that was
+already corrupted at read time. `-ExecutionPolicy Bypass` is a process-scoped
+override for the documented invocation only — never change the machine/user
+policy. See `research-toolchain.md` §8. Never "fix" corrupted stored text at
+display time, and never blindly transcode records.
+
 **Checkpoint payload (run-scoped progress, not a workflow engine):**
 
 ```text

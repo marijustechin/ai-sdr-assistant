@@ -5,7 +5,8 @@ agent must not start any of these without a new `ops/current.md`.
 
 ## Active
 
-- None. (Last completed: O-015 — Windows nvm runtime setup.)
+- None. (Last completed: O-016 — research-text encoding repair + verified
+  researcher UTF-8 write/read path.)
 
 ## Next (candidate, priority order)
 
@@ -28,13 +29,20 @@ agent must not start any of these without a new `ops/current.md`.
    **supplier confirmation must remain distinguishable from independent
    verification**. No email sending and no nonfunctional action button until a
    bounded, approved slice exists.
-7. **Repair the four historical encoding-damaged `research_queries` rows.**
-   They are double-encoded (CP1252↔UTF-8) and recoverable; a future bounded task
-   with explicit human approval may transcode only those rows (IDs recorded in
-   `ops/done/2026-09-15-research-results-dashboard.md`). No blind bulk rewrite.
+7. ~~Repair the encoding-damaged `research_queries` rows and the silently
+   best-fit-stripped records.~~ **Done under O-016** (2026-09-17): 22 text fields
+   repaired data-only. The 9 ASCII search queries were left unchanged (may be
+   intentional).
 
 ## Completed (for reference)
 
+- O-016 — Repair research-text encoding end to end — **accepted**; archived
+  `ops/done/2026-09-17-research-text-encoding.md`. Repaired 22 encoding-damaged
+  text fields data-only (4 double-encoded `research_queries`; 6 `U+FFFD` fields;
+  12 silent best-fit-stripped source/claim/evidence records) via an idempotent,
+  compare-and-swap script, and fixed + verified the researcher UTF-8 write/read
+  helper (`scripts/research/ResearchApi.psm1`) end to end against an isolated
+  database. The real run is unchanged.
 - O-015 — Replace standalone Node with nvm-windows on Windows — **accepted**;
   archived `ops/done/2026-09-17-windows-nvm-runtime-setup.md`. nvm-windows 1.2.2,
   Node 24.20.0 (`C:\nvm4w\nodejs`), pnpm 11.26.0 via corepack; `verify.sh` 60/0

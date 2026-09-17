@@ -1,6 +1,9 @@
 # Project State (Canonical)
 
-**Status:** Canonical, live snapshot. Last updated 2026-09-15: **O-011 accepted**
+**Status:** Canonical, live snapshot. Last updated 2026-09-17 (**O-016
+accepted** — research-text encoding repaired data-only, and the researcher
+UTF-8 write/read helper fixed and verified end to end). Prior 2026-09-15:
+**O-011 accepted**
 — the first bounded research wave (LT / FI / GB), its fresh-session recovery, the
 bounded claim-correction lifecycle (six replacements + three retractions
 applied), the product-scoped discovery API, and the admin product-management UI
@@ -148,6 +151,30 @@ review flags, and the harness requirement that future runs persist offerings via
 the API. The run and its records are unchanged. **Recorded follow-up:** four
 historical `research_queries` rows remain double-encoded (recoverable) and are
 queued for a future bounded repair with explicit approval.
+
+**O-016 — the research-text encoding repair — is accepted** (human-approved
+2026-09-17; archived `ops/done/2026-09-17-research-text-encoding.md`). Under
+explicit human authorization it repaired the damaged records, data-only: the four
+double-encoded `research_queries.query_text` rows (lossless CP1252↔UTF-8 round
+trip) and six `U+FFFD` fields (`source_references.title`/`publisher`,
+`evidence.evidence_text` → `ė`), then the 12 high-confidence, source-verified
+silent best-fit-stripped prose/quote records (4 source titles, 1 claim, 7
+evidence), through the bounded, idempotent, compare-and-swap maintenance script
+in the single schema owner
+(`soft/packages/database/scripts/repair-research-encoding.mjs`). Exact
+before/after undo data and pre-mutation dumps are kept **outside Git**
+(`C:\Users\msmig\db-backups\ai-sdr\`). The 9 search queries were left ASCII (may
+be intentional). No other column changed; the run remains `PAUSED` /
+`DIMINISHING_RETURNS`, `contextVersion 7`, checkpoint 19 cells / 8 follow-ups,
+23 queries, 29 evidence, 31 claims (22 `CURRENT`, 6 `REPLACED`, 3 `RETRACTED`),
+18 offerings. **Prevention and researcher write path:** research writes now go
+through the canonical helper `scripts/research/ResearchApi.psm1`
+(`Write-ResearchJson`, UTF-8 **bytes** + `charset=utf-8`), with **UTF-8 input
+loading required** (correct byte-sending cannot repair an already-corrupted input
+string); it is verified end to end (PowerShell input → request → API → database →
+API read) for Lithuanian and Finnish against an isolated database by
+`scripts/research/Test-ResearchWriteEncoding.ps1`. A non-ASCII round-trip
+regression test guards the persistence layer (`research-toolchain.md` §8).
 
 **Verified operating toolchain (2026-09-14):**
 
