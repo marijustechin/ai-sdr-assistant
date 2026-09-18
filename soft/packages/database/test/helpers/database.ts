@@ -1,6 +1,8 @@
 import type { PrismaClient } from '../../src/index.js';
 
 const TABLES = [
+  'opportunity_companies',
+  'companies',
   'research_offerings',
   'claim_evidence',
   'evidence',

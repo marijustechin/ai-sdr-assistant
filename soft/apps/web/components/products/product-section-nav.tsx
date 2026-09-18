@@ -2,23 +2,21 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { researchIndexPath } from "@/lib/research/navigation";
+import { leadsIndexPath } from "@/lib/leads/display";
 
-const PLANNED_SECTIONS = [
-  { id: "leads", label: "Leads" },
-  { id: "history", label: "History" },
-] as const;
+const PLANNED_SECTIONS = [{ id: "history", label: "History" }] as const;
 
 /**
- * Section navigation for the product detail page. Overview and Research are
- * implemented; Leads and History are shown as planned so the page structure is
- * stable when those modules arrive.
+ * Section navigation for the product detail page. Overview, Market research and
+ * Leads are implemented; History is shown as planned so the page structure is
+ * stable when that module arrives.
  */
 export function ProductSectionNav({
   productId,
   active,
 }: {
   productId: string;
-  active: "overview" | "research";
+  active: "overview" | "research" | "leads";
 }) {
   const sections = [
     { id: "overview", label: "Overview", href: `/products/${encodeURIComponent(productId)}` },
@@ -26,6 +24,11 @@ export function ProductSectionNav({
       id: "research",
       label: "Market research",
       href: researchIndexPath(productId),
+    },
+    {
+      id: "leads",
+      label: "Leads",
+      href: leadsIndexPath(productId),
     },
   ] as const;
 

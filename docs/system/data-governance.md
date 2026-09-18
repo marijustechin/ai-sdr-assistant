@@ -51,8 +51,8 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `opportunity_offers` | Per-opportunity commercial terms (1:1) | `products-and-offers` | plan |
 | `fact_sources` | Fact↔source join | `evidence` | plan |
 | `clarification_requests` | Product-data questions filed by research modules | `market-researcher` | plan |
-| `companies` | Potential buyer organisations | `lead-discoverer` | plan |
-| `opportunity_companies` | Company↔opportunity join | `lead-discoverer` | plan |
+| `companies` | Potential buyer organisations (minimal identity; deterministic dedup) | `lead-discoverer` | impl |
+| `opportunity_companies` | Opportunity-scoped candidate buyer: evidence provenance + observed facts vs buyer-fit hypothesis + operator review (`UNREVIEWED \| SHORTLISTED \| REJECTED`, optional reason); idempotent per opportunity | `lead-discoverer` | impl |
 | `contacts` | People at companies | `contact-discovery` | plan |
 | `qualification_records` | Versioned qualification results | `lead-evaluator` | plan |
 | `research_runs` | A market-research run bound to a context version (lifecycle + pause + checkpoint) | `market-researcher` | impl |

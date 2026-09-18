@@ -5,8 +5,8 @@ agent must not start any of these without a new `ops/current.md`.
 
 ## Active
 
-- None. (Last completed: O-018 — research run Summary, verified numeric-price
-  backfill and Back-to-top cursor; accepted 2026-09-17.)
+- None. (Last completed: O-019 — Evidence-backed potential buyer shortlist;
+  accepted 2026-09-18.)
 
 ## Next (candidate, priority order)
 
@@ -55,6 +55,16 @@ agent must not start any of these without a new `ops/current.md`.
 
 ## Completed (for reference)
 
+- O-019 — Evidence-backed potential buyer shortlist — **accepted**; archived
+  `ops/done/2026-09-18-evidence-backed-buyer-shortlist.md`. Adds the bounded
+  `lead-discoverer` slice (`companies` + `opportunity_companies`, migration
+  `20260918090000_add_companies_opportunity_leads`), guarded leads API, the
+  product **Leads** list/detail with an operator review action, presentation
+  refinements, and an initial `UNREVIEWED` shortlist (3 candidates) from run
+  `9e4e6d02…`. Programmer records:
+  `soft/tasks/done/2026-09-18-evidence-backed-buyer-shortlist.md`,
+  `soft/tasks/done/2026-09-18-leads-ux-refinements.md`. Contact discovery remains
+  the next slice.
 - O-018 — Research run Summary and Back-to-top cursor — **accepted**; archived
   `ops/done/2026-09-17-run-summary-and-price-amount.md`. Adds the run-scoped
   Summary (companies; offering counts; usable/unstructured/no-price states;

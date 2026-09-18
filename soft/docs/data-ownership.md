@@ -45,8 +45,8 @@ This document defines the canonical table list, the single write-owner per table
 | `product_facts` | Typed facts (PENDING/CONFIRMED/SUPERSEDED); exactly one Product or Offer subject | `products-and-offers` |
 | `fact_sources` | Fact↔source join | `evidence` |
 | `clarification_requests` | Product-data questions filed by research modules | `market-researcher` |
-| `companies` | Potential buyer organisations | `lead-discoverer` |
-| `opportunity_companies` | Company↔opportunity join (status, latest qualification) | `lead-discoverer` |
+| `companies` | Potential buyer organisations (minimal identity; deduplicated by a deterministic identity key) — **impl** | `lead-discoverer` |
+| `opportunity_companies` | Opportunity-scoped candidate buyer: mandatory evidence provenance, separate observed facts / buyer-fit hypothesis, operator review (`UNREVIEWED \| SHORTLISTED \| REJECTED` + reason); idempotent per opportunity — **impl** | `lead-discoverer` |
 | `contacts` | People at companies | `contact-discovery` |
 | `qualification_records` | Versioned qualification results | `lead-evaluator` |
 | `research_runs` | A market-research run bound to a context version | `market-researcher` |

@@ -8,6 +8,7 @@ import { OpportunitiesModule } from './modules/opportunities/opportunities.modul
 import { ControlPlaneModule } from './modules/control-plane/control-plane.module.js';
 import { MarketResearcherModule } from './modules/market-researcher/market-researcher.module.js';
 import { EvidenceModule } from './modules/evidence/evidence.module.js';
+import { LeadDiscovererModule } from './modules/lead-discoverer/lead-discoverer.module.js';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EvidenceModule } from './modules/evidence/evidence.module.js';
     ControlPlaneModule,
     MarketResearcherModule,
     EvidenceModule,
+    LeadDiscovererModule,
   ],
   controllers: [HealthController, ReadinessController],
 })

@@ -115,6 +115,7 @@ model Opportunity {
   offer         Offer                        @relation(fields: [offerId], references: [id], onDelete: Restrict)
   targetMarkets OpportunityTargetMarket[]
   researchRuns  ResearchRun[]
+  leads         OpportunityCompany[]
 
   @@index([offerId])
   @@map("opportunities")
@@ -227,6 +228,7 @@ model SourceReference {
 
   evidence Evidence[]
   offerings ResearchOffering[]
+  opportunityLeads OpportunityCompany[]
 
   @@unique([url])
   @@map("source_references")
@@ -250,6 +252,7 @@ model Evidence {
   researchRun     ResearchRun     @relation(fields: [researchRunId], references: [id], onDelete: Cascade)
   claimLinks      ClaimEvidence[]
   offerings       ResearchOffering[]
+  opportunityLeads OpportunityCompany[]
 
   @@index([sourceReferenceId])
   @@index([researchRunId])
@@ -283,6 +286,7 @@ model Claim {
   replacedBy    Claim?          @relation("ClaimReplacement", fields: [replacedByClaimId], references: [id], onDelete: SetNull)
   replaces      Claim[]         @relation("ClaimReplacement")
   offerings     ResearchOffering[]
+  opportunityLeads OpportunityCompany[]
 
   @@index([researchRunId])
   @@index([lifecycleStatus])
@@ -352,6 +356,79 @@ model ResearchOffering {
   @@index([evidenceId])
   @@index([claimId])
   @@map("research_offerings")
+}
+
+/// A potential-buyer organisation. Canonical, minimal identity only — no
+/// contacts, ownership, demand or scoring. Deduplicated by a deterministic
+/// `identityKey` (normalized name + country) so repeated submissions reuse one
+/// row. This is not a CRM record and not a commitment.
+/// @owner lead-discoverer
+model Company {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(255)
+  normalizedName String   @map("normalized_name") @db.VarChar(255)
+  website        String?  @db.VarChar(2048)
+  country        String?  @db.VarChar(120)
+  identityKey    String   @map("identity_key") @db.VarChar(512)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  leads OpportunityCompany[]
+
+  @@unique([identityKey])
+  @@index([normalizedName])
+  @@map("companies")
+}
+
+/// An opportunity-scoped candidate buyer, linked to the research evidence that
+/// supports its inclusion. Observed facts (`observedActivityText`,
+/// `observedRoles`) are stored separately from the buyer-fit hypothesis
+/// (`buyerFitHypothesisText`); unknowns and the next verification step are
+/// explicit. The operator review state is a separate dimension (see
+/// `LeadReviewStatus`). Provenance is mandatory: `sourceReferenceId` (derived
+/// from the evidence), `evidenceId`, and an optional CURRENT `claimId`. A
+/// deterministic per-opportunity `dedupKey` keeps resubmission idempotent.
+/// @owner lead-discoverer
+model OpportunityCompany {
+  id                       String           @id @default(uuid()) @db.Uuid
+  opportunityId            String           @map("opportunity_id") @db.Uuid
+  companyId                String           @map("company_id") @db.Uuid
+  observedActivityText     String           @map("observed_activity_text") @db.Text
+  observedRoles            String[]         @map("observed_roles")
+  buyerFitHypothesisText   String           @map("buyer_fit_hypothesis_text") @db.Text
+  unknownsText             String?          @map("unknowns_text") @db.Text
+  nextVerificationStepText String?          @map("next_verification_step_text") @db.Text
+  reviewStatus             LeadReviewStatus @default(UNREVIEWED) @map("review_status")
+  reviewReason             String?          @map("review_reason") @db.Text
+  reviewedAt               DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  sourceReferenceId        String           @map("source_reference_id") @db.Uuid
+  evidenceId               String           @map("evidence_id") @db.Uuid
+  claimId                  String?          @map("claim_id") @db.Uuid
+  dedupKey                 String           @map("dedup_key") @db.VarChar(512)
+  createdAt                DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  opportunity     Opportunity     @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sourceReference SourceReference @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict)
+  evidence        Evidence        @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+  claim           Claim?          @relation(fields: [claimId], references: [id], onDelete: SetNull)
+
+  @@unique([dedupKey])
+  @@unique([opportunityId, companyId])
+  @@index([opportunityId])
+  @@index([companyId])
+  @@index([claimId])
+  @@map("opportunity_companies")
+}
+
+/// Operator review state of a potential-buyer candidate. Deliberately separate
+/// from provenance and from any future qualification result; a review reason is
+/// operator-authored and never model reasoning.
+enum LeadReviewStatus {
+  UNREVIEWED
+  SHORTLISTED
+  REJECTED
 }
 
 enum ProductLifecycleStatus {

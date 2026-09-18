@@ -67,6 +67,8 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `Claim` | `claims` | A research conclusion derived from evidence. | `evidence` |
 | `ClaimEvidence` | `claim_evidence` | Claim↔evidence link with a stance. | `evidence` |
 | `ResearchOffering` | `research_offerings` | Structured, evidence-linked company offering (provenance + idempotent fingerprint); verbatim `price_text` plus an optional explicit `price_amount_numeric` (recorded only when the source states it; never parsed from prose or converted). | `evidence` |
+| `Company` | `companies` | A potential-buyer organisation (minimal identity: name, website, country); deduplicated by a deterministic `identity_key` (normalized name + country). | `lead-discoverer` |
+| `OpportunityCompany` | `opportunity_companies` | An opportunity-scoped candidate buyer linked to research evidence; separate observed facts vs buyer-fit hypothesis, explicit unknowns / next step, and an operator `review_status` (`UNREVIEWED \| SHORTLISTED \| REJECTED` + reason); deduplicated per opportunity. | `lead-discoverer` |
 
 Every model carries a `/// @owner <module>` tag in `schema.prisma` (§5 of
 `data-ownership.md`). Cross-boundary writes go through the owning module's
@@ -201,6 +203,32 @@ application service — no module writes another module's table.
   nothing is derived from prose by the UI. `fingerprint` is a deterministic
   per-run key (unique) so re-importing the same observation cannot duplicate a
   record. Run deletion cascades; sources/evidence are preserved by `RESTRICT`.
+
+### 3.12 `Company` / `OpportunityCompany` (potential-buyer shortlist)
+
+- `Company` is a minimal potential-buyer identity only: `name` (display),
+  `normalizedName`, optional `website`/`country`, and a unique `identityKey`
+  (`normalizedName` + normalized country, joined by U+001F). It is **not** a CRM
+  record; no contacts, ownership, demand or score. The first-seen display name is
+  stable (a later case/whitespace variant of the same identity does not overwrite
+  it).
+- `OpportunityCompany` is an opportunity-scoped candidate. Observed facts
+  (`observedActivityText`, `observedRoles` — a multi-valued observed-role list)
+  are stored separately from the buyer-fit hypothesis
+  (`buyerFitHypothesisText`); `unknownsText` and `nextVerificationStepText` are
+  explicit. `reviewStatus` (`UNREVIEWED | SHORTLISTED | REJECTED`) with
+  `reviewReason`/`reviewedAt` is operator-owned and a **separate dimension** from
+  provenance.
+- **Provenance is mandatory:** `sourceReferenceId` (derived from the evidence),
+  `evidenceId` (restrict), optional `claimId` (`SET NULL`). Service-enforced: the
+  run must belong to the opportunity, the evidence must belong to the run, and a
+  linked claim must be `CURRENT`. A claim later replaced/retracted sets
+  `needsReview` on read (the raw review state is never silently overwritten), and
+  shortlisting is rejected while the claim is not `CURRENT`.
+- **Deduplication:** `dedupKey` (unique) = `opportunityId` + `identityKey`, plus
+  `@@unique([opportunityId, companyId])`; a repeated submission upserts (no
+  duplicate) and refreshes the observed/hypothesis fields without changing the
+  operator review state.
 
 ---
 

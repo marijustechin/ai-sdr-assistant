@@ -12,6 +12,45 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-18 — Evidence-backed potential-buyer shortlist (bounded `lead-discoverer` slice)
+
+The product **Leads** tab is delivered as a bounded, product-independent slice
+of the planned `lead-discoverer` module (O-019). The module now owns `companies`
+(minimal identity) and `opportunity_companies` (opportunity-scoped candidate)
+ahead of the fuller planned `lead-discoverer` → `lead-evaluator` →
+`qualification_records` split. `qualification_records` and any scoring/qualification
+engine remain planned; **contact discovery is the next slice** and no contact
+record is created here.
+
+- **Candidate = evidence-linked, not copied.** `opportunity_companies` requires
+  provenance (`sourceReferenceId` derived from a mandatory `evidenceId`, optional
+  CURRENT `claimId`) and links to the product only through the opportunity. The
+  evidence/claims tables stay single-owned by `evidence`; the lead stores
+  references, never duplicated findings.
+- **Observed facts vs buyer-fit hypothesis are separate fields.** A confirmed
+  seller status is never treated as purchasing intent; roles are multi-valued and
+  may overlap; no demand, volume, contact or numerical lead score is recorded.
+- **Operator review status lives on the candidate** (`UNREVIEWED | SHORTLISTED |
+  REJECTED` + optional reason, `reviewedAt`) as a dimension separate from
+  provenance. Shortlisting is a human action; a candidate is never a confirmed
+  buyer.
+- **Idempotency/dedup per opportunity.** `dedupKey` (`opportunityId` + a
+  deterministic company `identityKey` = normalized name + country) plus
+  `@@unique([opportunityId, companyId])`; a repeated submission upserts and
+  refreshes the observed/hypothesis fields without changing the operator review
+  state. The first-seen company display name is stable.
+- **Corrections propagate as review, not silent support.** A supporting claim
+  later replaced/retracted sets `needsReview` on read and blocks shortlisting
+  until re-review; the raw review state is preserved, not overwritten.
+
+Reason: this is the smallest complete slice that turns existing research into a
+reviewable, provenance-preserving buyer shortlist without inventing demand or
+starting the (separately planned) contact-discovery/qualification work. It adds
+one additive migration (`20260918090000_add_companies_opportunity_leads`) and no
+write to any other module's tables.
+
+---
+
 ## 2026-09-17 — Research run Summary + minimal numeric price amount
 
 The run view gains a compact, **run-scoped Summary** between Run overview and
