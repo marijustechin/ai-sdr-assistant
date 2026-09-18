@@ -1,6 +1,10 @@
-import type { LeadObservedRole, LeadReviewStatus } from '@ai-sdr/contracts';
+import type {
+  AgentQualificationStatus,
+  LeadObservedRole,
+  LeadReviewStatus,
+} from '@ai-sdr/contracts';
 
-export type { LeadObservedRole, LeadReviewStatus };
+export type { AgentQualificationStatus, LeadObservedRole, LeadReviewStatus };
 
 export interface CompanyRecord {
   id: string;
@@ -51,6 +55,21 @@ export interface LeadRecord {
   reviewStatus: LeadReviewStatus;
   reviewReason: string | null;
   reviewedAt: Date | null;
+  /** Agent qualification, separate from operator review. */
+  agentQualificationStatus: AgentQualificationStatus;
+  agentQualificationReason: string | null;
+  agentAssessedAt: Date | null;
+  /**
+   * True when the supporting claim is no longer CURRENT, so any prior agent
+   * qualification rests on superseded evidence and must be reassessed.
+   */
+  agentQualificationStale: boolean;
+  /**
+   * True when the candidate may proceed to contact discovery: not explicitly
+   * rejected by a human, not resting on superseded evidence, and either
+   * agent-qualified or human-shortlisted.
+   */
+  eligibleForContactDiscovery: boolean;
   sourceReferenceId: string;
   evidenceId: string;
   claimId: string | null;
@@ -84,6 +103,11 @@ export interface CreateLeadData {
 export interface UpdateLeadReviewData {
   reviewStatus: LeadReviewStatus;
   reviewReason?: string;
+}
+
+export interface UpdateQualificationData {
+  status: AgentQualificationStatus;
+  reason?: string;
 }
 
 /** Typed failure raised by the repository and mapped to HTTP by the service. */

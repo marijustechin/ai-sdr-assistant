@@ -1,6 +1,8 @@
 import type { PrismaClient } from '@ai-sdr/database';
 
 const TABLES = [
+  'contact_sources',
+  'contacts',
   'opportunity_companies',
   'companies',
   'research_offerings',

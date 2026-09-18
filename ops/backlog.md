@@ -3,10 +3,45 @@
 Ordered upcoming **manager** tasks. Only one is active (`ops/current.md`). The
 agent must not start any of these without a new `ops/current.md`.
 
+## Direction — automation-first SDR pipeline (2026-09-18)
+
+This is an **automated SDR assistant**. The intended pipeline is
+**product/objective intake → research → candidate discovery → evidence-based
+qualification → contact discovery → initial email drafting → persisted
+results**, and it should run **autonomously** within the approved scope, tool
+permissions and execution limits. Human review is an **optional override and
+exception path**, not a required action after every operation; an explicit human
+rejection always wins. Email **drafting** is part of the workflow; actual
+**sending is not authorized** (it stays behind approval). No new paid-service
+permissions are implied.
+
+**Works today (implemented, manager-run research):**
+
+- Catalogue + Research Context API; product-independent research request flow
+  with `FREE_ONLY`/`METERED_APPROVED` permissions and resume counters.
+- Research-run persistence (sources/evidence/claims/offerings) + read-only
+  results dashboard.
+- Evidence-backed potential-buyer shortlist (**leads**) with **agent
+  qualification** (`agentQualificationStatus`) kept separate from optional human
+  review, and a computed contact-discovery eligibility; explicit human
+  `REJECTED` wins.
+- Source-backed business contacts (company-scoped) with per-contact provenance,
+  idempotent dedup, published-vs-deliverability separation and unusable handling.
+- Research execution is performed by the **manager-environment harness**, not by
+  a platform runner.
+
+**Requires orchestration implementation (not built):**
+
+- A worker/jobs pipeline (`soft/apps/worker`, BullMQ) driving research →
+  discovery → qualification → contact discovery → email drafting automatically.
+- Execution-limit enforcement in a runner rather than the harness.
+- `lead-evaluator` qualification records; `outreach-drafter` (draft only).
+- No scheduler or background worker is implied by current tasks.
+
 ## Active
 
-- None. (Last completed: O-019 — Evidence-backed potential buyer shortlist;
-  accepted 2026-09-18.)
+- None. (Last completed: O-020 — Source-backed business contacts and
+  automation-first buyer progression; accepted 2026-09-18.)
 
 ## Next (candidate, priority order)
 
@@ -19,9 +54,16 @@ agent must not start any of these without a new `ops/current.md`.
    `docs/system/module-map.md` §§4, 14; `docs/system/research-context-contract.md` §10.
 3. **Research-records + full Market Researcher (+ jobs/worker)** — beyond the
    minimum run slice above.
-4. **Discovery & intelligence** (lead-discoverer → evaluator →
-   company-intelligence → contact-discovery).
-5. **Outreach + inbox**.
+4. **Autonomous pipeline orchestration (worker/jobs).** Drive research →
+   candidate discovery → agent qualification → contact discovery → initial
+   email drafting automatically within approved scope/limits (BullMQ
+   `soft/apps/worker`); enforce execution limits in a runner rather than the
+   harness. Includes discovery & intelligence (`lead-discoverer` →
+   `lead-evaluator` → `company-intelligence` → `contact-discovery`). No
+   scheduler/worker is implied by current tasks.
+5. **Outreach drafting + inbox.** `outreach-drafter` produces drafts with full
+   traceability (draft only). Sending stays human-approved and is **not
+   authorized** here; "outreach + inbox" remains future work.
 6. **Finding → clarification → email (record only; not implemented).** Flow:
    result → clarification questions → email draft → human-approved sending →
    reply linked as evidence → reviewed finding correction. Prioritize uncertain
@@ -34,14 +76,23 @@ agent must not start any of these without a new `ops/current.md`.
    repaired data-only. The 9 ASCII search queries were left unchanged (may be
    intentional).
 
-8. **Enforce research cost/tool limits in an execution engine (not only the
+8. **Stale-qualification recovery/reassessment (bounded, not implemented).** A
+   lead whose supporting finding was replaced/retracted must be able to receive
+   updated evidence (via a **new** research run — never reopening a completed
+   run) and then require an **explicit re-qualification** before progressing; a
+   resubmitted lead must not silently re-validate a prior agent assessment.
+   Today only generic endpoints exist (refresh the lead's provenance by
+   re-submitting it with a CURRENT claim, then re-qualify); there is no
+   dedicated recovery flow. Ref:
+   `docs/system/research-harness/contact-discovery.md` §7.
+9. **Enforce research cost/tool limits in an execution engine (not only the
    harness).** O-017 stores `FREE_ONLY`/`METERED_APPROVED` permissions and
    `checkpoint.providerUsage` counters, but enforcement is currently
    agent-followed, not platform-enforced. A future runner/jobs slice should
    refuse over-limit provider calls and persist counters transactionally. No
    current tool exposes a controllable monetary budget, so a strict euro ceiling
    remains out of scope.
-9. **Price-grouping robustness (non-blocking, from O-018).** The run Summary
+10. **Price-grouping robustness (non-blocking, from O-018).** The run Summary
    groups prices by, among others, the raw free-text `treatmentText` and the exact
    unit label. Consequences to revisit (none block acceptance): (a) groups can
    separate on wording-only differences — e.g. part of the split between Gebhardt
@@ -55,6 +106,20 @@ agent must not start any of these without a new `ops/current.md`.
 
 ## Completed (for reference)
 
+- O-020 — Source-backed business contacts and automation-first buyer
+  progression — **accepted**; archived
+  `ops/done/2026-09-18-source-backed-contacts-and-automation-first.md`. Adds the
+  bounded `contact-discovery` slice (`contacts` + `contact_sources`, migration
+  `20260918140000_add_contacts`), the automation-first **agent qualification**
+  (`agentQualificationStatus` + stale guard, migration
+  `20260918160000_add_agent_qualification`) kept separate from optional human
+  review, a Contacts section on the lead detail page, and the harness procedure
+  `docs/system/research-harness/contact-discovery.md`. First real batch: 3
+  candidates agent-qualified, 6 source-backed contacts persisted (idempotent).
+  Programmer records: `soft/tasks/done/2026-09-18-source-backed-business-contacts.md`,
+  `2026-09-18-agent-qualification-automation-first.md`,
+  `2026-09-18-contact-discovery-batch-1-and-stale-guard.md`. Stale-qualification
+  recovery remains a bounded backlog item (item 8).
 - O-019 — Evidence-backed potential buyer shortlist — **accepted**; archived
   `ops/done/2026-09-18-evidence-backed-buyer-shortlist.md`. Adds the bounded
   `lead-discoverer` slice (`companies` + `opportunity_companies`, migration

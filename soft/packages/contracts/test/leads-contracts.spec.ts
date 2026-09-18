@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+  AgentQualificationStatusSchema,
   CreateLeadSchema,
   LeadObservedRoleSchema,
   LeadReviewStatusSchema,
+  QualifyLeadSchema,
   UpdateLeadReviewSchema,
 } from '../src/index.js';
 
@@ -80,6 +82,31 @@ describe('potential-buyer shortlist contracts', () => {
         reviewStatus: 'SHORTLISTED',
         unexpected: true,
       }).success,
+    ).toBe(false);
+  });
+
+  it('validates agent qualification separately, requiring a reason for a decision', () => {
+    expect(AgentQualificationStatusSchema.options).toEqual([
+      'NOT_ASSESSED',
+      'QUALIFIED',
+      'NEEDS_MORE_EVIDENCE',
+      'DISQUALIFIED',
+    ]);
+    expect(
+      QualifyLeadSchema.safeParse({
+        status: 'QUALIFIED',
+        reason: 'Installer role established by the linked evidence.',
+      }).success,
+    ).toBe(true);
+    expect(QualifyLeadSchema.safeParse({ status: 'QUALIFIED' }).success).toBe(
+      false,
+    );
+    expect(QualifyLeadSchema.safeParse({ status: 'NOT_ASSESSED' }).success).toBe(
+      true,
+    );
+    expect(
+      QualifyLeadSchema.safeParse({ status: 'QUALIFIED', unexpected: true })
+        .success,
     ).toBe(false);
   });
 });

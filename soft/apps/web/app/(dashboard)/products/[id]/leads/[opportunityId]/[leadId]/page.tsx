@@ -13,15 +13,22 @@ import {
 import { PageHeader } from "@/components/dashboard/page-header";
 import { LeadReviewForm } from "@/components/leads/lead-review-form";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import { ContactList } from "@/components/leads/contact-list";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
 import { AlertIcon, ArrowLeftIcon } from "@/components/ui/icons";
 import { ApiError } from "@/lib/api/client";
 import { describeApiError } from "@/lib/api/errors";
+import { listCompanyContacts } from "@/lib/api/contacts";
 import { getLead } from "@/lib/api/leads";
 import { getProduct } from "@/lib/api/products";
 import { formatDateTime } from "@/lib/format";
 import { claimLifecycleLabel, leadRoleLabel } from "@/lib/leads/display";
+import {
+  AGENT_QUALIFICATION_TONE,
+  agentQualificationLabel,
+} from "@/lib/leads/display";
+import type { ContactRead } from "@/lib/contacts/types";
 import type { LeadRead } from "@/lib/leads/types";
 
 export const metadata: Metadata = {
@@ -53,6 +60,8 @@ export default async function LeadDetailPage({
 
   let product: ProductResponse | null = null;
   let lead: LeadRead | null = null;
+  let contacts: ContactRead[] = [];
+  let contactsUnavailable = false;
   let configured = true;
   let loadError: string | null = null;
 
@@ -69,6 +78,14 @@ export default async function LeadDetailPage({
     }
   }
 
+  if (lead) {
+    try {
+      contacts = await listCompanyContacts(lead.company.id);
+    } catch {
+      contactsUnavailable = true;
+    }
+  }
+
   if (configured && !loadError && (product === null || lead === null)) {
     notFound();
   }
@@ -77,7 +94,7 @@ export default async function LeadDetailPage({
     <>
       <PageHeader
         title={lead?.company.name ?? "Lead"}
-        description="Review this potential buyer and decide whether to shortlist it for further investigation."
+        description="Inspect this potential buyer, the agent's qualification, and its contacts."
         breadcrumb={
           <Link
             href={product ? `/products/${product.id}/leads` : "/products"}
@@ -182,6 +199,50 @@ export default async function LeadDetailPage({
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>Agent qualification</CardTitle>
+              <CardDescription>
+                The agent&apos;s assessment against documented, evidence-backed
+                criteria — separate from human review.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  tone={
+                    lead.agentQualificationStale
+                      ? "warning"
+                      : AGENT_QUALIFICATION_TONE[lead.agentQualificationStatus]
+                  }
+                >
+                  {lead.agentQualificationStale
+                    ? "Needs reassessment"
+                    : agentQualificationLabel(lead.agentQualificationStatus)}
+                </Badge>
+                {lead.agentAssessedAt ? (
+                  <span className="text-xs text-muted-foreground">
+                    Assessed {formatDateTime(lead.agentAssessedAt)}
+                  </span>
+                ) : null}
+              </div>
+              {lead.agentQualificationStale ? (
+                <p className="text-xs text-destructive">
+                  The supporting finding was replaced or retracted; reassessment
+                  is required before this candidate can progress.
+                </p>
+              ) : null}
+              <p className="text-muted-foreground">
+                {lead.agentQualificationReason ?? "No assessment recorded."}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {lead.eligibleForContactDiscovery
+                  ? "Eligible for contact discovery."
+                  : "Not currently eligible for contact discovery."}
+              </p>
+            </CardContent>
+          </Card>
+
           <LeadReviewForm productId={product.id} lead={lead} />
 
           <Card>
@@ -260,6 +321,15 @@ export default async function LeadDetailPage({
               </CardContent>
             </Card>
           ) : null}
+
+          <ContactList
+            productId={product.id}
+            opportunityId={opportunityId}
+            leadId={lead.id}
+            companyId={lead.company.id}
+            contacts={contacts}
+            unavailable={contactsUnavailable}
+          />
         </div>
       ) : null}
     </>

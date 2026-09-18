@@ -8,6 +8,13 @@
 
 export type LeadReviewStatus = "UNREVIEWED" | "SHORTLISTED" | "REJECTED";
 
+/** Agent qualification, separate from operator review. */
+export type AgentQualificationStatus =
+  | "NOT_ASSESSED"
+  | "QUALIFIED"
+  | "NEEDS_MORE_EVIDENCE"
+  | "DISQUALIFIED";
+
 export type LeadObservedRole =
   | "MANUFACTURER"
   | "DISTRIBUTOR"
@@ -77,6 +84,13 @@ export interface LeadRead {
   reviewStatus: LeadReviewStatus;
   reviewReason: string | null;
   reviewedAt: string | null;
+  agentQualificationStatus: AgentQualificationStatus;
+  agentQualificationReason: string | null;
+  agentAssessedAt: string | null;
+  /** Supporting finding is no longer CURRENT; qualification must be reassessed. */
+  agentQualificationStale: boolean;
+  /** Not human-rejected, not stale, and agent-qualified or human-shortlisted. */
+  eligibleForContactDiscovery: boolean;
   sourceReferenceId: string;
   evidenceId: string;
   claimId: string | null;

@@ -36,9 +36,21 @@ A **modular NestJS system** for B2B sales research and prospecting:
 5. **Bounded modules, not free agents.** Modules have typed I/O contracts,
    structured LLM output where AI is needed, source/claim persistence,
    execution limits, retries, and audit records.
-6. **Human approval is mandatory** before: target-market changes;
-   company/contact acceptance where configured; outreach sending; any
-   commercial commitment.
+6. **Automation-first; approval only for sending and commitments.** Within an
+   approved task, the pipeline runs autonomously within the approved scope, tool
+   permissions and execution limits: **product/objective intake → research →
+   candidate discovery → evidence-based qualification → contact discovery →
+   initial email drafting**. Routine persistence is authorized by the approved
+   task and needs **no per-step human approval**: recording a qualification, a
+   contact, provenance, and progress/checkpoints are **normal API writes**.
+   Human approval is required only before **sending any message (outreach)** and
+   **making a commercial commitment**; applying research suggestions as business
+   state (e.g. target-market changes) remains human-gated. Human review of
+   research candidates (shortlist / reject) is an **optional override**, not a
+   gate: the agent qualifies candidates itself against documented, product-fit,
+   evidence-backed criteria (recorded separately from human review), and an
+   explicit human rejection always wins. **Email drafting is in scope; sending is
+   not authorized.**
 7. **Evidence over reasoning.** Facts, inferences, and unknowns are separated.
    No chain-of-thought storage. Sources and claims are persisted.
 8. **BullMQ for long-running work.** A future worker

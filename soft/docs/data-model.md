@@ -69,6 +69,8 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `ResearchOffering` | `research_offerings` | Structured, evidence-linked company offering (provenance + idempotent fingerprint); verbatim `price_text` plus an optional explicit `price_amount_numeric` (recorded only when the source states it; never parsed from prose or converted). | `evidence` |
 | `Company` | `companies` | A potential-buyer organisation (minimal identity: name, website, country); deduplicated by a deterministic `identity_key` (normalized name + country). | `lead-discoverer` |
 | `OpportunityCompany` | `opportunity_companies` | An opportunity-scoped candidate buyer linked to research evidence; separate observed facts vs buyer-fit hypothesis, explicit unknowns / next step, and an operator `review_status` (`UNREVIEWED \| SHORTLISTED \| REJECTED` + reason); deduplicated per opportunity. | `lead-discoverer` |
+| `Contact` | `contacts` | Public business contact for a company (general vs named person; email/phone/contact-page URL; original values + dedup-normalized columns; usability + published-vs-deliverability). | `contact-discovery` |
+| `ContactSource` | `contact_sources` | Contact provenance: a `source_references` row (deduplicated by URL) + retrieval date + supporting excerpt; many per contact. | `contact-discovery` |
 
 Every model carries a `/// @owner <module>` tag in `schema.prisma` (§5 of
 `data-ownership.md`). Cross-boundary writes go through the owning module's
@@ -219,6 +221,17 @@ application service — no module writes another module's table.
   explicit. `reviewStatus` (`UNREVIEWED | SHORTLISTED | REJECTED`) with
   `reviewReason`/`reviewedAt` is operator-owned and a **separate dimension** from
   provenance.
+- **Agent qualification (separate from operator review):**
+  `agentQualificationStatus`
+  (`NOT_ASSESSED | QUALIFIED | NEEDS_MORE_EVIDENCE | DISQUALIFIED`) plus
+  `agentQualificationReason`/`agentAssessedAt`. Recording a qualification writes
+  **only** these agent columns and never the `review_*` fields. `QUALIFIED`
+  means product-fit suitability for contact discovery, not confirmed demand or
+  purchasing intent. `eligibleForContactDiscovery` is computed on read: not
+  human-rejected, **not stale**, AND (agent-qualified OR human-shortlisted). A
+  replaced/retracted supporting claim sets `agentQualificationStale` (a prior
+  qualification must be reassessed) and removes eligibility; re-qualifying while
+  stale is refused. An explicit human `REJECTED` always wins.
 - **Provenance is mandatory:** `sourceReferenceId` (derived from the evidence),
   `evidenceId` (restrict), optional `claimId` (`SET NULL`). Service-enforced: the
   run must belong to the opportunity, the evidence must belong to the run, and a
@@ -229,6 +242,32 @@ application service — no module writes another module's table.
   `@@unique([opportunityId, companyId])`; a repeated submission upserts (no
   duplicate) and refreshes the observed/hypothesis fields without changing the
   operator review state.
+
+### 3.13 `Contact` / `ContactSource` (source-backed contacts)
+
+- `Contact` is a public business contact for a `Company`: `contactType`
+  (`GENERAL_COMPANY | NAMED_PERSON`), optional `email` / `phone` /
+  `contactPageUrl`, and, for a named person, `personName` + `personJobTitle`
+  (title only alongside a published name). Values are stored exactly as
+  published; `normalizedEmail`/`normalizedPhone` exist only for deduplication and
+  are never written back to the operator.
+- `usabilityStatus` (`USABLE | UNUSABLE` + optional `unusableReason`) sets a
+  contact aside without deleting it; `deliverabilityStatus`
+  (`NOT_VERIFIED | VERIFIED | UNKNOWN`) distinguishes "published on a source"
+  from a separately established deliverability result; `unknownsText` records
+  what is not established.
+- `ContactSource` holds provenance: `sourceReferenceId` (a `source_references`
+  row, deduplicated by URL and owned by `evidence`), `retrievedAt`, and
+  `excerptText`; `@@unique([contactId, sourceReferenceId])` makes a repeated
+  submission idempotent, and many sources accumulate per contact.
+- **Deduplication/identity:** a hashed `dedupKey` from company + type + strongest
+  normalized channel (+ normalized name for a person), unique. A repeated
+  submission upserts; adding the same value from a new source attaches a new
+  `ContactSource` rather than overwriting.
+- **No research-run coupling:** contacts reference neither `research_runs` nor
+  run evidence; a source reference is get-or-created through the `evidence`
+  service without run scope. Run deletion therefore cannot affect contacts, and
+  contact discovery never reopens a run.
 
 ---
 

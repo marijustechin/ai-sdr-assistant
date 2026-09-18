@@ -381,4 +381,154 @@ describe('Potential-buyer shortlist API (integration)', () => {
     );
     expect(res.statusCode).toBe(400);
   });
+
+  it('records agent qualification separately from review and computes eligibility', async () => {
+    const { opportunityId, runId } = await seedRun();
+    const evidence = await addEvidence(opportunityId, runId, 'https://a.invalid/');
+    const created = (
+      await api(
+        'POST',
+        `/opportunities/${opportunityId}/leads`,
+        leadBody(runId, evidence.id as string),
+      )
+    ).json() as Json;
+
+    const noReason = await api(
+      'PATCH',
+      `/opportunities/${opportunityId}/leads/${created.id as string}/qualification`,
+      { status: 'QUALIFIED' },
+    );
+    expect(noReason.statusCode).toBe(400);
+
+    const qualified = await api(
+      'PATCH',
+      `/opportunities/${opportunityId}/leads/${created.id as string}/qualification`,
+      {
+        status: 'QUALIFIED',
+        reason: 'Installer role established by the linked evidence.',
+      },
+    );
+    expect(qualified.statusCode).toBe(200);
+    const q = qualified.json() as Json;
+    expect(q.agentQualificationStatus).toBe('QUALIFIED');
+    expect(q.agentQualificationReason).toContain('Installer');
+    expect(q.agentAssessedAt).toBeTruthy();
+    // The human review fields are never written by agent qualification.
+    expect(q.reviewStatus).toBe('UNREVIEWED');
+    expect(q.reviewedAt).toBeNull();
+    expect(q.eligibleForContactDiscovery).toBe(true);
+
+    const cleared = await api(
+      'PATCH',
+      `/opportunities/${opportunityId}/leads/${created.id as string}/qualification`,
+      { status: 'NOT_ASSESSED' },
+    );
+    const c = cleared.json() as Json;
+    expect(c.agentQualificationStatus).toBe('NOT_ASSESSED');
+    expect(c.agentQualificationReason).toBeNull();
+    expect(c.eligibleForContactDiscovery).toBe(false);
+  });
+
+  it('lets a human shortlist provide eligibility and always honors a human rejection', async () => {
+    const { opportunityId, runId } = await seedRun();
+    const evidence = await addEvidence(opportunityId, runId, 'https://a.invalid/');
+    const created = (
+      await api(
+        'POST',
+        `/opportunities/${opportunityId}/leads`,
+        leadBody(runId, evidence.id as string),
+      )
+    ).json() as Json;
+
+    // An unreviewed candidate can be qualified by the agent (already covered);
+    // a human shortlist is an additional eligibility path without qualification.
+    const shortlisted = await api(
+      'PATCH',
+      `/opportunities/${opportunityId}/leads/${created.id as string}`,
+      { reviewStatus: 'SHORTLISTED' },
+    );
+    expect((shortlisted.json() as Json).eligibleForContactDiscovery).toBe(true);
+
+    const rejected = await api(
+      'PATCH',
+      `/opportunities/${opportunityId}/leads/${created.id as string}`,
+      { reviewStatus: 'REJECTED', reviewReason: 'Out of scope.' },
+    );
+    expect(rejected.statusCode).toBe(200);
+
+    const qualify = await api(
+      'PATCH',
+      `/opportunities/${opportunityId}/leads/${created.id as string}/qualification`,
+      { status: 'QUALIFIED', reason: 'Attempted override after rejection.' },
+    );
+    expect(qualify.statusCode).toBe(409);
+    expect((qualify.json() as Json).error).toBe('lead_rejected_by_operator');
+
+    const read = (
+      await api(
+        'GET',
+        `/opportunities/${opportunityId}/leads/${created.id as string}`,
+      )
+    ).json() as Json;
+    expect(read.agentQualificationStatus).toBe('NOT_ASSESSED');
+    expect(read.eligibleForContactDiscovery).toBe(false);
+  });
+
+  it('invalidates a stale agent qualification when the supporting claim is replaced', async () => {
+    const { opportunityId, runId } = await seedRun();
+    const evidence = await addEvidence(opportunityId, runId, 'https://a.invalid/');
+    const claim = await addClaim(opportunityId, runId, evidence.id as string);
+    const created = (
+      await api(
+        'POST',
+        `/opportunities/${opportunityId}/leads`,
+        leadBody(runId, evidence.id as string, { claimId: claim.id }),
+      )
+    ).json() as Json;
+
+    const qualified = await api(
+      'PATCH',
+      `/opportunities/${opportunityId}/leads/${created.id as string}/qualification`,
+      { status: 'QUALIFIED', reason: 'Product-fit: installer role.' },
+    );
+    expect((qualified.json() as Json).eligibleForContactDiscovery).toBe(true);
+
+    // Replace the supporting finding, so the qualification basis is superseded.
+    const replacement = await addClaim(
+      opportunityId,
+      runId,
+      evidence.id as string,
+    );
+    const corrected = await api(
+      'POST',
+      `/opportunities/${opportunityId}/research-runs/${runId}/claims/${claim.id as string}/corrections`,
+      {
+        kind: 'REPLACEMENT',
+        reason: 'better statement',
+        replacementClaimId: replacement.id,
+      },
+    );
+    expect(corrected.statusCode).toBe(201);
+
+    const stale = (
+      await api(
+        'GET',
+        `/opportunities/${opportunityId}/leads/${created.id as string}`,
+      )
+    ).json() as Json;
+    expect(stale.needsReview).toBe(true);
+    expect(stale.agentQualificationStatus).toBe('QUALIFIED');
+    expect(stale.agentQualificationStale).toBe(true);
+    // Stale qualification must not silently enable progression.
+    expect(stale.eligibleForContactDiscovery).toBe(false);
+
+    // Re-qualifying while the finding is stale is refused.
+    const requalify = await api(
+      'PATCH',
+      `/opportunities/${opportunityId}/leads/${created.id as string}/qualification`,
+      { status: 'QUALIFIED', reason: 'Re-qualify on stale evidence.' },
+    );
+    expect(requalify.statusCode).toBe(409);
+    expect((requalify.json() as Json).error).toBe('lead_claim_not_current');
+  });
 });

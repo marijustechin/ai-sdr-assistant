@@ -4,3 +4,4 @@ export * from './research-context.js';
 export * from './research.js';
 export * from './research-requests.js';
 export * from './leads.js';
+export * from './contacts.js';

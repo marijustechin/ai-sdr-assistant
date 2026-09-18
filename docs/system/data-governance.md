@@ -53,7 +53,7 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `clarification_requests` | Product-data questions filed by research modules | `market-researcher` | plan |
 | `companies` | Potential buyer organisations (minimal identity; deterministic dedup) | `lead-discoverer` | impl |
 | `opportunity_companies` | Opportunity-scoped candidate buyer: evidence provenance + observed facts vs buyer-fit hypothesis + operator review (`UNREVIEWED \| SHORTLISTED \| REJECTED`, optional reason); idempotent per opportunity | `lead-discoverer` | impl |
-| `contacts` | People at companies | `contact-discovery` | plan |
+| `contacts` | Public business contacts for a company (general email/phone/contact-page URL or a named person with a published title); original values plus normalized columns for dedup; usability and published-vs-deliverability state; no research-run coupling | `contact-discovery` | impl |
 | `qualification_records` | Versioned qualification results | `lead-evaluator` | plan |
 | `research_runs` | A market-research run bound to a context version (lifecycle + pause + checkpoint) | `market-researcher` | impl |
 | `research_run_target_markets` | ResearchRun↔target-market scope join | `market-researcher` | impl |
@@ -66,7 +66,7 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `claim_evidence` | Claim↔evidence join with stance (refines the earlier `claim_sources`) | `evidence` | impl |
 | `research_offerings` | Structured, evidence-linked company offerings (provenance + idempotent fingerprint); verbatim `price_text` plus an optional explicit `price_amount_numeric` (never parsed from prose, never converted) | `evidence` | impl |
 | `company_sources` | Company↔source join | `evidence` | plan |
-| `contact_sources` | Contact↔source join | `evidence` | plan |
+| `contact_sources` | Contact↔source provenance (source reference deduplicated by URL + retrieval date + supporting excerpt); one contact may have many sources | `contact-discovery` | impl |
 | `research_record_sources` | ResearchRecord↔source join | `evidence` | plan |
 | `outreach_draft_sources` | Draft↔source join | `evidence` | plan |
 | `outreach_drafts` | Outreach drafts | `outreach-drafter` | plan |

@@ -46,8 +46,8 @@ This document defines the canonical table list, the single write-owner per table
 | `fact_sources` | Fact↔source join | `evidence` |
 | `clarification_requests` | Product-data questions filed by research modules | `market-researcher` |
 | `companies` | Potential buyer organisations (minimal identity; deduplicated by a deterministic identity key) — **impl** | `lead-discoverer` |
-| `opportunity_companies` | Opportunity-scoped candidate buyer: mandatory evidence provenance, separate observed facts / buyer-fit hypothesis, operator review (`UNREVIEWED \| SHORTLISTED \| REJECTED` + reason); idempotent per opportunity — **impl** | `lead-discoverer` |
-| `contacts` | People at companies | `contact-discovery` |
+| `opportunity_companies` | Opportunity-scoped candidate buyer: mandatory evidence provenance, separate observed facts / buyer-fit hypothesis, operator review (`UNREVIEWED \| SHORTLISTED \| REJECTED` + reason) **and separate agent qualification** (`agentQualificationStatus` + reason); idempotent per opportunity — **impl** | `lead-discoverer` |
+| `contacts` | Public business contacts for a company (general vs named person; email/phone/contact-page URL; original values + dedup-normalized columns; usability + published-vs-deliverability) — **impl** | `contact-discovery` |
 | `qualification_records` | Versioned qualification results | `lead-evaluator` |
 | `research_runs` | A market-research run bound to a context version | `market-researcher` |
 | `research_run_target_markets` | ResearchRun↔target-market scope join | `market-researcher` |
@@ -60,7 +60,7 @@ This document defines the canonical table list, the single write-owner per table
 | `claim_evidence` | Claim↔evidence join with stance (replaces the planned `claim_sources`) | `evidence` |
 | `research_offerings` | Structured, evidence-linked company offerings (provenance + idempotent fingerprint); verbatim `price_text` plus optional explicit `price_amount_numeric` (never parsed/converted) | `evidence` |
 | `company_sources` | Company↔source join | `evidence` |
-| `contact_sources` | Contact↔source join | `evidence` |
+| `contact_sources` | Contact↔source provenance (source reference deduplicated by URL + retrieval date + excerpt; many per contact) — **impl** (owner moved from the planned `evidence` to `contact-discovery`; `source_references` stays `evidence`-owned) | `contact-discovery` |
 | `research_record_sources` | ResearchRecord↔source join | `evidence` |
 | `outreach_draft_sources` | Draft↔source join | `evidence` |
 | `outreach_drafts` | Outreach drafts | `outreach-drafter` |

@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  agentQualificationLabel,
   claimLifecycleLabel,
   leadDetailPath,
+  leadEligibleForContactDiscovery,
   leadNeedsAttention,
   leadReviewStatusLabel,
   leadRoleLabel,
@@ -32,6 +34,11 @@ function lead(overrides: Partial<LeadRead> = {}): LeadRead {
     reviewStatus: "UNREVIEWED",
     reviewReason: null,
     reviewedAt: null,
+    agentQualificationStatus: "NOT_ASSESSED",
+    agentQualificationReason: null,
+    agentAssessedAt: null,
+    agentQualificationStale: false,
+    eligibleForContactDiscovery: false,
     sourceReferenceId: "src-1",
     evidenceId: "ev-1",
     claimId: "claim-1",
@@ -74,6 +81,25 @@ describe("lead display helpers", () => {
     expect(leadReviewStatusLabel("REJECTED")).toBe("Rejected");
     expect(leadRoleLabel("INSTALLER")).toBe("Installer");
     expect(leadRoleLabel("MANUFACTURER")).toBe("Manufacturer");
+    expect(agentQualificationLabel("QUALIFIED")).toBe("Agent-qualified");
+    expect(agentQualificationLabel("NEEDS_MORE_EVIDENCE")).toBe(
+      "Needs more evidence",
+    );
+  });
+
+  it("exposes agent qualification and contact-discovery eligibility separately from review", () => {
+    const qualified = lead({
+      agentQualificationStatus: "QUALIFIED",
+      eligibleForContactDiscovery: true,
+      reviewStatus: "UNREVIEWED",
+    });
+    expect(leadEligibleForContactDiscovery(qualified)).toBe(true);
+    const rejected = lead({
+      agentQualificationStatus: "QUALIFIED",
+      eligibleForContactDiscovery: false,
+      reviewStatus: "REJECTED",
+    });
+    expect(leadEligibleForContactDiscovery(rejected)).toBe(false);
   });
 
   it("summarizes review states and flags needing review", () => {

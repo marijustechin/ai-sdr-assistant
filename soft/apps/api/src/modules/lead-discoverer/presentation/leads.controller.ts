@@ -11,8 +11,10 @@ import {
 } from '@nestjs/common';
 import {
   CreateLeadSchema,
+  QualifyLeadSchema,
   UpdateLeadReviewSchema,
   type CreateLeadInput,
+  type QualifyLeadInput,
   type UpdateLeadReviewInput,
 } from '@ai-sdr/contracts';
 import { ZodValidationPipe } from '../../../common/zod-validation.pipe.js';
@@ -58,5 +60,14 @@ export class LeadsController {
     body: UpdateLeadReviewInput,
   ) {
     return this.service.reviewLead(opportunityId, leadId, body);
+  }
+
+  @Patch(':opportunityId/leads/:leadId/qualification')
+  async qualifyLead(
+    @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
+    @Param('leadId', new ParseUUIDPipe()) leadId: string,
+    @Body(new ZodValidationPipe(QualifyLeadSchema)) body: QualifyLeadInput,
+  ) {
+    return this.service.qualifyLead(opportunityId, leadId, body);
   }
 }

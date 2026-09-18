@@ -229,6 +229,7 @@ model SourceReference {
   evidence Evidence[]
   offerings ResearchOffering[]
   opportunityLeads OpportunityCompany[]
+  contactSources ContactSource[]
 
   @@unique([url])
   @@map("source_references")
@@ -374,6 +375,7 @@ model Company {
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   leads OpportunityCompany[]
+  contacts Contact[]
 
   @@unique([identityKey])
   @@index([normalizedName])
@@ -401,6 +403,9 @@ model OpportunityCompany {
   reviewStatus             LeadReviewStatus @default(UNREVIEWED) @map("review_status")
   reviewReason             String?          @map("review_reason") @db.Text
   reviewedAt               DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  agentQualificationStatus AgentQualificationStatus @default(NOT_ASSESSED) @map("agent_qualification_status")
+  agentQualificationReason String?          @map("agent_qualification_reason") @db.Text
+  agentAssessedAt          DateTime?        @map("agent_assessed_at") @db.Timestamptz(6)
   sourceReferenceId        String           @map("source_reference_id") @db.Uuid
   evidenceId               String           @map("evidence_id") @db.Uuid
   claimId                  String?          @map("claim_id") @db.Uuid
@@ -429,6 +434,93 @@ enum LeadReviewStatus {
   UNREVIEWED
   SHORTLISTED
   REJECTED
+}
+
+/// Agent qualification of a candidate, kept separate from the operator review.
+/// The agent assesses candidates against documented, evidence-backed criteria and
+/// records why; a human may override through `reviewStatus`, and an explicit
+/// operator `REJECTED` always wins. Setting this never writes the review fields.
+enum AgentQualificationStatus {
+  NOT_ASSESSED
+  QUALIFIED
+  NEEDS_MORE_EVIDENCE
+  DISQUALIFIED
+}
+
+/// Public business contact information for a company, published on a source.
+/// Values are stored exactly as published; the `normalized*` columns exist only
+/// for comparison/deduplication. `deliverabilityStatus` distinguishes "found /
+/// published on a source" (`NOT_VERIFIED`) from a separately established
+/// deliverability result. No email pattern, name, title or phone country code is
+/// ever inferred.
+/// @owner contact-discovery
+model Contact {
+  id                   String                @id @default(uuid()) @db.Uuid
+  companyId            String                @map("company_id") @db.Uuid
+  contactType          ContactType           @map("contact_type")
+  email                String?               @db.VarChar(320)
+  phone                String?               @db.VarChar(64)
+  contactPageUrl       String?               @map("contact_page_url") @db.VarChar(2048)
+  personName           String?               @map("person_name") @db.VarChar(255)
+  personJobTitle       String?               @map("person_job_title") @db.VarChar(255)
+  usabilityStatus      ContactUsability      @default(USABLE) @map("usability_status")
+  unusableReason       String?               @map("unusable_reason") @db.Text
+  deliverabilityStatus ContactDeliverability @default(NOT_VERIFIED) @map("deliverability_status")
+  unknownsText         String?               @map("unknowns_text") @db.Text
+  normalizedEmail      String?               @map("normalized_email") @db.VarChar(320)
+  normalizedPhone      String?               @map("normalized_phone") @db.VarChar(64)
+  dedupKey             String                @map("dedup_key") @db.VarChar(768)
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sources ContactSource[]
+
+  @@unique([dedupKey])
+  @@index([companyId])
+  @@map("contacts")
+}
+
+/// Provenance of one contact: which discovered source (deduplicated by URL)
+/// states it, when it was retrieved, and the supporting excerpt. One contact may
+/// carry many sources, so contact discovery never overwrites earlier provenance.
+/// @owner contact-discovery
+model ContactSource {
+  id                String   @id @default(uuid()) @db.Uuid
+  contactId         String   @map("contact_id") @db.Uuid
+  sourceReferenceId String   @map("source_reference_id") @db.Uuid
+  retrievedAt       DateTime @map("retrieved_at") @db.Timestamptz(6)
+  excerptText       String   @map("excerpt_text") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  contact         Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  sourceReference SourceReference @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict)
+
+  @@unique([contactId, sourceReferenceId])
+  @@index([sourceReferenceId])
+  @@map("contact_sources")
+}
+
+/// Whether a contact is a general company channel or a named person.
+enum ContactType {
+  GENERAL_COMPANY
+  NAMED_PERSON
+}
+
+/// Operator/agent judgement of whether a contact is usable. `UNUSABLE` retains
+/// the row and its provenance (with a reason) instead of deleting it.
+enum ContactUsability {
+  USABLE
+  UNUSABLE
+}
+
+/// `NOT_VERIFIED` means the value was only found/published on a source; it does
+/// not establish that it works or reaches purchasing. `VERIFIED` requires a
+/// separate, recorded verification. `UNKNOWN` means not established.
+enum ContactDeliverability {
+  NOT_VERIFIED
+  VERIFIED
+  UNKNOWN
 }
 
 enum ProductLifecycleStatus {

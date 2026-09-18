@@ -11,6 +11,8 @@ import {
 import { cn } from "@/lib/utils";
 import { LeadStatusBadge } from "./lead-status-badge";
 import {
+  AGENT_QUALIFICATION_TONE,
+  agentQualificationLabel,
   leadDetailPath,
   leadRoleLabel,
   opportunityCountries,
@@ -58,6 +60,13 @@ function LeadRow({ productId, lead }: { productId: string; lead: LeadRead }) {
         ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {lead.agentQualificationStale ? (
+          <Badge tone="warning">Needs reassessment</Badge>
+        ) : lead.agentQualificationStatus !== "NOT_ASSESSED" ? (
+          <Badge tone={AGENT_QUALIFICATION_TONE[lead.agentQualificationStatus]}>
+            {agentQualificationLabel(lead.agentQualificationStatus)}
+          </Badge>
+        ) : null}
         {lead.needsReview ? <Badge tone="warning">Needs review</Badge> : null}
         <LeadStatusBadge status={lead.reviewStatus} />
         <Link

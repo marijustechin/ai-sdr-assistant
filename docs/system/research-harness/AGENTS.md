@@ -109,6 +109,7 @@ the exact prompt is recorded there.
 | [`evidence-and-outputs.md`](evidence-and-outputs.md) | Claim/source requirements, price-capture and normalisation rules, required separations, commercial output categories |
 | [`coverage-and-stopping.md`](coverage-and-stopping.md) | Coverage matrix, depth, follow-up, stop/pause conditions, budgets, cost honesty |
 | [`persistence-boundary.md`](persistence-boundary.md) | Every input/output/checkpoint mapped to API capability, with the delivered persistence schema/API recorded in §4 |
+| [`contact-discovery.md`](contact-discovery.md) | Source-backed business contacts for **shortlisted** leads: prerequisites, procedure, provenance rules, separation from a completed research run, and cost/tool authorization |
 | [`verification-walkthrough.md`](verification-walkthrough.md) | Synthetic, non-live walkthrough proving the harness and marking executable-now vs requires-implementation |
 
 Canonical companions outside this directory:

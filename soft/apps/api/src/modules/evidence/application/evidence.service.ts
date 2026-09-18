@@ -45,6 +45,18 @@ export class EvidenceService {
     return this.repository.findOrCreateSource(input);
   }
 
+  /**
+   * Get-or-create a source reference **without** run scope, for the bounded
+   * contact-discovery slice: contact provenance is independent of the completed
+   * research run, so it never reopens a run. `source_references` stays owned by
+   * `evidence`; callers go through this service.
+   */
+  async getOrCreateSource(
+    input: RegisterSourceInput,
+  ): Promise<SourceReferenceRecord> {
+    return this.repository.findOrCreateSource(input);
+  }
+
   async listSources(
     opportunityId: string,
     runId: string,

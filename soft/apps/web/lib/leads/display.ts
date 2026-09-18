@@ -1,4 +1,5 @@
 import type {
+  AgentQualificationStatus,
   LeadObservedRole,
   LeadRead,
   LeadReviewStatus,
@@ -18,6 +19,37 @@ export const LEAD_REVIEW_STATUS_TONE: Record<LeadReviewStatus, BadgeTone> = {
   SHORTLISTED: "success",
   REJECTED: "danger",
 };
+
+export const AGENT_QUALIFICATION_LABEL: Record<
+  AgentQualificationStatus,
+  string
+> = {
+  NOT_ASSESSED: "Not assessed",
+  QUALIFIED: "Agent-qualified",
+  NEEDS_MORE_EVIDENCE: "Needs more evidence",
+  DISQUALIFIED: "Agent-disqualified",
+};
+
+export const AGENT_QUALIFICATION_TONE: Record<
+  AgentQualificationStatus,
+  BadgeTone
+> = {
+  NOT_ASSESSED: "neutral",
+  QUALIFIED: "success",
+  NEEDS_MORE_EVIDENCE: "warning",
+  DISQUALIFIED: "danger",
+};
+
+export function agentQualificationLabel(
+  status: AgentQualificationStatus,
+): string {
+  return AGENT_QUALIFICATION_LABEL[status];
+}
+
+/** True when the candidate may proceed to contact discovery (API-computed). */
+export function leadEligibleForContactDiscovery(lead: LeadRead): boolean {
+  return lead.eligibleForContactDiscovery;
+}
 
 export const LEAD_ROLE_LABEL: Record<LeadObservedRole, string> = {
   MANUFACTURER: "Manufacturer",

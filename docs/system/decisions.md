@@ -12,6 +12,94 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-18 — Automation-first pipeline; agent qualification separate from human review
+
+Product-direction correction: this is an **automated SDR assistant**, so human
+shortlisting is **not** a mandatory gate before contact discovery (or later
+preparation). The intended pipeline — product/objective intake → research →
+candidate discovery → evidence-based qualification → contact discovery →
+initial email drafting → persisted results — runs **autonomously** within the
+approved scope, tool permissions and execution limits. Human review is an
+**optional override / exception path**, not a step after every operation; email
+**sending** remains unauthorized and approval-gated.
+
+- **Agent qualification** is a first-class, bounded mechanism on
+  `opportunity_companies`: `agentQualificationStatus`
+  (`NOT_ASSESSED | QUALIFIED | NEEDS_MORE_EVIDENCE | DISQUALIFIED`) plus
+  `agentQualificationReason`/`agentAssessedAt`, **separate** from operator
+  `reviewStatus`. Qualifying writes only the agent fields — it never overwrites
+  human review or simulates a human decision.
+- **Eligibility for contact discovery** = **not human-rejected**, **not resting
+  on superseded evidence**, AND (agent-qualified OR human-shortlisted). An
+  explicit human `REJECTED` always wins; `UNREVIEWED` candidates may be assessed
+  by the agent.
+- **Approval scope (corrected):** normal API writes inside an approved task —
+  qualification, contacts, provenance, and progress/checkpoints — require **no
+  per-step human approval**. Approval is required only before **sending any
+  message** and **making a commercial commitment**; applying suggestions as
+  business state (e.g. target-market changes) stays human-gated.
+- **Qualification semantics:** `QUALIFIED` means **suitable for contact
+  discovery** for this specific product, based on the lead's CURRENT,
+  product-fit evidence (an evidenced activity/role that plausibly buys or uses
+  the product). It does **not** mean confirmed demand, purchasing intent, or an
+  established customer; a generic trade role alone is insufficient without a
+  product-fit rationale. Otherwise `NEEDS_MORE_EVIDENCE` or `DISQUALIFIED`. No
+  demand, volume, contact or score is invented
+  (`docs/system/research-harness/contact-discovery.md`).
+- **Stale evidence:** a replaced/retracted supporting finding marks any prior
+  agent qualification stale, blocks re-qualification until reassessed, and
+  removes contact-discovery eligibility (human rejection and the correction
+  safeguards are preserved).
+- **No scheduler/background worker** is introduced by this decision;
+  orchestration (worker/jobs) remains future work. Email drafting is in scope;
+  sending is not.
+
+Reason: the automation-first workflow must not be blocked on a human action that
+was only ever an optional override; qualification is the agent's own,
+auditable, evidence-linked responsibility, and human review stays available as
+an override with rejection taking precedence.
+
+---
+
+## 2026-09-18 — Source-backed business contacts (bounded `contact-discovery` slice)
+
+The **Contacts** section on the lead detail page is delivered as a bounded,
+product-independent slice of the planned `contact-discovery` module (O-020).
+The module owns `contacts` and `contact_sources`; it reuses `companies` and gets
+its source references through the `evidence` service.
+
+- **Contacts are independent of research runs.** Contact provenance is stored on
+  the contact (`contact_sources` → `source_references`, deduplicated by URL) and
+  **never** reopens or attaches evidence to a completed `research_run`. The
+  lead's original buyer-fit evidence is untouched.
+- **Original values are preserved; normalization is comparison-only.** Stored
+  email/phone/URL are exactly as published; normalized columns (and a hashed
+  identity: company + type + strongest channel + name for a person) exist only
+  for idempotent deduplication. No email pattern, name, title or phone country
+  code is ever inferred.
+- **Published ≠ deliverable.** `deliverabilityStatus` distinguishes
+  `NOT_VERIFIED` (found/published on a source) from a separately recorded
+  `VERIFIED`; unknowns are explicit. A contact can be marked `UNUSABLE` with a
+  reason instead of deleting it, retaining its provenance.
+- **General company vs named person** is an explicit contact type; a job title
+  is only accepted alongside an explicitly published person name.
+- **Bounded ownership deviation (recorded).** The canonical plan listed
+  `contact_sources` as `evidence`-owned; for this slice it is implemented under
+  `contact-discovery` because contacts are decoupled from run-scoped evidence.
+  `source_references` remains owned by `evidence` and is reused via a new,
+  non-run `getOrCreateSource` service method.
+- **No live discovery yet.** Only implementation and isolated synthetic testing
+  are authorized here; live contact search is a later, **separately authorized**
+  activity and does not inherit any research request's cost/tool permissions
+  (see `docs/system/research-harness/contact-discovery.md`).
+
+Reason: it lets an operator attach source-backed contacts to shortlisted leads
+with full provenance and honest unknowns, without inventing data, probing
+deliverability, contacting anyone, or coupling contact discovery to the
+completed market-research run.
+
+---
+
 ## 2026-09-18 — Evidence-backed potential-buyer shortlist (bounded `lead-discoverer` slice)
 
 The product **Leads** tab is delivered as a bounded, product-independent slice

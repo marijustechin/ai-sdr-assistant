@@ -5,10 +5,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { CreateLeadInput, UpdateLeadReviewInput } from '@ai-sdr/contracts';
+import type {
+  CreateLeadInput,
+  QualifyLeadInput,
+  UpdateLeadReviewInput,
+} from '@ai-sdr/contracts';
 import { EvidenceService } from '../../evidence/application/evidence.service.js';
 import { OpportunitiesService } from '../../opportunities/application/opportunities.service.js';
-import type { CreateLeadData, LeadRecord } from '../domain/types.js';
+import type { CreateLeadData, CompanyRecord, LeadRecord } from '../domain/types.js';
 import { LeadRepository } from '../infrastructure/lead.repository.js';
 
 /**
@@ -90,6 +94,15 @@ export class LeadDiscovererService {
     return this.repository.listLeads(opportunityId);
   }
 
+  /** Read model for `contact-discovery`: resolve a company (404 if unknown). */
+  async getCompany(companyId: string): Promise<CompanyRecord> {
+    const company = await this.repository.findCompany(companyId);
+    if (!company) {
+      throw new NotFoundException({ error: 'company_not_found' });
+    }
+    return company;
+  }
+
   async getLead(opportunityId: string, leadId: string): Promise<LeadRecord> {
     const lead = await this.repository.findLead(opportunityId, leadId);
     if (!lead) {
@@ -119,6 +132,34 @@ export class LeadDiscovererService {
       ...(input.reviewReason !== undefined
         ? { reviewReason: input.reviewReason }
         : {}),
+    });
+  }
+
+  /**
+   * Records the agent's qualification decision (separate from operator review).
+   * An explicit operator `REJECTED` is respected: the agent cannot qualify a
+   * rejected candidate. The operator review fields are never written here.
+   */
+  async qualifyLead(
+    opportunityId: string,
+    leadId: string,
+    input: QualifyLeadInput,
+  ): Promise<LeadRecord> {
+    const lead = await this.repository.findLead(opportunityId, leadId);
+    if (!lead) {
+      throw new NotFoundException({ error: 'lead_not_found' });
+    }
+    if (input.status === 'QUALIFIED' && lead.reviewStatus === 'REJECTED') {
+      throw new ConflictException({ error: 'lead_rejected_by_operator' });
+    }
+    if (input.status === 'QUALIFIED' && lead.needsReview) {
+      // The supporting finding was replaced/retracted: the previous basis for
+      // qualification is stale, so reassessment is required first.
+      throw new ConflictException({ error: 'lead_claim_not_current' });
+    }
+    return this.repository.qualifyLead(leadId, {
+      status: input.status,
+      ...(input.reason !== undefined ? { reason: input.reason } : {}),
     });
   }
 }

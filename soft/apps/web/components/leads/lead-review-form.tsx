@@ -60,8 +60,9 @@ export function LeadReviewForm({
       <CardHeader>
         <CardTitle>Review</CardTitle>
         <CardDescription>
-          Shortlisting marks a company for further investigation — it does not
-          confirm purchasing intent. The reason is optional.
+          Optional human override. Shortlisting marks a company for further
+          investigation — it does not confirm purchasing intent, and the agent
+          qualifies candidates independently. The reason is optional.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

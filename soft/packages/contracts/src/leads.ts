@@ -72,3 +72,36 @@ export type LeadReviewStatus = z.infer<typeof LeadReviewStatusSchema>;
 export type LeadObservedRole = z.infer<typeof LeadObservedRoleSchema>;
 export type CreateLeadInput = z.infer<typeof CreateLeadSchema>;
 export type UpdateLeadReviewInput = z.infer<typeof UpdateLeadReviewSchema>;
+
+/**
+ * Agent qualification of a candidate — deliberately separate from the operator
+ * `reviewStatus`. The agent advances autonomously by qualifying candidates
+ * against documented, evidence-backed criteria; a human may override through
+ * `reviewStatus` (an explicit operator `REJECTED` always wins).
+ */
+export const AgentQualificationStatusSchema = z.enum([
+  'NOT_ASSESSED',
+  'QUALIFIED',
+  'NEEDS_MORE_EVIDENCE',
+  'DISQUALIFIED',
+]);
+
+/**
+ * Records the agent's qualification decision. Any decision other than
+ * `NOT_ASSESSED` requires a reason/basis, because qualification must be
+ * evidence-backed. This action never writes the operator review fields.
+ */
+export const QualifyLeadSchema = z
+  .strictObject({
+    status: AgentQualificationStatusSchema,
+    reason: z.string().trim().min(1).max(4000).optional(),
+  })
+  .refine(
+    (value) => value.status === 'NOT_ASSESSED' || value.reason !== undefined,
+    { message: 'a qualification decision requires a reason' },
+  );
+
+export type AgentQualificationStatus = z.infer<
+  typeof AgentQualificationStatusSchema
+>;
+export type QualifyLeadInput = z.infer<typeof QualifyLeadSchema>;

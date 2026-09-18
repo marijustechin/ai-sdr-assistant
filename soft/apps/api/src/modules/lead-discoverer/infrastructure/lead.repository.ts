@@ -13,6 +13,7 @@ import type {
   LeadRecord,
   LeadSourceRecord,
   UpdateLeadReviewData,
+  UpdateQualificationData,
 } from '../domain/types.js';
 
 const LEAD_INCLUDE = {
@@ -77,6 +78,9 @@ function toClaimRecord(
 
 function toLeadRecord(row: LeadWithRelations): LeadRecord {
   const claim = row.claim ? toClaimRecord(row.claim) : null;
+  const needsReview = claim !== null && claim.lifecycleStatus !== 'CURRENT';
+  const agentQualificationStale =
+    needsReview && row.agentQualificationStatus !== 'NOT_ASSESSED';
   return {
     id: row.id,
     opportunityId: row.opportunityId,
@@ -90,11 +94,20 @@ function toLeadRecord(row: LeadWithRelations): LeadRecord {
     reviewStatus: row.reviewStatus,
     reviewReason: row.reviewReason,
     reviewedAt: row.reviewedAt,
+    agentQualificationStatus: row.agentQualificationStatus,
+    agentQualificationReason: row.agentQualificationReason,
+    agentAssessedAt: row.agentAssessedAt,
+    agentQualificationStale,
+    eligibleForContactDiscovery:
+      !needsReview &&
+      row.reviewStatus !== 'REJECTED' &&
+      (row.agentQualificationStatus === 'QUALIFIED' ||
+        row.reviewStatus === 'SHORTLISTED'),
     sourceReferenceId: row.sourceReferenceId,
     evidenceId: row.evidenceId,
     claimId: row.claimId,
     dedupKey: row.dedupKey,
-    needsReview: claim !== null && claim.lifecycleStatus !== 'CURRENT',
+    needsReview,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     evidence: toEvidenceRecord(row.evidence),
@@ -169,6 +182,14 @@ export class LeadRepository {
     return toLeadRecord(lead);
   }
 
+  /** Read model for `contact-discovery`: a company by id (owned by this module). */
+  async findCompany(companyId: string): Promise<CompanyRecord | null> {
+    const company = await this.prisma.db.company.findUnique({
+      where: { id: companyId },
+    });
+    return company ? toCompanyRecord(company) : null;
+  }
+
   async listLeads(opportunityId: string): Promise<LeadRecord[]> {
     const rows = await this.prisma.db.opportunityCompany.findMany({
       where: { opportunityId },
@@ -204,6 +225,28 @@ export class LeadRepository {
         reviewStatus: data.reviewStatus,
         reviewReason: reviewed ? (data.reviewReason ?? null) : null,
         reviewedAt: reviewed ? new Date() : null,
+      },
+      include: LEAD_INCLUDE,
+    });
+    return toLeadRecord(row);
+  }
+
+  /**
+   * Records the agent's qualification decision. Writes only the agent fields —
+   * the operator review fields are never touched here, so automatic
+   * qualification cannot masquerade as a human decision.
+   */
+  async qualifyLead(
+    leadId: string,
+    data: UpdateQualificationData,
+  ): Promise<LeadRecord> {
+    const assessed = data.status !== 'NOT_ASSESSED';
+    const row = await this.prisma.db.opportunityCompany.update({
+      where: { id: leadId },
+      data: {
+        agentQualificationStatus: data.status,
+        agentQualificationReason: assessed ? (data.reason ?? null) : null,
+        agentAssessedAt: assessed ? new Date() : null,
       },
       include: LEAD_INCLUDE,
     });
