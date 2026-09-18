@@ -24,7 +24,7 @@ obtain providers through implementation work under `soft/AGENTS.md`.
 | Config | global `~/.config/opencode/opencode.jsonc` (project has none) |
 | Providers | DeepSeek API auth only (`~/.local/share/opencode/auth.json`) |
 | Pre-existing MCP | none |
-| Key env | `OPENCODE_ENABLE_EXA=1` (enables built-in `websearch`) |
+| Key env | `OPENCODE_ENABLE_EXA=1` (enables built-in `websearch`); `FIRECRAWL_API_KEY` (User scope, loaded from `soft/.env`) for authenticated Firecrawl |
 
 No provider, permission, or MCP setting that pre-existed was removed or weakened.
 
@@ -44,23 +44,45 @@ No provider, permission, or MCP setting that pre-existed was removed or weakened
 - Preferred first retrieval tool; may return incomplete content on JS-heavy or
   cookie-gated sites.
 
-### 2.3 Firecrawl MCP (official, keyless)
+### 2.3 Firecrawl MCP (official; API-key authenticated)
 
 - **Implementation:** official `firecrawl/firecrawl-mcp-server` (npm
-  `firecrawl-mcp`); this configuration uses the **hosted keyless** endpoint.
-- **URL:** `https://mcp.firecrawl.dev/v2/mcp` (`type: remote`, no credential).
-- **Tools exposed keyless:** `firecrawl_search`, `firecrawl_scrape`,
-  `firecrawl_parse`.
-- **Verified in-session (2026-09-14):** the MCP tools (`firecrawl_search`,
-  `firecrawl_scrape`, `firecrawl_parse`) are exposed to the agent inside the
-  running OpenCode session. Real in-session calls: three `firecrawl_search`
-  queries (UK/DE/FR); `firecrawl_scrape` of a JS/cookie-gated retailer (returned
-  full product content where `webfetch` was incomplete) and of a 2-page PDF fiche
+  `firecrawl-mcp`); this configuration uses the **hosted** endpoint.
+- **URL:** `https://mcp.firecrawl.dev/v2/mcp` (`type: remote`), authenticated with
+  `Authorization: Bearer {env:FIRECRAWL_API_KEY}` and `oauth: false`. The key is
+  **never** stored in the config file; `{env:FIRECRAWL_API_KEY}` resolves from the
+  OpenCode process environment (set at User scope, loaded from `soft/.env`).
+- **Tools exposed authenticated:** the full hosted surface — **25** tools,
+  including `firecrawl_search`, `firecrawl_scrape`, `firecrawl_parse`,
+  `firecrawl_map`, `firecrawl_crawl`, `firecrawl_agent`, `firecrawl_monitor_*`
+  and `firecrawl_research_*`. The prior **keyless** endpoint exposed only
+  `firecrawl_search`, `firecrawl_scrape`, `firecrawl_parse` and was rate-limited
+  per IP.
+- **Verified in-session (2026-09-14, keyless):** three `firecrawl_search` queries
+  (UK/DE/FR); `firecrawl_scrape` of a JS/cookie-gated retailer (returned full
+  product content where `webfetch` was incomplete) and of a 2-page PDF fiche
   technique (`parsers:["pdf"]`); plus two JSON-schema extractions. An earlier
   direct JSON-RPC probe returned `firecrawl-fastmcp 3.24.1`.
-- **Auth upgrade (optional):** add `Authorization: Bearer {env:FIRECRAWL_API_KEY}`
-  on the same URL for the full tool surface and higher limits. Not configured;
-  no paid plan enabled.
+- **Authenticated upgrade (configured + verified 2026-09-18):** native
+  `firecrawl_search` in-session returned results without rate-limiting, and a
+  direct JSON-RPC `tools/list` with the bearer header returned **25** tools.
+  `firecrawl_scrape` of a page that `webfetch` could not fetch (HTTP 403) returned
+  the full product content.
+- **Credit usage read (verified 2026-09-18) / plan tier (inferred):**
+  `GET /team/credit-usage` returned `planCredits` 1000/month with 1025 remaining
+  for 2026-09-17 → 2026-10-17 — this read is **verified**. That
+  `planCredits = 1000` corresponds to the Firecrawl **Free** plan is
+  **inferred**, because the API exposes no plan-name or auto-reload/Smart-Upgrade
+  toggle and paid tiers are ≥5000 credits. Firecrawl's published pricing states
+  pay-as-you-go/overage is **not available on the Free plan** and that credit
+  exhaustion returns **HTTP 402**; the conclusion that Search/Scrape consume free
+  credits without paid overage is therefore an **inference**, not a directly
+  observed fact. Search costs 2 credits / 10 results and Scrape 1 credit / page,
+  and both report `creditsUsed` (observed per call). Record any unobservable
+  usage/cost as `UNKNOWN`.
+- **Under `costPolicy = FREE_ONLY`,** only **Search** and **Scrape** are
+  authorized from this surface; a configured key does **not** authorize crawl,
+  agent, monitor or deep-research jobs.
 
 ### 2.4 Gemini Google Search MCP
 
@@ -165,7 +187,11 @@ Global `~/.config/opencode/opencode.jsonc`:
     "firecrawl": {
       "type": "remote",
       "url": "https://mcp.firecrawl.dev/v2/mcp",
-      "enabled": true
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer {env:FIRECRAWL_API_KEY}"
+      }
     },
     "gemini": {
       "type": "local",
@@ -181,10 +207,13 @@ Global `~/.config/opencode/opencode.jsonc`:
 }
 ```
 
-No secret is stored in this file. `GEMINI_API_KEY` is omitted from `environment`
-on purpose: the local server **inherits** it from the OpenCode process
-environment (set at User scope). Do not put the `{env:...}` placeholder here — it
-is not interpolated for dynamically added servers and causes `server unavailable`.
+No secret is stored in this file. The Firecrawl entry references the key only as
+`{env:FIRECRAWL_API_KEY}` — the placeholder **is** interpolated for a static
+`remote` MCP entry (verified 2026-09-18). `GEMINI_API_KEY` is omitted from
+`environment` on purpose: the local server **inherits** it from the OpenCode
+process environment (set at User scope). Do not put the `{env:...}` placeholder
+for a **dynamically added** server — it is not interpolated on that path and
+causes `server unavailable`.
 
 **Versions — tested vs. actually pinned (important):**
 
@@ -276,11 +305,20 @@ Notes:
    A value set only in one shell (`set` / `$env:`) is **not** inherited by the
    desktop app. This exposes the built-in `websearch` (Exa) tool.
 
-### 4.2 Firecrawl MCP (official, keyless)
+### 4.2 Firecrawl MCP (official; API-key authenticated)
 
-- Add the `firecrawl` entry from §3 to the global
-  `~/.config/opencode/opencode.jsonc`. The keyless hosted endpoint needs **no**
-  credential. Restart (step 4.4) to load it.
+1. Put the Firecrawl key in `soft/.env` as `FIRECRAWL_API_KEY`, then copy it to a
+   persistent **User** environment variable (never printed, never written to the
+   config or a tracked file):
+   ```powershell
+   $line = Get-Content soft/.env | Where-Object { $_ -match '^FIRECRAWL_API_KEY=' }
+   $val  = ($line -replace '^FIRECRAWL_API_KEY=','').Trim().Trim('"')
+   [Environment]::SetEnvironmentVariable('FIRECRAWL_API_KEY', $val, 'User')
+   ```
+2. Add the `firecrawl` entry from §3 (remote + `oauth: false` + the
+   `Authorization` header referencing `{env:FIRECRAWL_API_KEY}`). Restart
+   (step 4.4). Verify **natively** with `firecrawl_search`; the authenticated
+   connection exposes the full 25-tool surface (keyless exposed only 3).
 
 ### 4.3 Gemini Google Search MCP
 
@@ -314,7 +352,10 @@ Notes:
    - **Gemini:** call `gemini_gemini_chat` with grounding on; success returns an
      answer plus `vertexaisearch.cloud.google.com/grounding-api-redirect`
      citation URLs.
-   - **Firecrawl:** call `firecrawl_search`; success returns result items.
+   - **Firecrawl:** call `firecrawl_search`; success returns result items (and a
+     `creditsUsed` figure on the authenticated plan). The authenticated
+     connection is distinguishable by the expanded tool surface (25 tools vs 3
+     keyless).
    If Gemini fails, the log reports
    `"server unavailable" key=gemini ... status=failed` or `MCP connection closed`.
 
@@ -367,8 +408,10 @@ Rules:
 
 - Exa: one immediate retry on the free-MCP rate-limit notice; then stop that
   query.
-- Firecrawl: short inter-call delay; no aggressive retry loop; keyless is
-  rate-limited by design.
+- Firecrawl: short inter-call delay; no aggressive retry loop. Authenticated
+  Search/Scrape are metered against the team's free-credit balance (`creditsUsed`
+  per call); stay within the request's `FREE_ONLY` intent and the plan's monthly
+  credits.
 - Prefer existing free quotas; **do not** purchase plans or enable paid overages.
 - On quota exhaustion, preserve collected evidence and record the gap rather
   than retrying indefinitely.
@@ -385,8 +428,11 @@ Rules:
   account/model/endpoint configuration on 2026-09-14, both requests completed
   without `web_search_call` items or source annotations, so it contributes no
   discovery or source URLs; see §2.6.
-- Firecrawl keyless exposes only Search, Scrape and Parse; it cannot access every
-  blocked or JS-gated website, and paywalls/consent walls may defeat it.
+- Firecrawl authenticated exposes the full hosted surface, but under `FREE_ONLY`
+  only Search and Scrape are authorized, and it still cannot access every blocked
+  or JS-gated website; paywalls/login walls may defeat it. On the Free plan
+  pay-as-you-go is unavailable (exhaustion → HTTP 402); record the plan inference
+  and any unobservable cost as `UNKNOWN` (never `0`).
 - Exa `websearch` free tier is rate-limited and does not expose usage/cost.
 - `npx` through PowerShell is blocked by execution policy; always wrap with
   `cmd /c`.
