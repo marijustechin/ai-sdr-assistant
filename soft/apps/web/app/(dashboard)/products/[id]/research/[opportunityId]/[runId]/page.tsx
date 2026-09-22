@@ -15,8 +15,8 @@ import { ResearchDetails } from "@/components/research/research-details";
 import { RunOverview } from "@/components/research/run-overview";
 import { RunSummary } from "@/components/research/run-summary";
 import { ArrowLeftIcon } from "@/components/ui/icons";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
 import { getProduct } from "@/lib/api/products";
 import {
   getResearchRun,

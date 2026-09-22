@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-import { isNavItemActive } from "@/lib/nav";
+import { cn } from "@shared/lib/utils";
+import { isNavItemActive } from "@shared/lib/nav";
 import { NAV_ITEMS } from "./nav-items";
 
 export function SidebarBrand({ onNavigate }: { onNavigate?: () => void }) {

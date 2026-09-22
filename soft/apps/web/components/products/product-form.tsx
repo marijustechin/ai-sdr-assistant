@@ -33,7 +33,7 @@ import {
 import { buildUpdateProductPayload } from "@/lib/products/payload";
 import { productResponseToFormValues } from "@/lib/products/mappers";
 import type { ProductActionResult } from "@/lib/products/types";
-import type { SenderProfileRead } from "@/lib/sender-profiles/types";
+import type { SenderProfileRead } from "@entities/sender-profile";
 
 export interface ProductFormProps {
   mode?: "create" | "edit";

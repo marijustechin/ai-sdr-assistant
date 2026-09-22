@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { SenderProfileForm } from "@/components/sender-profiles/sender-profile-form";
+import { SenderProfileForm } from "@features/manage-sender-profile";
 import { ArrowLeftIcon } from "@/components/ui/icons";
-import { listEmailAccounts } from "@/lib/api/email-accounts";
-import { accountOptions } from "@/lib/email-accounts/display";
+import { listEmailAccounts } from "@entities/email-account/api";
+import { accountOptions } from "@entities/email-account";
 
 export const metadata: Metadata = {
   title: "New sender profile",

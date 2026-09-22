@@ -10,8 +10,8 @@ import { OpportunityRunsList } from "@/components/research/opportunity-runs";
 import { ResearchRequestsList } from "@/components/research/research-requests-list";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeftIcon } from "@/components/ui/icons";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
 import { getProduct } from "@/lib/api/products";
 import {
   listOpportunityRuns,

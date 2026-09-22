@@ -5,9 +5,9 @@ import {
   CreateSenderProfileSchema,
   UpdateSenderProfileSchema,
 } from "@ai-sdr/contracts";
-import { createSenderProfile, updateSenderProfile } from "./sender-profiles";
-import { describeApiError } from "./errors";
-import type { SenderProfileActionResult } from "@/lib/sender-profiles/types";
+import { describeApiError } from "@shared/api/errors";
+import type { SenderProfileActionResult } from "@entities/sender-profile";
+import { createSenderProfile, updateSenderProfile } from "./api";
 
 function fieldErrorsFrom(
   issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>,

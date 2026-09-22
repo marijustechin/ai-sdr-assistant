@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn } from "@shared/lib/utils";
 import { researchIndexPath } from "@/lib/research/navigation";
 import { leadsIndexPath } from "@/lib/leads/display";
 

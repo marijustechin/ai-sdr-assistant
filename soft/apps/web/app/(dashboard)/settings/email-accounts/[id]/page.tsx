@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmailAccountForm } from "@/components/email-accounts/email-account-form";
+import { EmailAccountForm } from "@features/manage-email-account";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ArrowLeftIcon } from "@/components/ui/icons";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
-import { getEmailAccount } from "@/lib/api/email-accounts";
-import type { EmailAccountRead } from "@/lib/email-accounts/types";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
+import { getEmailAccount } from "@entities/email-account/api";
+import type { EmailAccountRead } from "@entities/email-account";
 
 export const metadata: Metadata = {
   title: "Email account",

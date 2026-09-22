@@ -1,4 +1,4 @@
-import type { EmailAuthKind, EmailTlsMode } from "./types";
+import type { EmailAuthKind, EmailTlsMode } from "@entities/email-account";
 
 /**
  * Form state for an email account. `smtpEnabled`/`imapEnabled` are explicit

@@ -1,4 +1,4 @@
-import type { SenderProfileStatus } from "./types";
+import type { SenderProfileStatus } from "@entities/sender-profile";
 
 /**
  * Form state for a sender profile (identity only). The mailbox connection is a

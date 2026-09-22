@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { UpdateLeadReviewSchema } from "@ai-sdr/contracts";
 import { reviewLead } from "./leads";
-import { describeApiError } from "./errors";
+import { describeApiError } from "@shared/api/errors";
 import type { LeadReviewActionResult } from "@/lib/leads/types";
 
 /**

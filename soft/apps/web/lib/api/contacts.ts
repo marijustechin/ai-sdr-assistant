@@ -1,5 +1,5 @@
 import "server-only";
-import { apiRequest } from "./client";
+import { apiRequest } from "@shared/api/client";
 import type {
   ContactDeliverability,
   ContactRead,

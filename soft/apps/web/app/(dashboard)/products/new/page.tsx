@@ -3,8 +3,8 @@ import Link from "next/link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProductForm } from "@/components/products/product-form";
 import { ArrowLeftIcon } from "@/components/ui/icons";
-import { listSenderProfiles } from "@/lib/api/sender-profiles";
-import type { SenderProfileRead } from "@/lib/sender-profiles/types";
+import { listSenderProfiles } from "@entities/sender-profile/api";
+import type { SenderProfileRead } from "@entities/sender-profile";
 
 export const metadata: Metadata = {
   title: "New product",

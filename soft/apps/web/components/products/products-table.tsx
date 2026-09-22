@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PlusIcon } from "@/components/ui/icons";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@shared/lib/format";
 import { ProductStatusBadge } from "./product-status-badge";
 
 export function ProductsTable({ products }: { products: ProductResponse[] }) {

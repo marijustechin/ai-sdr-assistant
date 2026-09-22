@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn } from "@shared/lib/utils";
 import { LeadStatusBadge } from "./lead-status-badge";
 import {
   AGENT_QUALIFICATION_TONE,

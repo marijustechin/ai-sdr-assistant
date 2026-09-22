@@ -1,27 +1,15 @@
 import "server-only";
-import { apiRequest } from "./client";
+import { apiRequest } from "@shared/api/client";
 import type {
   CreateSenderProfileInput,
   UpdateSenderProfileInput,
 } from "@ai-sdr/contracts";
-import type { SenderProfileRead } from "@/lib/sender-profiles/types";
+import type { SenderProfileRead } from "@entities/sender-profile";
 
-/** Server-only reads/writes for sender profiles (the internal key stays server-side). */
+/** Server-only writes for sender profiles (the internal key stays server-side). */
 
 function enc(value: string): string {
   return encodeURIComponent(value);
-}
-
-export async function listSenderProfiles(): Promise<SenderProfileRead[]> {
-  return apiRequest<SenderProfileRead[]>("/sender-profiles", { method: "GET" });
-}
-
-export async function getSenderProfile(
-  id: string,
-): Promise<SenderProfileRead> {
-  return apiRequest<SenderProfileRead>(`/sender-profiles/${enc(id)}`, {
-    method: "GET",
-  });
 }
 
 export async function createSenderProfile(

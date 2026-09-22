@@ -1,6 +1,6 @@
 import "server-only";
-import { apiRequest } from "./client";
-import type { OutreachDraftRead } from "@/lib/outreach/types";
+import { apiRequest } from "@shared/api/client";
+import type { OutreachDraftRead } from "./types";
 
 /**
  * Server-only reads for lead outreach drafts. The internal API key is attached

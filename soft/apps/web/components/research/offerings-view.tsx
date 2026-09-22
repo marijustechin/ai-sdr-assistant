@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { OfferingCard } from "./offering-card";
-import { cn } from "@/lib/utils";
+import { cn } from "@shared/lib/utils";
 import {
   filterOfferings,
   groupOfferingsByMatch,

@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@shared/lib/format";
 import { GOAL_LABELS } from "@/lib/research-requests/schema";
 import type { ResearchRequestSummary } from "@/lib/research-requests/types";
 import { researchRunPath } from "@/lib/research/navigation";

@@ -1,6 +1,6 @@
 import "server-only";
 import type { CreateResearchRequestInput } from "@ai-sdr/contracts";
-import { apiRequest } from "./client";
+import { apiRequest } from "@shared/api/client";
 import type {
   ResearchRequestIntake,
   ResearchRequestSummary,

@@ -7,8 +7,8 @@ import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductsTable } from "@/components/products/products-table";
 import { buttonVariants } from "@/components/ui/button";
 import { PlusIcon } from "@/components/ui/icons";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
 import { listProducts } from "@/lib/api/products";
 
 export const metadata: Metadata = {

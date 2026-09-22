@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { SenderProfileForm } from "@/components/sender-profiles/sender-profile-form";
+import { SenderProfileForm } from "@features/manage-sender-profile";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ArrowLeftIcon } from "@/components/ui/icons";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
-import { listEmailAccounts } from "@/lib/api/email-accounts";
-import { getSenderProfile } from "@/lib/api/sender-profiles";
-import { accountOptions } from "@/lib/email-accounts/display";
-import type { SenderProfileRead } from "@/lib/sender-profiles/types";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
+import { listEmailAccounts } from "@entities/email-account/api";
+import { getSenderProfile } from "@entities/sender-profile/api";
+import { accountOptions } from "@entities/email-account";
+import type { SenderProfileRead } from "@entities/sender-profile";
 
 export const metadata: Metadata = {
   title: "Sender profile",

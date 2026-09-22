@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card";
 import { CopyButton } from "./copy-button";
 import { ContactUsabilityForm } from "./contact-usability-form";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@shared/lib/format";
 import {
   contactChannels,
   contactDeliverabilityLabel,

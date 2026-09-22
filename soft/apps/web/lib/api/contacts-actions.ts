@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { UpdateContactSchema } from "@ai-sdr/contracts";
 import { updateCompanyContact } from "./contacts";
-import { describeApiError } from "./errors";
+import { describeApiError } from "@shared/api/errors";
 import type { ContactActionResult } from "@/lib/contacts/types";
 
 /**

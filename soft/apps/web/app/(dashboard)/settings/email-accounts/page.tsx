@@ -12,15 +12,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
-import { listEmailAccounts } from "@/lib/api/email-accounts";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
+import { listEmailAccounts } from "@entities/email-account/api";
 import {
   EMAIL_ACCOUNT_STATUS_LABEL,
   EMAIL_ACCOUNT_STATUS_TONE,
   transportSummary,
-} from "@/lib/email-accounts/display";
-import type { EmailAccountRead } from "@/lib/email-accounts/types";
+} from "@entities/email-account";
+import type { EmailAccountRead } from "@entities/email-account";
 
 export const metadata: Metadata = {
   title: "Email accounts",

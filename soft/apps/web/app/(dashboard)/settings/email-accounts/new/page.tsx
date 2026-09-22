@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmailAccountForm } from "@/components/email-accounts/email-account-form";
+import { EmailAccountForm } from "@features/manage-email-account";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 
 export const metadata: Metadata = {

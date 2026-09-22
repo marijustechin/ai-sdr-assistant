@@ -19,19 +19,19 @@ import { AlertIcon, CheckCircleIcon } from "@/components/ui/icons";
 import {
   createEmailAccountAction,
   updateEmailAccountAction,
-} from "@/lib/api/email-accounts-actions";
+} from "./actions";
 import {
   buildEmailAccountPayload,
   hasImapConfiguration,
   hasSmtpConfiguration,
-} from "@/lib/email-accounts/payload";
+} from "./payload";
 import type {
   EmailAccountActionResult,
   EmailAccountRead,
   EmailAccountStatus,
   EmailAuthKind,
   EmailTlsMode,
-} from "@/lib/email-accounts/types";
+} from "@entities/email-account";
 
 interface FormState {
   label: string;

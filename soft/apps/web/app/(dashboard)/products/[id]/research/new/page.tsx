@@ -8,8 +8,8 @@ import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
 import { NewRequestForm } from "@/components/research/new-request-form";
 import { ArrowLeftIcon } from "@/components/ui/icons";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
 import { getProduct } from "@/lib/api/products";
 import { researchIndexPath } from "@/lib/research/navigation";
 

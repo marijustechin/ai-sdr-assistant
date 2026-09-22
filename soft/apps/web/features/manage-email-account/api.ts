@@ -1,25 +1,15 @@
 import "server-only";
-import { apiRequest } from "./client";
+import { apiRequest } from "@shared/api/client";
 import type {
   CreateEmailAccountInput,
   UpdateEmailAccountInput,
 } from "@ai-sdr/contracts";
-import type { EmailAccountRead } from "@/lib/email-accounts/types";
+import type { EmailAccountRead } from "@entities/email-account";
 
-/** Server-only reads/writes for email accounts (the internal key stays server-side). */
+/** Server-only writes for email accounts (the internal key stays server-side). */
 
 function enc(value: string): string {
   return encodeURIComponent(value);
-}
-
-export async function listEmailAccounts(): Promise<EmailAccountRead[]> {
-  return apiRequest<EmailAccountRead[]>("/email-accounts", { method: "GET" });
-}
-
-export async function getEmailAccount(id: string): Promise<EmailAccountRead> {
-  return apiRequest<EmailAccountRead>(`/email-accounts/${enc(id)}`, {
-    method: "GET",
-  });
 }
 
 export async function createEmailAccount(

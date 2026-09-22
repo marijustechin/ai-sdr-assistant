@@ -15,7 +15,7 @@ import {
   VAT_LABEL,
   type OfferingClaimReview,
 } from "@/lib/research/offerings";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@shared/lib/format";
 import type { EvidenceRead, OfferingRead } from "@/lib/research/types";
 
 function Field({ label, value }: { label: string; value: string | null }) {

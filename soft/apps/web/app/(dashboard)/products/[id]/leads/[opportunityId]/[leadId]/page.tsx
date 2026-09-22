@@ -14,24 +14,24 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { LeadReviewForm } from "@/components/leads/lead-review-form";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { ContactList } from "@/components/leads/contact-list";
-import { OutreachDraftList } from "@/components/leads/outreach-draft-list";
+import { OutreachDraftList } from "@entities/outreach-draft";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
 import { AlertIcon, ArrowLeftIcon } from "@/components/ui/icons";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
 import { listCompanyContacts } from "@/lib/api/contacts";
-import { listOutreachDrafts } from "@/lib/api/outreach";
+import { listOutreachDrafts } from "@entities/outreach-draft/api";
 import { getLead } from "@/lib/api/leads";
 import { getProduct } from "@/lib/api/products";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@shared/lib/format";
 import { claimLifecycleLabel, leadRoleLabel } from "@/lib/leads/display";
 import {
   AGENT_QUALIFICATION_TONE,
   agentQualificationLabel,
 } from "@/lib/leads/display";
 import type { ContactRead } from "@/lib/contacts/types";
-import type { OutreachDraftRead } from "@/lib/outreach/types";
+import type { OutreachDraftRead } from "@entities/outreach-draft";
 import type { LeadRead } from "@/lib/leads/types";
 
 export const metadata: Metadata = {

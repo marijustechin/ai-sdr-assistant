@@ -12,16 +12,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
-import { listEmailAccounts } from "@/lib/api/email-accounts";
-import { listSenderProfiles } from "@/lib/api/sender-profiles";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
+import { listEmailAccounts } from "@entities/email-account/api";
+import { listSenderProfiles } from "@entities/sender-profile/api";
 import {
   SENDER_PROFILE_STATUS_LABEL,
   SENDER_PROFILE_STATUS_TONE,
   mailboxSummary,
-} from "@/lib/sender-profiles/display";
-import type { SenderProfileRead } from "@/lib/sender-profiles/types";
+} from "@entities/sender-profile";
+import type { SenderProfileRead } from "@entities/sender-profile";
 
 export const metadata: Metadata = {
   title: "Sender profiles",

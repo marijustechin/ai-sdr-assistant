@@ -22,8 +22,8 @@ import {
   type ClaimView,
   type PreservedOfferingFilters,
 } from "@/lib/research/claims";
-import { formatDateTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { formatDateTime } from "@shared/lib/format";
+import { cn } from "@shared/lib/utils";
 import type { ClaimRead, EvidenceRead } from "@/lib/research/types";
 
 type Mode = "current" | "history";

@@ -1,5 +1,5 @@
 import "server-only";
-import { getApiConfig } from "@/lib/env";
+import { getApiConfig } from "../config/env";
 
 /** Error raised for any failed API interaction, with a machine-readable code. */
 export class ApiError extends Error {

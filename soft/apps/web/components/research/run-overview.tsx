@@ -7,7 +7,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PauseReasonBadge, RunStatusBadge } from "./badges";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@shared/lib/format";
 import type {
   OpportunityRead,
   ResearchRunDetail,

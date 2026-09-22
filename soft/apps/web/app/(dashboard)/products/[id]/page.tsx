@@ -8,13 +8,13 @@ import { ProductForm } from "@/components/products/product-form";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
 import { ProductStatusBadge } from "@/components/products/product-status-badge";
 import { ArrowLeftIcon } from "@/components/ui/icons";
-import { ApiError } from "@/lib/api/client";
-import { describeApiError } from "@/lib/api/errors";
+import { ApiError } from "@shared/api/client";
+import { describeApiError } from "@shared/api/errors";
 import { getProduct } from "@/lib/api/products";
-import { listSenderProfiles } from "@/lib/api/sender-profiles";
-import { formatDateTime } from "@/lib/format";
+import { listSenderProfiles } from "@entities/sender-profile/api";
+import { formatDateTime } from "@shared/lib/format";
 import { productResponseToFormValues } from "@/lib/products/mappers";
-import type { SenderProfileRead } from "@/lib/sender-profiles/types";
+import type { SenderProfileRead } from "@entities/sender-profile";
 
 export const metadata: Metadata = {
   title: "Product",

@@ -7,15 +7,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@shared/lib/format";
 import {
   languageLabel,
   missingFieldGuidance,
   OUTREACH_STATUS_LABEL,
   OUTREACH_STATUS_TONE,
   summarizeDrafts,
-} from "@/lib/outreach/display";
-import type { OutreachDraftRead } from "@/lib/outreach/types";
+} from "../display";
+import type { OutreachDraftRead } from "../types";
 
 function DraftBlock({
   draft,

@@ -20,13 +20,13 @@ import { AlertIcon, CheckCircleIcon } from "@/components/ui/icons";
 import {
   createSenderProfileAction,
   updateSenderProfileAction,
-} from "@/lib/api/sender-profiles-actions";
-import { buildSenderProfilePayload } from "@/lib/sender-profiles/payload";
+} from "./actions";
+import { buildSenderProfilePayload } from "./payload";
 import type {
   SenderProfileActionResult,
   SenderProfileRead,
   SenderProfileStatus,
-} from "@/lib/sender-profiles/types";
+} from "@entities/sender-profile";
 
 interface FormState {
   label: string;

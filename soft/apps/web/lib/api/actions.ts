@@ -8,7 +8,7 @@ import {
 } from "@ai-sdr/contracts";
 import { createProduct, updateProduct } from "./products";
 import { submitResearchRequest } from "./research-requests";
-import { describeApiError } from "./errors";
+import { describeApiError } from "@shared/api/errors";
 import type { ProductActionResult } from "@/lib/products/types";
 import type { ResearchRequestActionResult } from "@/lib/research-requests/types";
 

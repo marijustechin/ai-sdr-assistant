@@ -5,9 +5,9 @@ import {
   CreateEmailAccountSchema,
   UpdateEmailAccountSchema,
 } from "@ai-sdr/contracts";
-import { createEmailAccount, updateEmailAccount } from "./email-accounts";
-import { describeApiError } from "./errors";
-import type { EmailAccountActionResult } from "@/lib/email-accounts/types";
+import { describeApiError } from "@shared/api/errors";
+import type { EmailAccountActionResult } from "@entities/email-account";
+import { createEmailAccount, updateEmailAccount } from "./api";
 
 function fieldErrorsFrom(
   issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>,

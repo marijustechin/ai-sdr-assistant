@@ -3,7 +3,7 @@ import type {
   ProductResponse,
   UpdateProductInput,
 } from "@ai-sdr/contracts";
-import { apiRequest, ApiError } from "./client";
+import { apiRequest, ApiError } from "@shared/api/client";
 
 /** GET /products — live. Ordering is the API's (most recently updated first). */
 export async function listProducts(): Promise<ProductResponse[]> {
