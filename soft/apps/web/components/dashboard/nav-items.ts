@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from "react";
-import { DashboardIcon, PackageIcon } from "@/components/ui/icons";
+import { DashboardIcon, InfoIcon, PackageIcon } from "@/components/ui/icons";
 
 export interface NavItem {
   href: string;
@@ -16,4 +16,9 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: DashboardIcon, exact: true },
   { href: "/products", label: "Products", icon: PackageIcon },
+  {
+    href: "/settings/sender-profiles",
+    label: "Settings",
+    icon: InfoIcon,
+  },
 ];

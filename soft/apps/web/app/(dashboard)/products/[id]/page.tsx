@@ -11,8 +11,10 @@ import { ArrowLeftIcon } from "@/components/ui/icons";
 import { ApiError } from "@/lib/api/client";
 import { describeApiError } from "@/lib/api/errors";
 import { getProduct } from "@/lib/api/products";
+import { listSenderProfiles } from "@/lib/api/sender-profiles";
 import { formatDateTime } from "@/lib/format";
 import { productResponseToFormValues } from "@/lib/products/mappers";
+import type { SenderProfileRead } from "@/lib/sender-profiles/types";
 
 export const metadata: Metadata = {
   title: "Product",
@@ -28,9 +30,15 @@ export default async function ProductDetailPage({
   let product: ProductResponse | null = null;
   let loadError: string | null = null;
   let configured = true;
+  let senderProfiles: SenderProfileRead[] = [];
 
   try {
     product = await getProduct(id);
+    try {
+      senderProfiles = await listSenderProfiles();
+    } catch {
+      senderProfiles = [];
+    }
   } catch (error) {
     if (error instanceof ApiError && error.code === "api_key_missing") {
       configured = false;
@@ -95,6 +103,7 @@ export default async function ProductDetailPage({
               mode="edit"
               productId={product.id}
               initialValues={productResponseToFormValues(product)}
+              senderProfiles={senderProfiles}
             />
           </div>
         </>

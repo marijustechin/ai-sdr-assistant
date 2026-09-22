@@ -14,12 +14,14 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { LeadReviewForm } from "@/components/leads/lead-review-form";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { ContactList } from "@/components/leads/contact-list";
+import { OutreachDraftList } from "@/components/leads/outreach-draft-list";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
 import { AlertIcon, ArrowLeftIcon } from "@/components/ui/icons";
 import { ApiError } from "@/lib/api/client";
 import { describeApiError } from "@/lib/api/errors";
 import { listCompanyContacts } from "@/lib/api/contacts";
+import { listOutreachDrafts } from "@/lib/api/outreach";
 import { getLead } from "@/lib/api/leads";
 import { getProduct } from "@/lib/api/products";
 import { formatDateTime } from "@/lib/format";
@@ -29,6 +31,7 @@ import {
   agentQualificationLabel,
 } from "@/lib/leads/display";
 import type { ContactRead } from "@/lib/contacts/types";
+import type { OutreachDraftRead } from "@/lib/outreach/types";
 import type { LeadRead } from "@/lib/leads/types";
 
 export const metadata: Metadata = {
@@ -62,6 +65,8 @@ export default async function LeadDetailPage({
   let lead: LeadRead | null = null;
   let contacts: ContactRead[] = [];
   let contactsUnavailable = false;
+  let drafts: OutreachDraftRead[] = [];
+  let draftsUnavailable = false;
   let configured = true;
   let loadError: string | null = null;
 
@@ -83,6 +88,11 @@ export default async function LeadDetailPage({
       contacts = await listCompanyContacts(lead.company.id);
     } catch {
       contactsUnavailable = true;
+    }
+    try {
+      drafts = await listOutreachDrafts(opportunityId, leadId);
+    } catch {
+      draftsUnavailable = true;
     }
   }
 
@@ -329,6 +339,12 @@ export default async function LeadDetailPage({
             companyId={lead.company.id}
             contacts={contacts}
             unavailable={contactsUnavailable}
+          />
+
+          <OutreachDraftList
+            productId={product.id}
+            drafts={drafts}
+            unavailable={draftsUnavailable}
           />
         </div>
       ) : null}

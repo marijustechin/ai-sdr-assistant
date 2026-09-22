@@ -89,3 +89,16 @@ or admin UI.
 - `GET /health` and `GET /ready` remain public (liveness/readiness).
 - Tests never assert the secret value itself; they assert status codes and that
   responses do not leak `DATABASE_URL` or `INTERNAL_API_KEY`.
+
+## Mailbox secrets (email accounts)
+
+- Sender profiles carry **no** credentials. SMTP/IMAP passwords live only on `email_accounts`, owned by the `email-accounts` module.
+- Passwords are encrypted at rest with **AES-256-GCM** (`v1.<iv>.<tag>.<ciphertext>`); only the ciphertext is stored (`smtp_password_ciphertext`, `imap_password_ciphertext`).
+- The 32-byte key is read **only** from the server environment `EMAIL_SECRETS_KEY` (base64/hex). It is never stored in the database or Git and is **not** generated at startup.
+- Reads never include a secret: responses expose only `smtpPasswordConfigured` / `imapPasswordConfigured` (booleans). The plaintext is never logged, thrown, or rendered.
+- On update, an omitted password preserves the stored secret; replacement (`smtpPassword`/`imapPassword`) and clearing (`clearSmtpPassword`/`clearImapPassword`) are explicit.
+- When `credentialsShared` is true, IMAP reuses the SMTP credentials; separate IMAP credentials are rejected, and IMAP reads report the shared credentials.
+- If the key is missing, saving an SMTP/IMAP **password** fails clearly (`503 secrets_key_not_configured`); credential-free accounts and unrelated endpoints are unaffected.
+- The web form omits all transport fields unless the operator explicitly enables SMTP/IMAP, so an autofilled password can never be submitted for an unconfigured transport.
+- **Backup:** the key must be backed up with the database; without it stored mailbox passwords are unrecoverable (they can be replaced, not decrypted).
+- Tests use synthetic secrets only.

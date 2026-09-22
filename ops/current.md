@@ -1,43 +1,6 @@
-# O-<id> — <title>
+# No active manager task
 
-**Status:** IN PROGRESS
-**Type:** <manager task type: direction | coordination | decision | intake | delegation | project-state>
-**Scope:** <repository area>
-
-## Objective
-
-<what must be achieved at the manager level>
-
-## Inputs / references
-
-- `AGENTS.md`
-- `docs/system/<relevant>.md`
-- <human decisions / intake / evidence>
-
-## Steps
-
-- <ordered manager actions>
-
-## Deliverables
-
-- <files created/changed>
-
-## Acceptance criteria
-
-- [ ] <checkable criterion>
-
-## Out of scope
-
-- <what must not be touched>
-
-## Verification
-
-- <commands or inspections that prove the result>
-
-## Rollback/blocked conditions
-
-- <how to back out / what blocks the task; do not archive a blocked task>
-
-## Completion record
-
-<!-- Filled on completion; archived to ops/done/YYYY-MM-DD-slug.md -->
+`ops/current.md` is empty: the last task (O-022) was archived to
+`ops/done/2026-09-22-email-accounts-sender-profile-refactor.md` and awaits human
+review. No new task auto-starts. Use `ops/backlog.md` and
+`ops/task-template.md` to open the next one.

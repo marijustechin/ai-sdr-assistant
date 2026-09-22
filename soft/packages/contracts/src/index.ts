@@ -5,3 +5,6 @@ export * from './research.js';
 export * from './research-requests.js';
 export * from './leads.js';
 export * from './contacts.js';
+export * from './outreach.js';
+export * from './sender-profiles.js';
+export * from './email-accounts.js';

@@ -530,5 +530,31 @@ describe('Potential-buyer shortlist API (integration)', () => {
     );
     expect(requalify.statusCode).toBe(409);
     expect((requalify.json() as Json).error).toBe('lead_claim_not_current');
+
+    // Loophole closed: re-submitting the lead with the CURRENT replacement claim
+    // changes its provenance basis, so the prior qualification stays stale and
+    // progression remains blocked until an explicit reassessment.
+    const resubmitted = (
+      await api(
+        'POST',
+        `/opportunities/${opportunityId}/leads`,
+        leadBody(runId, evidence.id as string, { claimId: replacement.id }),
+      )
+    ).json() as Json;
+    expect(resubmitted.id).toBe(created.id);
+    expect(resubmitted.claimId).toBe(replacement.id);
+    expect(resubmitted.needsReview).toBe(false);
+    expect(resubmitted.agentQualificationStale).toBe(true);
+    expect(resubmitted.eligibleForContactDiscovery).toBe(false);
+
+    // Reassessing on the current basis clears the staleness.
+    const reassessed = await api(
+      'PATCH',
+      `/opportunities/${opportunityId}/leads/${created.id as string}/qualification`,
+      { status: 'QUALIFIED', reason: 'Reassessed on the replacement finding.' },
+    );
+    expect(reassessed.statusCode).toBe(200);
+    expect((reassessed.json() as Json).agentQualificationStale).toBe(false);
+    expect((reassessed.json() as Json).eligibleForContactDiscovery).toBe(true);
   });
 });

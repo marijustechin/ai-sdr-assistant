@@ -33,17 +33,20 @@ import {
 import { buildUpdateProductPayload } from "@/lib/products/payload";
 import { productResponseToFormValues } from "@/lib/products/mappers";
 import type { ProductActionResult } from "@/lib/products/types";
+import type { SenderProfileRead } from "@/lib/sender-profiles/types";
 
 export interface ProductFormProps {
   mode?: "create" | "edit";
   initialValues?: ProductFormValues;
   productId?: string;
+  senderProfiles?: SenderProfileRead[];
 }
 
 export function ProductForm({
   mode = "create",
   initialValues,
   productId,
+  senderProfiles = [],
 }: ProductFormProps) {
   const router = useRouter();
   const [result, setResult] = useState<ProductActionResult | null>(null);
@@ -235,6 +238,44 @@ export function ProductForm({
               ))}
             </Select>
           </FormField>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Outreach sender profile</CardTitle>
+          <CardDescription>
+            Optional. Used as the identity when drafting outreach for this
+            product. Drafting is blocked until an active profile is assigned.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <FormField
+            label="Sender profile"
+            htmlFor="senderProfileId"
+            error={errors.senderProfileId?.message}
+            className="max-w-sm"
+          >
+            <Select
+              {...form.register("senderProfileId", {
+                setValueAs: (value) => (value === "" ? undefined : value),
+              })}
+            >
+              <option value="">Not assigned</option>
+              {senderProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.label}
+                  {profile.status === "ACTIVE" ? "" : " (disabled)"}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          {senderProfiles.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No sender profiles yet. Create one under Settings → Sender
+              profiles.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

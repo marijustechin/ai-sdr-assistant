@@ -31,6 +31,7 @@ export const CreateProductSchema = z.strictObject({
   description: z.string().trim().min(1).optional(),
   category: z.string().trim().min(1).max(120).optional(),
   lifecycleStatus: ProductLifecycleStatusSchema.optional(),
+  senderProfileId: z.uuid().optional(),
 });
 
 export const CreateOfferSchema = z.strictObject({
@@ -49,6 +50,7 @@ export const UpdateProductSchema = z.strictObject({
   description: z.string().trim().min(1).nullable().optional(),
   category: z.string().trim().min(1).max(120).nullable().optional(),
   lifecycleStatus: ProductLifecycleStatusSchema.optional(),
+  senderProfileId: z.uuid().nullable().optional(),
 });
 
 /**
@@ -63,6 +65,7 @@ export const ProductResponseSchema = z.strictObject({
   description: z.string().nullable(),
   category: z.string().nullable(),
   lifecycleStatus: ProductLifecycleStatusSchema,
+  senderProfileId: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

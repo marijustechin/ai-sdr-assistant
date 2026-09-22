@@ -71,6 +71,9 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `OpportunityCompany` | `opportunity_companies` | An opportunity-scoped candidate buyer linked to research evidence; separate observed facts vs buyer-fit hypothesis, explicit unknowns / next step, and an operator `review_status` (`UNREVIEWED \| SHORTLISTED \| REJECTED` + reason); deduplicated per opportunity. | `lead-discoverer` |
 | `Contact` | `contacts` | Public business contact for a company (general vs named person; email/phone/contact-page URL; original values + dedup-normalized columns; usability + published-vs-deliverability). | `contact-discovery` |
 | `ContactSource` | `contact_sources` | Contact provenance: a `source_references` row (deduplicated by URL) + retrieval date + supporting excerpt; many per contact. | `contact-discovery` |
+| `OutreachDraft` | `outreach_drafts` | Evidence-backed **initial** outreach draft (or explicit `BLOCKED` outcome): recipient reference, subject/body, language, preparation status, rationale, context/evidence references, sender profile reference + non-secret identity snapshot + resolved `email_account_id` reference, precise missing fields; append-only/versioned + idempotent fingerprint; no send state. | `outreach-drafter` |
+| `SenderProfile` | `sender_profiles` | Reusable, product-independent sender **identity** (label, sender/company, From/Reply-To, signature, status) with an optional `email_account_id` reference; carries no transport credentials. | `sender-profiles` |
+| `EmailAccount` | `email_accounts` | Technical mailbox connection (account email, status, `auth_kind`/`provider`, SMTP + IMAP host/port/TLS/username, `credentials_shared`); SMTP/IMAP passwords stored only as authenticated ciphertext (key in server config). | `email-accounts` |
 
 Every model carries a `/// @owner <module>` tag in `schema.prisma` (§5 of
 `data-ownership.md`). Cross-boundary writes go through the owning module's
@@ -268,6 +271,57 @@ application service — no module writes another module's table.
   run evidence; a source reference is get-or-created through the `evidence`
   service without run scope. Run deletion therefore cannot affect contacts, and
   contact discovery never reopens a run.
+
+### 3.14 `OutreachDraft` (evidence-backed initial outreach drafts)
+
+- An initial draft for one eligible lead: `contactId`/`recipientEmail` (the
+  selected recipient), `language`, `preparationStatus`
+  (`PREPARED | BLOCKED`), `subject`/`body` (null when blocked), `rationale`,
+  `recipientRationale`, `missingFields` (precise, when blocked),
+  `contextVersion`, and `evidenceId`/`claimId`/`sourceReferenceId` references.
+- **Append-only/versioned + idempotent:** a unique hashed `fingerprint` over the
+  inputs means a re-run with identical inputs returns the existing draft; a
+  material change inserts a new `version` for the `(opportunityId, leadId)` and
+  preserves the earlier draft (never a silent overwrite).
+- **No send state and no transport.** Sending is out of scope; the model has no
+  sent/queued column.
+- The qualification **basis** (`agent_qualification_evidence_id` /
+  `agent_qualification_claim_id` on `opportunity_companies`) records what an
+  agent qualification rested on; a material provenance change makes it stale, so
+  drafting is blocked until reassessment.
+
+### 3.15 `SenderProfile` (reusable sender identities)
+
+- A reusable, product-independent sender **identity**: `label`, `senderName`,
+  `companyName`, `fromEmail`, optional `replyToEmail`/`signature`, `status`
+  (`ACTIVE | DISABLED`), and an optional `emailAccountId` reference. It carries
+  **no** transport configuration or credentials.
+- **No hard delete** (referenced by `products.sender_profile_id` and
+  `outreach_drafts.sender_profile_id`); disable instead.
+- `products.sender_profile_id` is an **optional** assignment (NULL or a
+  profile). `outreach_drafts.sender_profile_id` + `sender_snapshot` record the
+  non-secret identity actually used; `sender_snapshot` never contains transport
+  credentials.
+
+### 3.16 `EmailAccount` (technical mailbox connection)
+
+- The single owner of mailbox transport: `label`, `accountEmail`, `status`
+  (`ACTIVE | DISABLED`), `authKind` (`PASSWORD | OAUTH2`, reserved) + optional
+  `provider`, **SMTP** (`smtpHost`, `smtpPort`, `smtpTlsMode`, `smtpUsername`,
+  `smtpPasswordCiphertext`) and **IMAP** (`imapHost`, `imapPort`, `imapTlsMode`,
+  `imapUsername`, `imapPasswordCiphertext`), and `credentialsShared` (IMAP reuses
+  the SMTP username/password; separate IMAP credentials are then not stored).
+- **Secret handling:** only `smtpPasswordCiphertext` / `imapPasswordCiphertext`
+  (AES-256-GCM, `v1.…`) are stored; the key lives only in server config
+  (`EMAIL_SECRETS_KEY`). Reads never include a secret — only
+  `smtpPasswordConfigured` / `imapPasswordConfigured`. An account without a
+  password needs no key.
+- **Many sender profiles may share one account** (`sender_profiles.
+  email_account_id`, `SET NULL`); a profile has 0..1 account. No hard delete
+  (referenced by `sender_profiles` and `outreach_drafts`); disable instead.
+- **No transport is executed** by this model (no sending, no IMAP connection):
+  it only records configuration for later sending/monitoring. OAuth is additive
+  (`authKind`/`provider` exist now).
 
 ---
 

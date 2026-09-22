@@ -12,6 +12,109 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-22 — Separate email transport (EmailAccount) from sender identity (SenderProfile)
+
+Real email sending **and** mailbox monitoring (reply capture and matching) are
+coming, so transport details must not live on the sender identity.
+
+- **`email_accounts` (owner `email-accounts`)** becomes the single owner of the
+  **technical mailbox connection**: label, account identity, `status`
+  (`ACTIVE | DISABLED`), `authKind` (`PASSWORD | OAUTH2`) + `provider`
+  (extensible), **SMTP** (host/port/explicit TLS/username/password) and **IMAP**
+  (host/port/explicit TLS/username/password), a `credentialsShared` flag (IMAP
+  reuses the SMTP username/password when true), and encrypted secrets. It is the
+  **only** place transport secrets live.
+- **`sender_profiles` becomes identity-only** (label, sender/company, From,
+  Reply-To, signature, status) plus an optional **`email_account_id`**. Many
+  sender profiles may share one email account; a profile has 0..1 account.
+- **Product assignment stays at the SenderProfile level** (`products.
+  sender_profile_id`); products never reference raw credentials.
+- **`outreach_drafts` gains an `email_account_id` reference** (resolved from the
+  assigned profile; no secret snapshot). Account/credential-only changes do not
+  change draft content versioning.
+- **Secret handling** moves to a shared helper keyed by **`EMAIL_SECRETS_KEY`**
+  (AES-256-GCM; server-side only, never DB/Git); reads expose only
+  `smtpPasswordConfigured` / `imapPasswordConfigured`.
+- **Future OAuth** is additive: `authKind`/`provider` exist now; OAuth token
+  columns/table can be added without redesigning the model.
+- **Mailbox monitoring is a central concern**, not product-specific: it will live
+  in `inbox-intelligence` (inbound messages + threads) driven by the `jobs`
+  worker; **sending** will get its own write-owner (`outreach-sender`,
+  `outbound_messages`). Neither is implemented in this decision's task.
+
+Reason: separating identity from transport keeps send/receive credentials in one
+owned place, lets one account serve several identities, and leaves room for
+OAuth providers — while products continue to select an identity, never
+credentials.
+
+---
+
+## 2026-09-22 — Sender profiles, product assignment and drafting integration (bounded `sender-profiles`)
+
+- **Reusable sender identities** (`sender_profiles`, owner `sender-profiles`):
+  label, sender name, company/brand, From email, optional Reply-To/signature, and
+  optional SMTP (host, port, **explicit** TLS mode, username, password). A usable
+  identity **does not require SMTP**; SMTP configuration never authorizes
+  sending. Create/edit/disable; **no hard delete** (referenced by products and
+  draft history).
+- **Secret handling.** The SMTP password is encrypted at rest with
+  **AES-256-GCM**; the 32-byte key lives **only in server configuration**
+  (`SENDER_SECRETS_KEY`, base64/hex), never in the database or Git, and is **not**
+  generated at startup. Reads expose only `smtpPasswordConfigured`; the secret is
+  never returned, rendered or logged. On update, an omitted password is
+  preserved; replacement and clearing are explicit (`smtpPassword` /
+  `clearSmtpPassword`). Missing key fails **credential** saves clearly (503)
+  without blocking identity-only profiles or other functions.
+- **Product assignment.** Optional `products.sender_profile_id` (shared
+  contracts + guarded API; validated through the owning service). One profile may
+  serve many products; products are **unassigned by default** (no silent
+  first-profile) with a clear missing/disabled state. Products and research stay
+  usable — only drafting is blocked.
+- **Drafting integration.** `outreach-drafter` resolves the **assigned active**
+  profile and uses its identity; it persists the profile reference plus a
+  **non-secret identity snapshot** on each draft. Material identity changes
+  affect idempotency/versioning while a **password-only** change does not;
+  profile edits/reassignment never rewrite existing drafts. Outdated sender/
+  context inputs surface as stale warnings; raw missing-field names are replaced
+  with operator guidance and links.
+- **Autonomy.** Once a valid profile is assigned, the agent prepares drafts
+  through the existing API with **no per-lead approval** and no "approve sender"
+  gate; there are **no automatic retries** (the retry procedure is
+  agent-driven).
+
+Reason: identity must be reusable and safely stored so the automated pipeline
+can draft without a human gate, while keeping the secret safe and the
+sending boundary (and per-step approval) intact.
+
+---
+
+## 2026-09-18 — Evidence-backed initial outreach drafts (bounded `outreach-drafter` slice)
+
+- **Initial draft only.** Implement `outreach_drafts` (owner `outreach-drafter`)
+  and a guarded API to prepare and read an initial draft. Recipient selection
+  uses the company's **usable, published** contacts — prefer a named person whose
+  *published* title is purchasing-relevant, else the general business email;
+  never invent responsibility. Content is built **only** from the Research
+  Context (product/offer/facts) and the lead's evidence/claim; the language is
+  derived from available context and recorded. Persist subject/body/language/
+  recipient/status/rationale/references, plus precise **missing fields** on a
+  `BLOCKED` outcome. Drafts are append-only/versioned and idempotent; existing
+  drafts are never silently overwritten. **No send path** and no transport.
+- **Staleness loophole closed (bounded).** The agent qualification now snapshots
+  the **basis** (evidence/claim) it rested on, so a material provenance change —
+  including re-submitting a lead with a changed claim — makes the prior
+  assessment stale and blocks drafting until reassessment. No general
+  reassessment framework is built here.
+- **Autonomy.** Preparing a draft needs **no per-step human approval** (routine
+  API writes within the approved task). Sending and commercial commitments remain
+  unauthorized. Progression is **agent-executed**, not an unattended worker.
+
+Reason: the intended automated pipeline must be able to prepare a grounded,
+traceable first email without a human gate, while keeping provenance, honesty
+about missing information, and the sending boundary intact.
+
+---
+
 ## 2026-09-18 — Automation-first pipeline; agent qualification separate from human review
 
 Product-direction correction: this is an **automated SDR assistant**, so human

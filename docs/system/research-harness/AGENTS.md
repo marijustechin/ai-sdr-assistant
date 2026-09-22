@@ -110,6 +110,7 @@ the exact prompt is recorded there.
 | [`coverage-and-stopping.md`](coverage-and-stopping.md) | Coverage matrix, depth, follow-up, stop/pause conditions, budgets, cost honesty |
 | [`persistence-boundary.md`](persistence-boundary.md) | Every input/output/checkpoint mapped to API capability, with the delivered persistence schema/API recorded in §4 |
 | [`contact-discovery.md`](contact-discovery.md) | Source-backed business contacts for **shortlisted** leads: prerequisites, procedure, provenance rules, separation from a completed research run, and cost/tool authorization |
+| [`outreach-drafting.md`](outreach-drafting.md) | Preparing an evidence-backed **initial outreach draft** for an eligible lead: recipient selection, supported content, missing-information handling, idempotent persistence, and the autonomy/sending boundary |
 | [`verification-walkthrough.md`](verification-walkthrough.md) | Synthetic, non-live walkthrough proving the harness and marking executable-now vs requires-implementation |
 
 Canonical companions outside this directory:

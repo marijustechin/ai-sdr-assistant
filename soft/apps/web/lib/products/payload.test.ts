@@ -61,6 +61,7 @@ describe("buildUpdateProductPayload", () => {
       description: "Updated summary",
       category: null,
       lifecycleStatus: "ARCHIVED",
+      senderProfileId: null,
     });
   });
 

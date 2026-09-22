@@ -10,6 +10,9 @@ import { MarketResearcherModule } from './modules/market-researcher/market-resea
 import { EvidenceModule } from './modules/evidence/evidence.module.js';
 import { LeadDiscovererModule } from './modules/lead-discoverer/lead-discoverer.module.js';
 import { ContactDiscoveryModule } from './modules/contact-discovery/contact-discovery.module.js';
+import { OutreachDrafterModule } from './modules/outreach-drafter/outreach-drafter.module.js';
+import { SenderProfilesModule } from './modules/sender-profiles/sender-profiles.module.js';
+import { EmailAccountsModule } from './modules/email-accounts/email-accounts.module.js';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { ContactDiscoveryModule } from './modules/contact-discovery/contact-disc
     EvidenceModule,
     LeadDiscovererModule,
     ContactDiscoveryModule,
+    SenderProfilesModule,
+    EmailAccountsModule,
+    OutreachDrafterModule,
   ],
   controllers: [HealthController, ReadinessController],
 })

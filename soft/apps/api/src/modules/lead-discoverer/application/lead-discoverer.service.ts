@@ -160,6 +160,8 @@ export class LeadDiscovererService {
     return this.repository.qualifyLead(leadId, {
       status: input.status,
       ...(input.reason !== undefined ? { reason: input.reason } : {}),
+      evidenceId: lead.evidenceId,
+      claimId: lead.claimId,
     });
   }
 }

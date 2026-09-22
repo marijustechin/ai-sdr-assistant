@@ -3,12 +3,20 @@ import Link from "next/link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProductForm } from "@/components/products/product-form";
 import { ArrowLeftIcon } from "@/components/ui/icons";
+import { listSenderProfiles } from "@/lib/api/sender-profiles";
+import type { SenderProfileRead } from "@/lib/sender-profiles/types";
 
 export const metadata: Metadata = {
   title: "New product",
 };
 
-export default function NewProductPage() {
+export default async function NewProductPage() {
+  let senderProfiles: SenderProfileRead[] = [];
+  try {
+    senderProfiles = await listSenderProfiles();
+  } catch {
+    senderProfiles = [];
+  }
   return (
     <>
       <PageHeader
@@ -25,7 +33,7 @@ export default function NewProductPage() {
         }
       />
       <div className="max-w-3xl">
-        <ProductForm mode="create" />
+        <ProductForm mode="create" senderProfiles={senderProfiles} />
       </div>
     </>
   );

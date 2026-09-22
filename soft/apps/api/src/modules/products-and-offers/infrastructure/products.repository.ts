@@ -27,6 +27,7 @@ function toProductRecord(product: Product): ProductRecord {
     description: product.description,
     category: product.category,
     lifecycleStatus: product.lifecycleStatus,
+    senderProfileId: product.senderProfileId,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };
@@ -89,6 +90,7 @@ export class ProductsRepository {
         ...(data.lifecycleStatus !== undefined
           ? { lifecycleStatus: data.lifecycleStatus }
           : {}),
+        senderProfileId: data.senderProfileId ?? null,
       },
     });
     return toProductRecord(product);
@@ -124,6 +126,12 @@ export class ProductsRepository {
     if (data.category !== undefined) update.category = data.category;
     if (data.lifecycleStatus !== undefined) {
       update.lifecycleStatus = data.lifecycleStatus;
+    }
+    if (data.senderProfileId !== undefined) {
+      update.senderProfile =
+        data.senderProfileId === null
+          ? { disconnect: true }
+          : { connect: { id: data.senderProfileId } };
     }
 
     const product = await this.client(tx).product.update({

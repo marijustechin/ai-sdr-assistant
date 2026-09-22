@@ -9,6 +9,7 @@ const product: ProductResponse = {
   description: "Heat-treated.",
   category: "hardwood timber",
   lifecycleStatus: "ACTIVE",
+  senderProfileId: null,
   createdAt: "2026-09-15T10:00:00.000Z",
   updatedAt: "2026-09-15T11:00:00.000Z",
 };
@@ -21,6 +22,7 @@ describe("productResponseToFormValues", () => {
       description: "Heat-treated.",
       category: "hardwood timber",
       lifecycleStatus: "ACTIVE",
+      senderProfileId: undefined,
     });
   });
 

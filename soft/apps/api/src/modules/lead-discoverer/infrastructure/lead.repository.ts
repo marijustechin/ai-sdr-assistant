@@ -79,8 +79,14 @@ function toClaimRecord(
 function toLeadRecord(row: LeadWithRelations): LeadRecord {
   const claim = row.claim ? toClaimRecord(row.claim) : null;
   const needsReview = claim !== null && claim.lifecycleStatus !== 'CURRENT';
+  // A prior qualification is stale if the finding changed (replaced/retracted)
+  // OR the lead's provenance (evidence/claim basis) changed materially since the
+  // assessment — so re-submitting changed provenance cannot silently re-validate.
   const agentQualificationStale =
-    needsReview && row.agentQualificationStatus !== 'NOT_ASSESSED';
+    row.agentQualificationStatus !== 'NOT_ASSESSED' &&
+    (needsReview ||
+      row.agentQualificationEvidenceId !== row.evidenceId ||
+      (row.agentQualificationClaimId ?? null) !== (row.claimId ?? null));
   return {
     id: row.id,
     opportunityId: row.opportunityId,
@@ -100,6 +106,7 @@ function toLeadRecord(row: LeadWithRelations): LeadRecord {
     agentQualificationStale,
     eligibleForContactDiscovery:
       !needsReview &&
+      !agentQualificationStale &&
       row.reviewStatus !== 'REJECTED' &&
       (row.agentQualificationStatus === 'QUALIFIED' ||
         row.reviewStatus === 'SHORTLISTED'),
@@ -247,6 +254,8 @@ export class LeadRepository {
         agentQualificationStatus: data.status,
         agentQualificationReason: assessed ? (data.reason ?? null) : null,
         agentAssessedAt: assessed ? new Date() : null,
+        agentQualificationEvidenceId: assessed ? data.evidenceId : null,
+        agentQualificationClaimId: assessed ? data.claimId : null,
       },
       include: LEAD_INCLUDE,
     });

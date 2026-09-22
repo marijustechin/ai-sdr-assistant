@@ -108,6 +108,9 @@ export interface UpdateLeadReviewData {
 export interface UpdateQualificationData {
   status: AgentQualificationStatus;
   reason?: string;
+  /** The lead's current basis, snapshotted so a later provenance change is stale. */
+  evidenceId: string;
+  claimId: string | null;
 }
 
 /** Typed failure raised by the repository and mapped to HTTP by the service. */

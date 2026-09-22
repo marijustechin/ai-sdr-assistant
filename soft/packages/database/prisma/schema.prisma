@@ -28,12 +28,16 @@ model Product {
   description    String?                @db.Text
   category       String?                @db.VarChar(120)
   lifecycleStatus ProductLifecycleStatus @default(DRAFT) @map("lifecycle_status")
+  /// Optional sender profile used when drafting outreach for this product.
+  senderProfileId String?               @map("sender_profile_id") @db.Uuid
   createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   offers Offer[]
   facts  ProductFact[]
+  senderProfile SenderProfile? @relation(fields: [senderProfileId], references: [id], onDelete: SetNull)
 
+  @@index([senderProfileId])
   @@map("products")
 }
 
@@ -116,6 +120,7 @@ model Opportunity {
   targetMarkets OpportunityTargetMarket[]
   researchRuns  ResearchRun[]
   leads         OpportunityCompany[]
+  outreachDrafts OutreachDraft[]
 
   @@index([offerId])
   @@map("opportunities")
@@ -230,6 +235,7 @@ model SourceReference {
   offerings ResearchOffering[]
   opportunityLeads OpportunityCompany[]
   contactSources ContactSource[]
+  outreachDrafts OutreachDraft[]
 
   @@unique([url])
   @@map("source_references")
@@ -254,6 +260,7 @@ model Evidence {
   claimLinks      ClaimEvidence[]
   offerings       ResearchOffering[]
   opportunityLeads OpportunityCompany[]
+  outreachDrafts  OutreachDraft[]
 
   @@index([sourceReferenceId])
   @@index([researchRunId])
@@ -288,6 +295,7 @@ model Claim {
   replaces      Claim[]         @relation("ClaimReplacement")
   offerings     ResearchOffering[]
   opportunityLeads OpportunityCompany[]
+  outreachDrafts OutreachDraft[]
 
   @@index([researchRunId])
   @@index([lifecycleStatus])
@@ -376,6 +384,7 @@ model Company {
 
   leads OpportunityCompany[]
   contacts Contact[]
+  outreachDrafts OutreachDraft[]
 
   @@unique([identityKey])
   @@index([normalizedName])
@@ -406,6 +415,10 @@ model OpportunityCompany {
   agentQualificationStatus AgentQualificationStatus @default(NOT_ASSESSED) @map("agent_qualification_status")
   agentQualificationReason String?          @map("agent_qualification_reason") @db.Text
   agentAssessedAt          DateTime?        @map("agent_assessed_at") @db.Timestamptz(6)
+  /// Basis the agent qualification rested on; a material provenance change
+  /// (different evidence/claim) makes the prior qualification stale.
+  agentQualificationEvidenceId String?      @map("agent_qualification_evidence_id") @db.Uuid
+  agentQualificationClaimId    String?      @map("agent_qualification_claim_id") @db.Uuid
   sourceReferenceId        String           @map("source_reference_id") @db.Uuid
   evidenceId               String           @map("evidence_id") @db.Uuid
   claimId                  String?          @map("claim_id") @db.Uuid
@@ -418,6 +431,7 @@ model OpportunityCompany {
   sourceReference SourceReference @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict)
   evidence        Evidence        @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
   claim           Claim?          @relation(fields: [claimId], references: [id], onDelete: SetNull)
+  outreachDrafts  OutreachDraft[]
 
   @@unique([dedupKey])
   @@unique([opportunityId, companyId])
@@ -445,6 +459,159 @@ enum AgentQualificationStatus {
   QUALIFIED
   NEEDS_MORE_EVIDENCE
   DISQUALIFIED
+}
+
+/// An initial outreach draft prepared for one eligible lead, or an explicit
+/// blocked preparation outcome. Drafts are append-only/versioned: a re-run with
+/// identical inputs is idempotent (unique `fingerprint`) and a material change
+/// creates a new version rather than overwriting the previous draft. No sending
+/// is represented here, and no send state exists.
+/// @owner outreach-drafter
+model OutreachDraft {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  opportunityId      String                    @map("opportunity_id") @db.Uuid
+  leadId             String                    @map("lead_id") @db.Uuid
+  companyId          String                    @map("company_id") @db.Uuid
+  contactId          String?                   @map("contact_id") @db.Uuid
+  recipientEmail     String?                   @map("recipient_email") @db.VarChar(320)
+  language           String                    @db.VarChar(35)
+  preparationStatus  OutreachPreparationStatus @default(BLOCKED) @map("preparation_status")
+  subject            String?                   @db.VarChar(512)
+  body               String?                   @db.Text
+  rationale          String                    @db.Text
+  recipientRationale String                    @map("recipient_rationale") @db.Text
+  missingFields      String[]                  @map("missing_fields")
+  contextVersion     Int?                      @map("context_version")
+  evidenceId         String?                   @map("evidence_id") @db.Uuid
+  claimId            String?                   @map("claim_id") @db.Uuid
+  sourceReferenceId  String?                   @map("source_reference_id") @db.Uuid
+  /// Sender profile reference + non-secret identity snapshot actually used.
+  senderProfileId    String?                   @map("sender_profile_id") @db.Uuid
+  /// Mailbox connection resolved from the sender profile at preparation time.
+  emailAccountId     String?                   @map("email_account_id") @db.Uuid
+  senderSnapshot     Json?                     @map("sender_snapshot")
+  version            Int                       @default(1)
+  fingerprint        String                    @db.VarChar(64)
+  createdAt          DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  opportunity     Opportunity        @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  lead            OpportunityCompany @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  company         Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact         Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  evidence        Evidence?          @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  claim           Claim?             @relation(fields: [claimId], references: [id], onDelete: SetNull)
+  sourceReference SourceReference?   @relation(fields: [sourceReferenceId], references: [id], onDelete: SetNull)
+  senderProfile   SenderProfile?     @relation(fields: [senderProfileId], references: [id], onDelete: SetNull)
+  emailAccount    EmailAccount?      @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([fingerprint])
+  @@index([opportunityId])
+  @@index([leadId])
+  @@index([companyId])
+  @@index([contactId])
+  @@index([senderProfileId])
+  @@index([emailAccountId])
+  @@map("outreach_drafts")
+}
+
+/// Whether an initial outreach draft was prepared or explicitly blocked on
+/// missing essential information. Sending is never implied.
+enum OutreachPreparationStatus {
+  PREPARED
+  BLOCKED
+}
+
+/// A reusable, product-independent sender identity for outreach drafts. An
+/// identity carries **no** transport configuration: it references an
+/// `EmailAccount` (owned by `email-accounts`) for the mailbox connection used to
+/// send on its behalf. Many identities may share one email account.
+/// @owner sender-profiles
+model SenderProfile {
+  id             String              @id @default(uuid()) @db.Uuid
+  label          String              @db.VarChar(255)
+  senderName     String              @map("sender_name") @db.VarChar(255)
+  companyName    String              @map("company_name") @db.VarChar(255)
+  fromEmail      String              @map("from_email") @db.VarChar(320)
+  replyToEmail   String?             @map("reply_to_email") @db.VarChar(320)
+  signature      String?             @db.Text
+  status         SenderProfileStatus @default(ACTIVE)
+  /// Optional mailbox connection. Never holds credentials itself.
+  emailAccountId String?             @map("email_account_id") @db.Uuid
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  emailAccount   EmailAccount?       @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
+  products       Product[]
+  outreachDrafts OutreachDraft[]
+
+  @@index([emailAccountId])
+  @@map("sender_profiles")
+}
+
+/// Enabled/disabled state of a sender profile. Disabled profiles cannot be used
+/// for drafting but are retained (no hard delete).
+enum SenderProfileStatus {
+  ACTIVE
+  DISABLED
+}
+
+/// The technical mailbox connection used to send (SMTP) and, later, to monitor
+/// replies (IMAP). It is the only place transport secrets live; passwords are
+/// stored only as encrypted ciphertext (key in server configuration, never in the
+/// database or Git) and are never returned to a reader. No transport is executed
+/// by this model (no sending, no IMAP connection in this slice).
+/// @owner email-accounts
+model EmailAccount {
+  id                   String             @id @default(uuid()) @db.Uuid
+  label                String             @db.VarChar(255)
+  accountEmail         String             @map("account_email") @db.VarChar(320)
+  status               EmailAccountStatus @default(ACTIVE)
+  /// How credentials are supplied. `OAUTH2` is reserved for a future flow.
+  authKind             EmailAuthKind      @default(PASSWORD) @map("auth_kind")
+  /// Optional provider hint (e.g. GENERIC, GMAIL, MICROSOFT); free-form.
+  provider             String?            @db.VarChar(64)
+  smtpHost             String?            @map("smtp_host") @db.VarChar(255)
+  smtpPort             Int?               @map("smtp_port")
+  smtpTlsMode          EmailTlsMode?      @map("smtp_tls_mode")
+  smtpUsername         String?            @map("smtp_username") @db.VarChar(255)
+  smtpPasswordCiphertext String?          @map("smtp_password_ciphertext") @db.Text
+  imapHost             String?            @map("imap_host") @db.VarChar(255)
+  imapPort             Int?               @map("imap_port")
+  imapTlsMode          EmailTlsMode?      @map("imap_tls_mode")
+  imapUsername         String?            @map("imap_username") @db.VarChar(255)
+  imapPasswordCiphertext String?          @map("imap_password_ciphertext") @db.Text
+  /// When true, IMAP reuses the SMTP username/password; separate IMAP
+  /// credentials are then not stored.
+  credentialsShared    Boolean            @default(false) @map("credentials_shared")
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  senderProfiles SenderProfile[]
+  outreachDrafts OutreachDraft[]
+
+  @@map("email_accounts")
+}
+
+/// Enabled/disabled state of an email account. Disabled accounts are retained
+/// (no hard delete) but cannot be used for drafting/sending.
+enum EmailAccountStatus {
+  ACTIVE
+  DISABLED
+}
+
+/// Credential mechanism for an email account. `OAUTH2` is reserved; only
+/// `PASSWORD` is usable in this slice.
+enum EmailAuthKind {
+  PASSWORD
+  OAUTH2
+}
+
+/// Explicit TLS mode for SMTP/IMAP. Recorded but never acted on in this slice
+/// (there is no transport; sending and mailbox monitoring are out of scope).
+enum EmailTlsMode {
+  NONE
+  STARTTLS
+  SSL_TLS
 }
 
 /// Public business contact information for a company, published on a source.
@@ -475,6 +642,7 @@ model Contact {
 
   company Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   sources ContactSource[]
+  outreachDrafts OutreachDraft[]
 
   @@unique([dedupKey])
   @@index([companyId])

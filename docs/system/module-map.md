@@ -235,6 +235,13 @@ Reserved, post-MVP; inert in MVP. Future owner of `inbox_items`.
 
 ## 13. `outreach-drafter`
 
+**Status:** implemented subset (O-021, 2026-09-18) — the **initial draft** only:
+`POST/GET /opportunities/:id/leads/:leadId/outreach-drafts` persist a draft
+(`PREPARED | BLOCKED`) with recipient, subject/body, language, rationale and
+context/evidence references; append-only/versioned and idempotent. **No send
+path** and no transport integration. Approval-gated sending, follow-ups and
+reply handling remain planned.
+
 Evidence-based drafts with full traceability. Writes `outreach_drafts` (**owner**)
 and join tables. **Never sends**: a draft cannot be sent without human approval.
 
@@ -273,3 +280,49 @@ event the module may subscribe to; `—` = no direct dependency.
 table write. Table writes remain single-owner (`data-governance.md`).
 `research_records`/`research_findings` have exactly one write-owner
 (`research-records`).
+
+## 17. `sender-profiles`
+
+- **Status:** implemented subset (O-021 extension, 2026-09-22) — reusable sender
+  **identities** (`sender_profiles`): label, sender/company, From/Reply-To,
+  signature, status, and an optional **`email_account_id`**. Guarded CRUD
+  (`POST/GET /sender-profiles`, `GET/PATCH /sender-profiles/:id`). Owns **no**
+  transport credentials.
+- **Responsibility:** own reusable, product-independent sender identities and
+  reference the mailbox connection used to send on their behalf; serve the
+  non-secret identity used by `outreach-drafter`.
+- **Tables read/written (owner):** `sender_profiles`.
+- **Events:** none in this slice.
+- **Approval:** none — a normal, non-commercial configuration write.
+- **Failure:** validation errors reject the command; an unknown/invalid account
+  reference is rejected without creating a profile.
+
+`products-and-offers` holds an **optional** `products.sender_profile_id`
+assignment (validated through this service; no silent default), and
+`outreach-drafter` resolves the assigned active profile, snapshots its non-secret
+identity, and records the referenced `email_account_id` on each draft
+(`outreach_drafts.sender_profile_id` + `sender_snapshot` + `email_account_id`).
+
+## 18. `email-accounts`
+
+- **Status:** implemented subset (O-022, 2026-09-22) — the technical **mailbox
+  connection** (`email_accounts`): label, account email, status, `authKind`
+  (`PASSWORD | OAUTH2`), optional `provider`, **SMTP** and **IMAP** connection
+  settings (host/port/explicit TLS/username/password), a `credentialsShared`
+  flag, and encrypted secrets. Guarded CRUD (`POST/GET /email-accounts`,
+  `GET/PATCH /email-accounts/:id`).
+- **Responsibility:** the single owner of mailbox transport configuration and its
+  write-only secrets; serve the non-secret connection reference to
+  `sender-profiles` and (later) send/inbox concerns. **No transport is executed
+  here** (no sending, no IMAP connection/polling).
+- **Tables read/written (owner):** `email_accounts`.
+- **Events:** none in this slice.
+- **Approval:** none.
+- **Failure:** missing encryption configuration fails credential saves clearly
+  (`503 secrets_key_not_configured`) without blocking accounts without secrets;
+  validation rejects partial SMTP/IMAP settings.
+
+Mailbox **monitoring** (inbound capture, reply matching, threads) is a central
+concern owned by `inbox-intelligence` (§12) and driven by the `jobs` worker;
+**sending** will get its own write-owner (`outreach-sender`) — neither is
+implemented in this slice.

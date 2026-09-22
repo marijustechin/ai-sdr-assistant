@@ -82,9 +82,11 @@ root `modules/` workspace**.
 | 10 | `company-intelligence` | Deep company research → company profiles | **not implemented** |
 | 11 | `contact-discovery` | Contact discovery + email-pattern inference | **not implemented** |
 | 12 | `inbox-intelligence` | Inbox ingestion + reply analysis (reserved, post-MVP) | **not implemented** |
-| 13 | `outreach-drafter` | Evidence-based outreach drafts | **not implemented** |
+| 13 | `outreach-drafter` | Evidence-based outreach drafts | **implemented (subset)** |
 | 14 | `approvals` | Approval workflow engine + mutation application | **not implemented** |
 | 15 | `jobs` | BullMQ queue/worker wiring + job lifecycle | **not implemented** |
+| 16 | `sender-profiles` | Reusable sender **identities** (no credentials; optional mailbox reference) | **implemented (subset)** |
+| 17 | `email-accounts` | Mailbox transport (SMTP + IMAP config, encrypted secrets; no sending/monitoring) | **implemented (subset)** |
 
 What **is** implemented today is the host + data foundation, not the modules:
 the API host, liveness/readiness endpoints, the central PostgreSQL database, the

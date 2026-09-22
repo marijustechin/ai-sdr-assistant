@@ -40,8 +40,15 @@ permissions are implied.
 
 ## Active
 
-- None. (Last completed: O-020 — Source-backed business contacts and
-  automation-first buyer progression; accepted 2026-09-18.)
+- **O-021 — Evidence-backed initial outreach drafts (+ sender profiles
+  extension)** — `READY_FOR_HUMAN_REVIEW` (`ops/current.md`). Adds the bounded
+  `outreach-drafter` slice and, per the approved extension, reusable **sender
+  profiles** (`sender-profiles` module; encrypted SMTP secret, no sending),
+  optional product assignment, and drafting integration (identity snapshot +
+  versioning). Migrations `20260918180000_add_qualification_basis`,
+  `20260918200000_add_outreach_drafts`, `20260922100000_add_sender_profiles`.
+  Programmer archives: `soft/tasks/done/2026-09-18-evidence-backed-outreach-drafts.md`,
+  `2026-09-22-sender-profiles-and-drafting-integration.md`. **No commit/push.**
 
 ## Next (candidate, priority order)
 
@@ -61,9 +68,10 @@ permissions are implied.
    harness. Includes discovery & intelligence (`lead-discoverer` →
    `lead-evaluator` → `company-intelligence` → `contact-discovery`). No
    scheduler/worker is implied by current tasks.
-5. **Outreach drafting + inbox.** `outreach-drafter` produces drafts with full
-   traceability (draft only). Sending stays human-approved and is **not
-   authorized** here; "outreach + inbox" remains future work.
+5. **Outreach: sending, follow-ups and inbox.** Initial evidence-backed drafts
+   are implemented as a bounded subset (O-021, draft only). Remaining:
+   approval-gated **sending** + transport (not authorized), follow-up sequencing,
+   and inbox/reply handling. `outreach-drafter` remains the owner.
 6. **Finding → clarification → email (record only; not implemented).** Flow:
    result → clarification questions → email draft → human-approved sending →
    reply linked as evidence → reviewed finding correction. Prioritize uncertain

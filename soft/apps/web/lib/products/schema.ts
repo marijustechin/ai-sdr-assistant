@@ -19,6 +19,7 @@ export type ProductFormValues = CreateProductInput;
 export const emptyProductFormValues: ProductFormValues = {
   name: "",
   lifecycleStatus: "DRAFT",
+  senderProfileId: undefined,
 };
 
 /**

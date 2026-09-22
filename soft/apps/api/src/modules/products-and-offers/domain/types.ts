@@ -20,6 +20,7 @@ export interface ProductRecord {
   description: string | null;
   category: string | null;
   lifecycleStatus: ProductLifecycleStatus;
+  senderProfileId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,6 +53,7 @@ export interface CreateProductData {
   description?: string;
   category?: string;
   lifecycleStatus?: ProductLifecycleStatus;
+  senderProfileId?: string;
 }
 
 export interface CreateOfferData {
@@ -70,6 +72,7 @@ export interface UpdateProductData {
   description?: string | null;
   category?: string | null;
   lifecycleStatus?: ProductLifecycleStatus;
+  senderProfileId?: string | null;
 }
 
 export interface CreateFactData {

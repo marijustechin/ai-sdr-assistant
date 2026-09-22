@@ -17,6 +17,7 @@ import type { OpportunityDiscoveryRecord } from '../../opportunities/domain/type
 import { assertFactInvariants, InvalidFactError } from '../domain/product-fact.rules.js';
 import { ProductsRepository } from '../infrastructure/products.repository.js';
 import { OpportunitiesService } from '../../opportunities/application/opportunities.service.js';
+import { SenderProfilesService } from '../../sender-profiles/application/sender-profiles.service.js';
 
 /** Wire shape for the Product admin endpoints (ISO timestamps). */
 function toProductResponse(product: ProductRecord): ProductResponse {
@@ -27,6 +28,7 @@ function toProductResponse(product: ProductRecord): ProductResponse {
     description: product.description,
     category: product.category,
     lifecycleStatus: product.lifecycleStatus,
+    senderProfileId: product.senderProfileId,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   };
@@ -43,10 +45,24 @@ export class ProductsAndOffersService {
     private readonly repository: ProductsRepository,
     @Inject(OpportunitiesService)
     private readonly opportunities: OpportunitiesService,
+    @Inject(SenderProfilesService)
+    private readonly senderProfiles: SenderProfilesService,
   ) {}
 
   async createProduct(input: CreateProductData): Promise<ProductResponse> {
+    await this.assertSenderProfileAssignable(input.senderProfileId);
     return toProductResponse(await this.repository.createProduct(input));
+  }
+
+  /** A `null`/absent assignment is allowed; a set id must exist. */
+  private async assertSenderProfileAssignable(
+    senderProfileId: string | null | undefined,
+  ): Promise<void> {
+    if (senderProfileId === undefined || senderProfileId === null) return;
+    const profile = await this.senderProfiles.getProfile(senderProfileId);
+    if (!profile) {
+      throw new BadRequestException({ error: 'sender_profile_not_found' });
+    }
   }
 
   async createOffer(
@@ -152,6 +168,7 @@ export class ProductsAndOffersService {
     if (!existing) {
       throw new NotFoundException({ error: 'product_not_found' });
     }
+    await this.assertSenderProfileAssignable(input.senderProfileId);
     const updated = await this.repository.updateProduct(id, input);
     return toProductResponse(updated);
   }

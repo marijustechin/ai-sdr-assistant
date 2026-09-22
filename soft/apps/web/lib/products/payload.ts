@@ -24,6 +24,7 @@ export function buildCreateProductPayload(
   if (values.description) payload.description = values.description;
   if (values.category) payload.category = values.category;
   if (values.lifecycleStatus) payload.lifecycleStatus = values.lifecycleStatus;
+  if (values.senderProfileId) payload.senderProfileId = values.senderProfileId;
   return payload;
 }
 
@@ -43,5 +44,6 @@ export function buildUpdateProductPayload(
     ...(values.lifecycleStatus
       ? { lifecycleStatus: values.lifecycleStatus }
       : {}),
+    senderProfileId: values.senderProfileId ? values.senderProfileId : null,
   };
 }

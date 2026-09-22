@@ -21,6 +21,11 @@ export function describeApiError(error: unknown, fallback: string): string {
       return "The API rejected the request as invalid.";
     case "http_404":
       return "The requested product was not found.";
+    case "http_503":
+      if (error.message.includes("secrets_key_not_configured")) {
+        return "Saving a mailbox password requires the server's encryption key (EMAIL_SECRETS_KEY) to be configured. You can still save the account without a password.";
+      }
+      return "The service is temporarily unavailable. Please try again.";
     default:
       return fallback;
   }
