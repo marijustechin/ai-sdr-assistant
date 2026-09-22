@@ -272,6 +272,7 @@ control-plane) and `job_logs`. The future worker is `soft/apps/worker`.
 | contact-discovery | events | ✓ | — | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | — | — | — | ✓ | — |
 | outreach-drafter | events | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — |
 | approvals | events | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ | — |
+| dashboard | — | — | ✓ | — | — | — | ✓ | ✓ | — | — | — | — | ✓ | — | — |
 
 Legend: `✓` = calls the owning module's application service; `events` = emits an
 event the module may subscribe to; `—` = no direct dependency.
@@ -326,3 +327,27 @@ Mailbox **monitoring** (inbound capture, reply matching, threads) is a central
 concern owned by `inbox-intelligence` (§12) and driven by the `jobs` worker;
 **sending** will get its own write-owner (`outreach-sender`) — neither is
 implemented in this slice.
+
+## 19. `dashboard`
+
+- **Status:** implemented subset (O-024, 2026-09-22) — a **read-only admin
+  summary** (`GET /dashboard/summary`, guarded) exposing aggregate counts for
+  products, research runs, leads, and outreach drafts. Owns **no tables** and no
+  domain logic.
+- **Responsibility:** API **composition layer** for the admin overview. It asks
+  each owning module's application service for counts, so status semantics stay
+  with the owner; it never reads or writes another module's tables.
+- **Tables read/written (owner):** none (aggregates via
+  `products-and-offers`, `market-researcher`, `lead-discoverer`,
+  `outreach-drafter` services).
+- **Events:** none.
+- **Approval:** none.
+- **Failure:** an owner read failure surfaces as a failed summary request; the
+  endpoint exposes counts only (no rows, no secrets, no mailbox credentials).
+- **Metric semantics:** products `active | draft | archived | total` (lifecycle);
+  research runs `total | completed`; leads = `opportunity_companies` rows; drafts
+  `total | prepared | blocked`. No conversion/sends/replies/revenue metric exists
+  because those capabilities are not implemented.
+
+`dashboard` is excluded from product/business rules: it introduces no schema and
+no new write path.

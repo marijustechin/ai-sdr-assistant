@@ -26,6 +26,11 @@ implementation view: `soft/docs/data-model.md`, `soft/docs/data-ownership.md`.
 5. **Schema and migrations are owned by `soft/packages/database`** — one schema,
    one migration chain, one owner. Each model carries a `/// @owner <module>`
    tag.
+6. **Composition modules own no tables.** The `dashboard` admin summary
+   aggregates through owner services (e.g. `products-and-offers`,
+   `market-researcher`, `lead-discoverer`, `outreach-drafter`) and is never a
+   table owner; it does not widen any read permission beyond the owner's exported
+   service.
 
 ---
 

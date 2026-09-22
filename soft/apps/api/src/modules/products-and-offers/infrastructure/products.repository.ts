@@ -112,6 +112,28 @@ export class ProductsRepository {
     return products.map(toProductRecord);
   }
 
+  /**
+   * Product counts per lifecycle state (read-only dashboard aggregation).
+   * `DRAFT`/`ACTIVE`/`ARCHIVED` are all present (zero when absent).
+   */
+  async countProductsByLifecycle(
+    tx?: DbClient,
+  ): Promise<Record<Product['lifecycleStatus'], number>> {
+    const grouped = await this.client(tx).product.groupBy({
+      by: ['lifecycleStatus'],
+      _count: { _all: true },
+    });
+    const counts: Record<Product['lifecycleStatus'], number> = {
+      DRAFT: 0,
+      ACTIVE: 0,
+      ARCHIVED: 0,
+    };
+    for (const row of grouped) {
+      counts[row.lifecycleStatus] = row._count._all;
+    }
+    return counts;
+  }
+
   async updateProduct(
     id: string,
     data: UpdateProductData,

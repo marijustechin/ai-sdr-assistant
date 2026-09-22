@@ -194,6 +194,29 @@ export class ResearchRunsRepository {
     return runs.map(toRunSummary);
   }
 
+  /**
+   * Run counts per lifecycle status (read-only dashboard aggregation). Only
+   * statuses that exist are returned.
+   */
+  async countRunsByStatus(): Promise<Record<ResearchRun['status'], number>> {
+    const grouped = await this.prisma.db.researchRun.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    });
+    const counts = {
+      QUEUED: 0,
+      RUNNING: 0,
+      PAUSED: 0,
+      COMPLETED: 0,
+      FAILED: 0,
+      CANCELLED: 0,
+    } satisfies Record<ResearchRun['status'], number>;
+    for (const row of grouped) {
+      counts[row.status] = row._count._all;
+    }
+    return counts;
+  }
+
   async updateRun(
     runId: string,
     data: UpdateResearchRunData,

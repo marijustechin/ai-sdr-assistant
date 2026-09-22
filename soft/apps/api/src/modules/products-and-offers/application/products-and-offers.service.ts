@@ -157,6 +157,25 @@ export class ProductsAndOffersService {
   }
 
   /**
+   * Read-only lifecycle counts for the admin dashboard. "Active" is precisely
+   * `lifecycleStatus = ACTIVE` — never a synonym for all products.
+   */
+  async countProductsByLifecycle(): Promise<{
+    active: number;
+    draft: number;
+    archived: number;
+    total: number;
+  }> {
+    const counts = await this.repository.countProductsByLifecycle();
+    return {
+      active: counts.ACTIVE,
+      draft: counts.DRAFT,
+      archived: counts.ARCHIVED,
+      total: counts.ACTIVE + counts.DRAFT + counts.ARCHIVED,
+    };
+  }
+
+  /**
    * Applies a partial update. An absent key is left unchanged; `null` clears a
    * nullable text column. The contract validation happens at the HTTP boundary.
    */

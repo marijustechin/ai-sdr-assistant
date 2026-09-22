@@ -94,6 +94,14 @@ export class LeadDiscovererService {
     return this.repository.listLeads(opportunityId);
   }
 
+  /**
+   * Read-only total of candidate buyers across all opportunities, for the admin
+   * dashboard. Each `opportunity_companies` row is one opportunity-scoped lead.
+   */
+  async countLeads(): Promise<number> {
+    return this.repository.countLeads();
+  }
+
   /** Read model for `contact-discovery`: resolve a company (404 if unknown). */
   async getCompany(companyId: string): Promise<CompanyRecord> {
     const company = await this.repository.findCompany(companyId);

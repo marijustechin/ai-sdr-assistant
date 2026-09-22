@@ -115,6 +115,21 @@ describe("INTERNAL_API_KEY boundary", () => {
     expect(source).not.toMatch(/@ai-sdr\/database/);
   });
 
+  it("marks the dashboard API module server-only and free of direct database access", () => {
+    const source = read(resolve(ROOT, "lib/api/dashboard.ts"));
+    expect(source).toContain('import "server-only"');
+    expect(source).not.toMatch(/@ai-sdr\/database/);
+  });
+
+  it("never imports the server-only dashboard API from a client component", () => {
+    for (const file of sourceFiles) {
+      const source = read(file);
+      if (isClientModule(source)) {
+        expect(source, file).not.toMatch(/from ["']@\/lib\/api\/dashboard["']/);
+      }
+    }
+  });
+
   it("keeps deferred fields out of the product UI code", () => {
     const productUiFiles = sourceFiles.filter(
       (file) =>

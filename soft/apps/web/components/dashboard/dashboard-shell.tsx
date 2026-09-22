@@ -1,7 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { CloseIcon, MenuIcon } from "@/components/ui/icons";
+import {
+  BRAND_MONOGRAM_ALT,
+  BRAND_NAME,
+  BRANDING_ASSETS,
+} from "@shared/lib/branding";
 import { SidebarBrand, SidebarNav } from "./sidebar";
 
 /**
@@ -80,7 +86,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           >
             <MenuIcon className="size-5" />
           </button>
-          <span className="text-sm font-semibold">AI SDR Assistant</span>
+          <Image
+            src={BRANDING_ASSETS.monogram}
+            alt={BRAND_MONOGRAM_ALT}
+            width={24}
+            height={24}
+            className="size-6 shrink-0 object-contain"
+          />
+          <span className="text-sm font-semibold">{BRAND_NAME}</span>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">

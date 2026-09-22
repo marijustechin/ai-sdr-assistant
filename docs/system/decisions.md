@@ -12,6 +12,43 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-22 — Admin dashboard metrics via a read-only composition module
+
+The Dashboard now shows real counts instead of placeholders, without a
+cross-module data shortcut.
+
+- **Composition, not a new owner.** A new `dashboard` module owns **no tables and
+  no domain logic**. It exposes `GET /dashboard/summary` (guarded) and asks each
+  **owning module's application service** for counts
+  (`products-and-offers`, `market-researcher`, `lead-discoverer`,
+  `outreach-drafter`). No module reads another module's tables; each count is
+  added to the owner's own repository/service.
+- **Metric definitions (precise, existing semantics only).**
+  - **Active products** = `products.lifecycleStatus = ACTIVE` (never "all
+    products"); the summary also returns `draft`, `archived`, `total`.
+  - **Research runs** = total `research_runs`, plus `completed` (`status =
+    COMPLETED`).
+  - **Leads** = all `opportunity_companies` rows (each is one opportunity-scoped,
+    evidence-backed candidate buyer).
+  - **Outreach drafts** = all `outreach_drafts` records (append-only/versioned),
+    split by preparation status (`prepared` / `blocked`).
+- **Deliberately omitted** (capabilities do not exist): conversion rate, emails
+  sent, replies, revenue, pipeline value. No coverage/success rate is derived
+  either.
+- **No new schema or migration**; the endpoint is read-only and exposes aggregates
+  only (no rows, no secrets, no mailbox credentials).
+- **Branding** is integrated from the three approved WebP assets without
+  modification: monogram in the sidebar/header, favicon via Next
+  `metadata.icons` (WebP is not a supported file-convention icon type). The
+  existing brand text is kept — the wordmark asset is retained but not wired,
+  because at the sidebar width the two-line text is cleaner. No dark mode exists.
+
+Reason: the admin overview needs truthful operational counts; aggregating through
+owner services keeps single-writer ownership and existing status semantics intact,
+and avoids a UI-only shortcut or a new table.
+
+---
+
 ## 2026-09-22 — Separate email transport (EmailAccount) from sender identity (SenderProfile)
 
 Real email sending **and** mailbox monitoring (reply capture and matching) are

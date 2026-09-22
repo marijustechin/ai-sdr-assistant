@@ -206,6 +206,14 @@ export class LeadRepository {
     return rows.map(toLeadRecord);
   }
 
+  /**
+   * Total candidate buyers across all opportunities (read-only dashboard
+   * aggregation). One row per opportunity-scoped lead.
+   */
+  async countLeads(): Promise<number> {
+    return this.prisma.db.opportunityCompany.count();
+  }
+
   async findLead(
     opportunityId: string,
     leadId: string,

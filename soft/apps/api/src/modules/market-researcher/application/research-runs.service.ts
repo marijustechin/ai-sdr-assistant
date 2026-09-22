@@ -94,6 +94,16 @@ export class MarketResearcherService {
     return this.repository.listRunsForOpportunity(opportunityId);
   }
 
+  /**
+   * Read-only run counts for the admin dashboard: total runs and how many are
+   * `COMPLETED`. No coverage or success rate is inferred.
+   */
+  async countRuns(): Promise<{ total: number; completed: number }> {
+    const counts = await this.repository.countRunsByStatus();
+    const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
+    return { total, completed: counts.COMPLETED };
+  }
+
   /** The resume read: run envelope + scope + lifecycle/pause + queries. */
   async getRun(
     opportunityId: string,

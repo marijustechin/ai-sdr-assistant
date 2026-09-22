@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { brandingIcons } from "@shared/lib/branding";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,6 +20,7 @@ export const metadata: Metadata = {
     template: "%s · AI SDR Assistant",
   },
   description: "Administrative interface for the AI SDR Assistant.",
+  icons: brandingIcons(),
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

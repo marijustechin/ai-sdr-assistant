@@ -230,6 +230,23 @@ export class OutreachDrafterService {
     return rows.map((row) => this.toRecord(row, lead, sender));
   }
 
+  /**
+   * Read-only draft counts for the admin dashboard, by preparation status.
+   * `total` counts persisted draft records (drafts are append-only/versioned).
+   */
+  async countDrafts(): Promise<{
+    total: number;
+    prepared: number;
+    blocked: number;
+  }> {
+    const counts = await this.repository.countDraftsByPreparationStatus();
+    return {
+      total: counts.PREPARED + counts.BLOCKED,
+      prepared: counts.PREPARED,
+      blocked: counts.BLOCKED,
+    };
+  }
+
   async getDraft(
     opportunityId: string,
     leadId: string,

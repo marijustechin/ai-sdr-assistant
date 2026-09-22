@@ -2,12 +2,41 @@
 
 The web admin talks to the internal API (`soft/apps/api`). This document records
 what the UI still needs but the API does not expose, plus deferred architectural
-questions. **No backend code was changed** by the task that updated this file.
+questions. It is updated as endpoints land; the admin dashboard summary below is
+now implemented server-side.
 
 All business endpoints require the `x-internal-api-key` header
 (`apps/api/src/security/internal-api-key.guard.ts`). Errors are JSON:
 `{ "error": string, "message"?: string }`. The key is used only server-side (see
 `lib/api/client.ts`).
+
+---
+
+## Admin dashboard summary (implemented 2026-09-22)
+
+| Method | Path | Purpose | UI |
+|---|---|---|---|
+| `GET` | `/dashboard/summary` | Read-only aggregate counts | `/` (Dashboard) |
+
+Owned by a small read-only API composition module (`apps/api/src/modules/dashboard`,
+which owns **no tables**) that asks each owning module's application service for
+counts. Response (`DashboardSummarySchema`):
+
+```json
+{
+  "products": { "active": 0, "draft": 0, "archived": 0, "total": 0 },
+  "researchRuns": { "total": 0, "completed": 0 },
+  "leads": { "total": 0 },
+  "outreachDrafts": { "total": 0, "prepared": 0, "blocked": 0 }
+}
+```
+
+Metric semantics: **active** products = lifecycle `ACTIVE` only; research runs =
+all `research_runs`, with a `completed` sub-count; leads = all
+`opportunity_companies` rows (one per opportunity-scoped candidate buyer); drafts
+= all `outreach_drafts` records, split by preparation status. No conversion,
+sending, reply, or revenue metric exists because those capabilities are not
+implemented.
 
 ---
 

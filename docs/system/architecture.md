@@ -87,6 +87,7 @@ root `modules/` workspace**.
 | 15 | `jobs` | BullMQ queue/worker wiring + job lifecycle | **not implemented** |
 | 16 | `sender-profiles` | Reusable sender **identities** (no credentials; optional mailbox reference) | **implemented (subset)** |
 | 17 | `email-accounts` | Mailbox transport (SMTP + IMAP config, encrypted secrets; no sending/monitoring) | **implemented (subset)** |
+| 18 | `dashboard` | Read-only admin summary (aggregate counts; owns no tables) | **implemented (subset)** |
 
 What **is** implemented today is the host + data foundation, not the modules:
 the API host, liveness/readiness endpoints, the central PostgreSQL database, the

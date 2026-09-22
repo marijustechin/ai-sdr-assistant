@@ -1,8 +1,15 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@shared/lib/utils";
+import {
+  BRAND_MONOGRAM_ALT,
+  BRAND_NAME,
+  BRAND_SUBTITLE,
+  BRANDING_ASSETS,
+} from "@shared/lib/branding";
 import { isNavItemActive } from "@shared/lib/nav";
 import { NAV_ITEMS } from "./nav-items";
 
@@ -13,12 +20,17 @@ export function SidebarBrand({ onNavigate }: { onNavigate?: () => void }) {
       onClick={onNavigate}
       className="flex items-center gap-2.5 px-5 py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
     >
-      <span className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-        AS
-      </span>
+      <Image
+        src={BRANDING_ASSETS.monogram}
+        alt={BRAND_MONOGRAM_ALT}
+        width={32}
+        height={32}
+        className="size-8 shrink-0 object-contain"
+        priority
+      />
       <span className="flex flex-col leading-tight">
-        <span className="text-sm font-semibold">AI SDR Assistant</span>
-        <span className="text-xs text-muted-foreground">Administration</span>
+        <span className="text-sm font-semibold">{BRAND_NAME}</span>
+        <span className="text-xs text-muted-foreground">{BRAND_SUBTITLE}</span>
       </span>
     </Link>
   );

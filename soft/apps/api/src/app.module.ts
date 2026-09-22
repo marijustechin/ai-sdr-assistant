@@ -13,6 +13,7 @@ import { ContactDiscoveryModule } from './modules/contact-discovery/contact-disc
 import { OutreachDrafterModule } from './modules/outreach-drafter/outreach-drafter.module.js';
 import { SenderProfilesModule } from './modules/sender-profiles/sender-profiles.module.js';
 import { EmailAccountsModule } from './modules/email-accounts/email-accounts.module.js';
+import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { EmailAccountsModule } from './modules/email-accounts/email-accounts.mod
     SenderProfilesModule,
     EmailAccountsModule,
     OutreachDrafterModule,
+    DashboardModule,
   ],
   controllers: [HealthController, ReadinessController],
 })

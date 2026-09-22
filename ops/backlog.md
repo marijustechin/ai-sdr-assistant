@@ -40,15 +40,13 @@ permissions are implied.
 
 ## Active
 
-- **O-021 — Evidence-backed initial outreach drafts (+ sender profiles
-  extension)** — `READY_FOR_HUMAN_REVIEW` (`ops/current.md`). Adds the bounded
-  `outreach-drafter` slice and, per the approved extension, reusable **sender
-  profiles** (`sender-profiles` module; encrypted SMTP secret, no sending),
-  optional product assignment, and drafting integration (identity snapshot +
-  versioning). Migrations `20260918180000_add_qualification_basis`,
-  `20260918200000_add_outreach_drafts`, `20260922100000_add_sender_profiles`.
-  Programmer archives: `soft/tasks/done/2026-09-18-evidence-backed-outreach-drafts.md`,
-  `2026-09-22-sender-profiles-and-drafting-integration.md`. **No commit/push.**
+- **O-024 — Admin dashboard metrics + branding** — `READY_FOR_HUMAN_REVIEW`
+  (`ops/current.md`). Replaces Dashboard placeholders with real persisted counts
+  via a new read-only `dashboard` composition module (`GET /dashboard/summary`;
+  owns no tables), and integrates the approved branding (monogram in the shell +
+  favicon via Next metadata). Programmer archive:
+  `soft/tasks/done/2026-09-22-admin-dashboard-metrics-and-branding.md`.
+  **No commit/push.**
 
 ## Next (candidate, priority order)
 
@@ -114,6 +112,12 @@ permissions are implied.
 
 ## Completed (for reference)
 
+- O-022 — Email accounts + sender-profile refactor — **accepted/committed** with
+  O-021 (`83cf88c`); the approved branding assets were committed separately
+  (`b4eaf58`). Splits mailbox transport (`email_accounts`, SMTP + IMAP, encrypted
+  secrets) from the sender identity; additive migration
+  `20260922120000_add_email_accounts`. Programmer archive:
+  `soft/tasks/done/2026-09-22-email-accounts-sender-profile-refactor.md`.
 - O-020 — Source-backed business contacts and automation-first buyer
   progression — **accepted**; archived
   `ops/done/2026-09-18-source-backed-contacts-and-automation-first.md`. Adds the

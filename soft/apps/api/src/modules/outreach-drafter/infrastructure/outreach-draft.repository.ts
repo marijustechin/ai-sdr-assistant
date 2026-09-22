@@ -92,4 +92,25 @@ export class OutreachDraftRepository {
     });
     return (result._max.version ?? 0) + 1;
   }
+
+  /**
+   * Draft counts per preparation status (read-only dashboard aggregation).
+   * Counts persisted draft records (versions), matching the append-only model.
+   */
+  async countDraftsByPreparationStatus(): Promise<
+    Record<'PREPARED' | 'BLOCKED', number>
+  > {
+    const grouped = await this.prisma.db.outreachDraft.groupBy({
+      by: ['preparationStatus'],
+      _count: { _all: true },
+    });
+    const counts: Record<'PREPARED' | 'BLOCKED', number> = {
+      PREPARED: 0,
+      BLOCKED: 0,
+    };
+    for (const row of grouped) {
+      counts[row.preparationStatus] = row._count._all;
+    }
+    return counts;
+  }
 }
