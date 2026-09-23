@@ -73,7 +73,7 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `ContactSource` | `contact_sources` | Contact provenance: a `source_references` row (deduplicated by URL) + retrieval date + supporting excerpt; many per contact. | `contact-discovery` |
 | `OutreachDraft` | `outreach_drafts` | Evidence-backed **initial** outreach draft (or explicit `BLOCKED` outcome): recipient reference, subject/body, language, preparation status, rationale, context/evidence references, sender profile reference + non-secret identity snapshot + resolved `email_account_id` reference, precise missing fields; append-only/versioned + idempotent fingerprint; no send state. | `outreach-drafter` |
 | `SenderProfile` | `sender_profiles` | Reusable, product-independent sender **identity** (label, sender/company, From/Reply-To, signature, status) with an optional `email_account_id` reference; carries no transport credentials. | `sender-profiles` |
-| `EmailAccount` | `email_accounts` | Technical mailbox connection (account email, status, `auth_kind`/`provider`, SMTP + IMAP host/port/TLS/username, `credentials_shared`); SMTP/IMAP passwords stored only as authenticated ciphertext (key in server config). | `email-accounts` |
+| `EmailAccount` | `email_accounts` | Technical password-mailbox connection (account email, status, `provider`, SMTP + IMAP host/port/TLS/username, `credentials_shared`); SMTP/IMAP passwords stored only as authenticated ciphertext (key in server config). | `email-accounts` |
 
 Every model carries a `/// @owner <module>` tag in `schema.prisma` (§5 of
 `data-ownership.md`). Cross-boundary writes go through the owning module's
@@ -305,9 +305,9 @@ application service — no module writes another module's table.
 
 ### 3.16 `EmailAccount` (technical mailbox connection)
 
-- The single owner of mailbox transport: `label`, `accountEmail`, `status`
-  (`ACTIVE | DISABLED`), `authKind` (`PASSWORD | OAUTH2`, reserved) + optional
-  `provider`, **SMTP** (`smtpHost`, `smtpPort`, `smtpTlsMode`, `smtpUsername`,
+- The single owner of mailbox transport for a **password-authenticated** mailbox:
+  `label`, `accountEmail`, `status` (`ACTIVE | DISABLED`), optional `provider`,
+  **SMTP** (`smtpHost`, `smtpPort`, `smtpTlsMode`, `smtpUsername`,
   `smtpPasswordCiphertext`) and **IMAP** (`imapHost`, `imapPort`, `imapTlsMode`,
   `imapUsername`, `imapPasswordCiphertext`), and `credentialsShared` (IMAP reuses
   the SMTP username/password; separate IMAP credentials are then not stored).
@@ -319,9 +319,10 @@ application service — no module writes another module's table.
 - **Many sender profiles may share one account** (`sender_profiles.
   email_account_id`, `SET NULL`); a profile has 0..1 account. No hard delete
   (referenced by `sender_profiles` and `outreach_drafts`); disable instead.
-- **No transport is executed** by this model (no sending, no IMAP connection):
-  it only records configuration for later sending/monitoring. OAuth is additive
-  (`authKind`/`provider` exist now).
+- **Bounded verification only:** the model records configuration; the only paths
+  that open a connection are the explicit operator actions (`verify-smtp`,
+  `verify-imap`, `test-send`). There is no automated sending or mailbox polling.
+  (An exploratory OAuth2 `authKind` was removed; accounts are password-only.)
 
 ---
 

@@ -5,9 +5,14 @@ import {
   CreateEmailAccountSchema,
   UpdateEmailAccountSchema,
 } from "@ai-sdr/contracts";
+import type {
+  MailboxTestSendResponse,
+  MailboxVerificationResponse,
+} from "@ai-sdr/contracts";
 import { describeApiError } from "@shared/api/errors";
 import type { EmailAccountActionResult } from "@entities/email-account";
 import { createEmailAccount, updateEmailAccount } from "./api";
+import { sendTestMessage, verifyImap, verifySmtp } from "./server";
 
 function fieldErrorsFrom(
   issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>,
@@ -67,6 +72,47 @@ export async function updateEmailAccountAction(
     return {
       ok: false,
       message: describeApiError(error, "The email account could not be saved."),
+    };
+  }
+}
+
+export async function verifySmtpAction(
+  accountId: string,
+): Promise<MailboxVerificationResponse> {
+  try {
+    return await verifySmtp(accountId);
+  } catch (error) {
+    return {
+      ok: false,
+      detail: describeApiError(error, "SMTP verification failed."),
+    };
+  }
+}
+
+export async function verifyImapAction(
+  accountId: string,
+): Promise<MailboxVerificationResponse> {
+  try {
+    return await verifyImap(accountId);
+  } catch (error) {
+    return {
+      ok: false,
+      detail: describeApiError(error, "IMAP verification failed."),
+    };
+  }
+}
+
+export async function sendTestMessageAction(
+  accountId: string,
+  to: string,
+): Promise<MailboxTestSendResponse> {
+  try {
+    return await sendTestMessage(accountId, to);
+  } catch (error) {
+    return {
+      ok: false,
+      detail: describeApiError(error, "The test message could not be sent."),
+      messageId: null,
     };
   }
 }

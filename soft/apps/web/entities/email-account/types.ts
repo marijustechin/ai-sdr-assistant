@@ -6,7 +6,6 @@
  */
 
 export type EmailAccountStatus = "ACTIVE" | "DISABLED";
-export type EmailAuthKind = "PASSWORD" | "OAUTH2";
 export type EmailTlsMode = "NONE" | "STARTTLS" | "SSL_TLS";
 
 export interface EmailAccountRead {
@@ -14,7 +13,6 @@ export interface EmailAccountRead {
   label: string;
   accountEmail: string;
   status: EmailAccountStatus;
-  authKind: EmailAuthKind;
   provider: string | null;
   smtpHost: string | null;
   smtpPort: number | null;

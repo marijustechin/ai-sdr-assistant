@@ -1,4 +1,4 @@
-import type { EmailAuthKind, EmailTlsMode } from "@entities/email-account";
+import type { EmailTlsMode } from "@entities/email-account";
 
 /**
  * Form state for an email account. `smtpEnabled`/`imapEnabled` are explicit
@@ -10,7 +10,6 @@ export interface EmailAccountFormState {
   label: string;
   accountEmail: string;
   status: "ACTIVE" | "DISABLED";
-  authKind: EmailAuthKind;
   provider: string;
   credentialsShared: boolean;
   smtpEnabled: boolean;
@@ -47,7 +46,6 @@ export function buildEmailAccountPayload(
   const values: Record<string, unknown> = {
     label: state.label,
     accountEmail: state.accountEmail,
-    authKind: state.authKind,
     credentialsShared: state.credentialsShared,
   };
   if (mode === "edit") values.status = state.status;

@@ -566,9 +566,7 @@ model EmailAccount {
   label                String             @db.VarChar(255)
   accountEmail         String             @map("account_email") @db.VarChar(320)
   status               EmailAccountStatus @default(ACTIVE)
-  /// How credentials are supplied. `OAUTH2` is reserved for a future flow.
-  authKind             EmailAuthKind      @default(PASSWORD) @map("auth_kind")
-  /// Optional provider hint (e.g. GENERIC, GMAIL, MICROSOFT); free-form.
+  /// Optional provider hint (e.g. GENERIC, SAPIENSMETRIC); free-form.
   provider             String?            @db.VarChar(64)
   smtpHost             String?            @map("smtp_host") @db.VarChar(255)
   smtpPort             Int?               @map("smtp_port")
@@ -599,15 +597,8 @@ enum EmailAccountStatus {
   DISABLED
 }
 
-/// Credential mechanism for an email account. `OAUTH2` is reserved; only
-/// `PASSWORD` is usable in this slice.
-enum EmailAuthKind {
-  PASSWORD
-  OAUTH2
-}
-
-/// Explicit TLS mode for SMTP/IMAP. Recorded but never acted on in this slice
-/// (there is no transport; sending and mailbox monitoring are out of scope).
+/// Explicit TLS mode for SMTP/IMAP. Recorded; only bounded password
+/// verification acts on it (no automated sending or mailbox ingestion).
 enum EmailTlsMode {
   NONE
   STARTTLS

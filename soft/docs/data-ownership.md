@@ -65,7 +65,7 @@ This document defines the canonical table list, the single write-owner per table
 | `outreach_draft_sources` | Draft↔source join | `evidence` |
 | `outreach_drafts` | Initial outreach drafts: recipient ref, subject/body, language, `PREPARED \| BLOCKED`, rationale, context/evidence refs, sender profile ref + non-secret identity snapshot + resolved `email_account_id` ref, precise missing fields; versioned + idempotent; no send state — **impl** | `outreach-drafter` |
 | `sender_profiles` | Reusable sender **identities** (label, sender/company, From/Reply-To, signature, status) + optional `email_account_id`; **no** transport credentials; referenced by `products` and `outreach_drafts` — **impl** | `sender-profiles` |
-| `email_accounts` | Technical mailbox connection (account email, status, `auth_kind`/`provider`, SMTP + IMAP host/port/TLS/username, `credentials_shared`); SMTP/IMAP passwords stored only as authenticated ciphertext (key in server config); referenced by `sender_profiles` and `outreach_drafts` — **impl** | `email-accounts` |
+| `email_accounts` | Technical password-mailbox connection (account email, status, `provider`, SMTP + IMAP host/port/TLS/username, `credentials_shared`); SMTP/IMAP passwords stored only as authenticated ciphertext (key in server config); referenced by `sender_profiles` and `outreach_drafts` — **impl** | `email-accounts` |
 | `outreach_draft_research` | Draft↔research join (traceability) | `outreach-drafter` |
 | `customer_profiles` | Versioned ideal-customer profiles | `knowledge` |
 | `buyer_personas` | Versioned buyer personas | `knowledge` |

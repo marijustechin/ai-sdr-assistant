@@ -75,7 +75,7 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `research_record_sources` | ResearchRecord↔source join | `evidence` | plan |
 | `outreach_draft_sources` | Draft↔source join | `evidence` | plan |
 | `sender_profiles` | Reusable, product-independent **sender identities** (label, sender/company, From/Reply-To, signature, status) + optional `email_account_id`; owns **no** transport credentials | `sender-profiles` | impl |
-| `email_accounts` | Technical **mailbox connection** (account email, status, `authKind`/`provider`, SMTP + IMAP host/port/TLS/username, `credentialsShared`); passwords stored only as authenticated ciphertext (`EMAIL_SECRETS_KEY` server-side, never DB/Git); referenced by `sender_profiles.email_account_id` and `outreach_drafts.email_account_id` | `email-accounts` | impl |
+| `email_accounts` | Technical **mailbox connection** for a password-authenticated mailbox (account email, status, `provider`, SMTP + IMAP host/port/TLS/username, `credentialsShared`); passwords stored only as authenticated ciphertext (`EMAIL_SECRETS_KEY` server-side, never DB/Git); referenced by `sender_profiles.email_account_id` and `outreach_drafts.email_account_id` | `email-accounts` | impl |
 | `outreach_drafts` | Evidence-backed **initial** outreach drafts: recipient reference, subject/body, language, preparation status (`PREPARED \| BLOCKED`), rationale, context/evidence references, sender profile reference + non-secret identity snapshot, and precise missing fields; append-only/versioned + idempotent fingerprint; no send state | `outreach-drafter` | impl |
 | `outreach_draft_research` | Draft↔research join | `outreach-drafter` | plan |
 | `customer_profiles` | Versioned ideal-customer profiles | `knowledge` | plan |

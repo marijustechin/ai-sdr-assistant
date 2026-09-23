@@ -70,7 +70,12 @@ export async function apiRequest<T>(
     response = await fetch(url, {
       method: options.method ?? "GET",
       headers: {
-        "content-type": "application/json",
+        // Only declare a JSON body when there is one: a bodyless request with
+        // `content-type: application/json` is rejected by the API (empty JSON
+        // body), which would surface as a spurious 400.
+        ...(options.body === undefined
+          ? {}
+          : { "content-type": "application/json" }),
         "x-internal-api-key": apiKey,
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),

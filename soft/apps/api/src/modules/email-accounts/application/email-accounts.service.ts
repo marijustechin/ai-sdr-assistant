@@ -42,7 +42,6 @@ export class EmailAccountsService {
       label: input.label,
       accountEmail: input.accountEmail,
       ...(input.status !== undefined ? { status: input.status } : {}),
-      ...(input.authKind !== undefined ? { authKind: input.authKind } : {}),
       ...(input.provider !== undefined ? { provider: input.provider } : {}),
       ...(input.smtpHost !== undefined ? { smtpHost: input.smtpHost } : {}),
       ...(input.smtpPort !== undefined ? { smtpPort: input.smtpPort } : {}),
@@ -113,7 +112,6 @@ export class EmailAccountsService {
     if (input.label !== undefined) data.label = input.label;
     if (input.accountEmail !== undefined) data.accountEmail = input.accountEmail;
     if (input.status !== undefined) data.status = input.status;
-    if (input.authKind !== undefined) data.authKind = input.authKind;
     if (input.provider !== undefined) data.provider = input.provider;
     if (input.smtpHost !== undefined) data.smtpHost = input.smtpHost;
     if (input.smtpPort !== undefined) data.smtpPort = input.smtpPort;

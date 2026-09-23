@@ -10,7 +10,6 @@ function account(
     label: "Acme Mail",
     accountEmail: "mail@acme.invalid",
     status: "ACTIVE",
-    authKind: "PASSWORD",
     provider: null,
     smtpHost: null,
     smtpPort: null,

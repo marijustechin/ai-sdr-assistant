@@ -29,7 +29,6 @@ import type {
   EmailAccountActionResult,
   EmailAccountRead,
   EmailAccountStatus,
-  EmailAuthKind,
   EmailTlsMode,
 } from "@entities/email-account";
 
@@ -37,7 +36,6 @@ interface FormState {
   label: string;
   accountEmail: string;
   status: EmailAccountStatus;
-  authKind: EmailAuthKind;
   provider: string;
   credentialsShared: boolean;
   smtpEnabled: boolean;
@@ -61,7 +59,6 @@ function initialState(account?: EmailAccountRead): FormState {
     label: account?.label ?? "",
     accountEmail: account?.accountEmail ?? "",
     status: account?.status ?? "ACTIVE",
-    authKind: account?.authKind ?? "PASSWORD",
     provider: account?.provider ?? "",
     credentialsShared: account?.credentialsShared ?? false,
     smtpEnabled: account ? hasSmtpConfiguration(account) : false,
@@ -173,17 +170,9 @@ export function EmailAccountForm({
               <Input type="email" value={state.accountEmail} onChange={(e) => set("accountEmail", e.target.value)} autoComplete="off" />
             </FormField>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <FormField label="Provider hint (optional)" htmlFor="provider" error={fieldError("provider")}>
-              <Input value={state.provider} onChange={(e) => set("provider", e.target.value)} placeholder="GENERIC, GMAIL, MICROSOFT…" autoComplete="off" />
-            </FormField>
-            <FormField label="Auth kind" htmlFor="authKind" error={fieldError("authKind")}>
-              <Select value={state.authKind} onChange={(e) => set("authKind", e.target.value as EmailAuthKind)}>
-                <option value="PASSWORD">Password</option>
-                <option value="OAUTH2">OAuth2 (reserved)</option>
-              </Select>
-            </FormField>
-          </div>
+          <FormField label="Provider hint (optional)" htmlFor="provider" error={fieldError("provider")}>
+            <Input value={state.provider} onChange={(e) => set("provider", e.target.value)} placeholder="GENERIC, SAPIENSMETRIC…" autoComplete="off" />
+          </FormField>
           {isEdit ? (
             <FormField label="Status" htmlFor="status" className="max-w-xs">
               <Select value={state.status} onChange={(e) => set("status", e.target.value as EmailAccountStatus)}>

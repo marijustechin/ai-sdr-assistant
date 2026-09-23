@@ -306,22 +306,29 @@ identity, and records the referenced `email_account_id` on each draft
 
 ## 18. `email-accounts`
 
-- **Status:** implemented subset (O-022, 2026-09-22) — the technical **mailbox
-  connection** (`email_accounts`): label, account email, status, `authKind`
-  (`PASSWORD | OAUTH2`), optional `provider`, **SMTP** and **IMAP** connection
-  settings (host/port/explicit TLS/username/password), a `credentialsShared`
-  flag, and encrypted secrets. Guarded CRUD (`POST/GET /email-accounts`,
-  `GET/PATCH /email-accounts/:id`).
+- **Status:** implemented subset (O-022; bounded verification 2026-09-22) — the
+  technical **mailbox connection** (`email_accounts`): label, account email,
+  status, optional `provider`, **SMTP** and **IMAP** connection settings
+  (host/port/explicit TLS/username/password) for a **password-authenticated**
+  mailbox, a `credentialsShared` flag, and encrypted secrets. Guarded CRUD
+  (`POST/GET /email-accounts`, `GET/PATCH /email-accounts/:id`) plus bounded
+  password verification: `POST /email-accounts/:id/verify-smtp` (authenticate
+  only), `POST /email-accounts/:id/verify-imap` (open INBOX; read ≤3 message
+  headers), and `POST /email-accounts/:id/test-send` (exactly one message to a
+  human-supplied recipient; requires `confirm: true`).
 - **Responsibility:** the single owner of mailbox transport configuration and its
   write-only secrets; serve the non-secret connection reference to
-  `sender-profiles` and (later) send/inbox concerns. **No transport is executed
-  here** (no sending, no IMAP connection/polling).
+  `sender-profiles` and (later) send/inbox concerns. No automated sending and no
+  mailbox ingestion; the bounded verification actions are explicit operator
+  commands, not a background transport.
 - **Tables read/written (owner):** `email_accounts`.
 - **Events:** none in this slice.
-- **Approval:** none.
+- **Approval:** none (connecting a mailbox is configuration; the test send
+  requires an explicit `confirm: true` and a single human-supplied recipient).
 - **Failure:** missing encryption configuration fails credential saves clearly
-  (`503 secrets_key_not_configured`) without blocking accounts without secrets;
-  validation rejects partial SMTP/IMAP settings.
+  (`503 secrets_key_not_configured`); validation rejects partial SMTP/IMAP
+  settings; a missing stored password returns `409 mailbox_credentials_missing`;
+  transport failures return a redacted `{ ok: false, detail }` with a short code.
 
 Mailbox **monitoring** (inbound capture, reply matching, threads) is a central
 concern owned by `inbox-intelligence` (§12) and driven by the `jobs` worker;

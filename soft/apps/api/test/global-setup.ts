@@ -45,6 +45,15 @@ async function ensureDatabase(url: string): Promise<void> {
 export default async function setup(): Promise<() => Promise<void>> {
   const url = testDatabaseUrl();
   await ensureDatabase(url);
+  // Escape hatch for environments where the Prisma schema engine cannot run
+  // (e.g. an OS application-control policy blocks the engine binary). When the
+  // schema is already migrated and recorded in `_prisma_migrations`, set
+  // `TEST_DB_SKIP_MIGRATE=1` to skip `migrate deploy`. Default (unset) behaviour
+  // is unchanged and remains the source of truth for CI.
+  if (process.env.TEST_DB_SKIP_MIGRATE === '1') {
+    process.env.DATABASE_URL = url;
+    return async () => {};
+  }
   execFileSync(
     'pnpm',
     ['--filter', '@ai-sdr/database', 'run', 'migrate'],

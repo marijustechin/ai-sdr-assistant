@@ -13,7 +13,6 @@ export function toEmailAccountRecord(account: EmailAccount): EmailAccountRecord 
     label: account.label,
     accountEmail: account.accountEmail,
     status: account.status,
-    authKind: account.authKind,
     provider: account.provider,
     smtpHost: account.smtpHost,
     smtpPort: account.smtpPort,
@@ -47,7 +46,6 @@ export class EmailAccountsRepository {
         label: data.label,
         accountEmail: data.accountEmail,
         ...(data.status !== undefined ? { status: data.status } : {}),
-        ...(data.authKind !== undefined ? { authKind: data.authKind } : {}),
         provider: data.provider ?? null,
         smtpHost: data.smtpHost ?? null,
         smtpPort: data.smtpPort ?? null,
@@ -87,7 +85,6 @@ export class EmailAccountsRepository {
     if (data.label !== undefined) update.label = data.label;
     if (data.accountEmail !== undefined) update.accountEmail = data.accountEmail;
     if (data.status !== undefined) update.status = data.status;
-    if (data.authKind !== undefined) update.authKind = data.authKind;
     if (data.provider !== undefined) update.provider = data.provider;
     if (data.smtpHost !== undefined) update.smtpHost = data.smtpHost;
     if (data.smtpPort !== undefined) update.smtpPort = data.smtpPort;
@@ -111,5 +108,22 @@ export class EmailAccountsRepository {
       data: update,
     });
     return toEmailAccountRecord(account);
+  }
+
+  /**
+   * Internal decrypt-only view of stored password ciphertexts for one account.
+   * Never returned to a client; used by the bounded verifier only.
+   */
+  async findPasswordCiphertexts(id: string): Promise<{
+    smtpPasswordCiphertext: string | null;
+    imapPasswordCiphertext: string | null;
+  } | null> {
+    return this.prisma.db.emailAccount.findUnique({
+      where: { id },
+      select: {
+        smtpPasswordCiphertext: true,
+        imapPasswordCiphertext: true,
+      },
+    });
   }
 }

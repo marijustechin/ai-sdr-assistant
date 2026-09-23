@@ -1,61 +1,60 @@
-# O-024 — Admin dashboard metrics + branding
+# Task: Password mailbox SMTP/IMAP verification — READY_FOR_HUMAN_REVIEW
 
 **Status:** READY_FOR_HUMAN_REVIEW
-**Type:** delegation
-**Scope:** repository root (manager records) + delegated implementation in `soft/`
+**Type:** delegation (implementation complete; awaiting human review)
+**Scope:** `soft/` implementation + canonical docs
 
 ## Objective
 
-Polish the admin dashboard: integrate the three approved branding assets
-(monogram in the shell, favicon via Next metadata) and replace placeholder
-Dashboard figures with real persisted counts from a read-only summary endpoint
-that respects module ownership.
-
-## Inputs / references
-
-- `AGENTS.md`; `docs/system/{module-map.md,data-governance.md,architecture.md,project-state.md,decisions.md}`
-- Human request (2026-09-22) with the two goals and metric list.
-- Branding assets: `soft/apps/web/public/branding/*.webp`.
-
-## Steps
-
-- [x] Inspect Dashboard/shell and the products/research/leads/drafts services + contracts.
-- [x] Add per-owner count reads and a new read-only `dashboard` composition module.
-- [x] Integrate branding (monogram + favicon) using the assets as-is.
-- [x] Add tests and update docs.
-- [ ] Human review / acceptance.
+Roll back the (uncommitted) Microsoft OAuth2 work and keep only provider-neutral,
+password-authenticated SMTP/IMAP functionality: bounded connection verification, a
+bounded IMAP read, a bounded single-recipient test send, and secret redaction.
+The model is simply: EmailAccount → SMTP + IMAP config → encrypted password →
+sender identities.
 
 ## Deliverables
 
-- `soft/packages/contracts/src/dashboard.ts`; `soft/apps/api/src/modules/dashboard/*`;
-  owner count methods; `soft/apps/api/test/dashboard-api.spec.ts`.
-- `soft/apps/web`: `lib/branding.ts`, `lib/dashboard/metrics.ts`, `lib/api/dashboard.ts`,
-  shell/page wiring (monogram + favicon via `metadata.icons`; removed the legacy
-  placeholder `app/favicon.ico`), tests.
-- Docs + task record `soft/tasks/done/2026-09-22-admin-dashboard-metrics-and-branding.md`.
+- Removed: Microsoft OAuth flow/PKCE/state, OAuth callback route, OAuth
+  service/repository, token persistence, OAuth columns/table/enum,
+  `MICROSOFT_OAUTH_*` env, Microsoft connection UI/status, Microsoft docs/tests.
+- Kept/adapted: `nodemailer` + `imapflow`, `domain/mailbox-transport.ts`
+  (password builders), `application/mailbox-verifier.service.ts` (bounded
+  `verify-smtp` / `verify-imap` / `test-send`), contracts for the verification
+  result + confirmed test send, and the web verification panel + Server Actions.
+- New migration `20260922160000_drop_email_auth_kind` (removes the reserved
+  `auth_kind` column and `EmailAuthKind` enum).
 
 ## Acceptance criteria
 
-- [x] Monogram replaces the "AS" placeholder in sidebar/header; brand text kept; favicon wired via `metadata.icons`; assets used unchanged.
-- [x] Dashboard cards show real counts: active products (lifecycle `ACTIVE`), research runs (+completed), leads, outreach drafts.
-- [x] Read-only `GET /dashboard/summary` owns no tables and aggregates through owner services; no cross-module DB access.
-- [x] Zero/error/not-configured behavior; no secrets; no new schema.
+- [x] No Microsoft/OAuth schema, code, env, or docs remain.
+- [x] Password SMTP/IMAP verification works in code + tests (no live connection run).
+- [x] Secrets are never returned/logged; failures are short redacted codes.
 - [x] Tests/typecheck/lint/verify/build green.
-
-## Out of scope
-
-- Sending, SMTP/IMAP, polling, inbox, O-023 behavior; conversion/sends/replies/revenue metrics; new branding assets.
 
 ## Verification
 
-- Contracts 56, API dashboard spec 5, web 131 tests pass; typecheck/lint clean;
-  `verify.sh` 60/0; production build exit 0; live summary + favicon verified.
+- contracts 57, API 103, web 138 tests pass; verify.sh 60/0; build exit 0.
 
-## Rollback/blocked conditions
+## Blockers / notes
 
-- Remove `DashboardModule`/endpoint and revert the shell/page; branding is additive. No blockers.
+- No live send/read performed.
+- Prisma schema-engine is blocked by Device Guard on this host; the migration was
+  applied via `psql` and recorded. Tests run with `TEST_DB_SKIP_MIGRATE=1`
+  (default unchanged).
 
 ## Completion record
 
-Completed 2026-09-22; all mandatory checks green; workspace
-READY_FOR_HUMAN_REVIEW. No commit/push. Full detail in the programmer archive.
+Implementation complete 2026-09-22; workspace READY_FOR_HUMAN_REVIEW. No
+commit/push. Full detail: `soft/tasks/done/2026-09-22-mailbox-password-verification.md`.
+
+## Follow-up (same review scope)
+
+- Mailbox verification **feedback**: per-action `idle | pending | success | error`
+  state for SMTP, IMAP and test send (emerald-300 verified button, destructive
+  error button, safe detail), and a fix for the spurious generic 400 caused by
+  bodyless POSTs sending `content-type: application/json`. See
+  `soft/tasks/done/2026-09-22-mailbox-verification-feedback.md`.
+- **IMAP verification diagnosis**: staged instrumentation (TCP/TLS probe then
+  auth/INBOX/fetch classification, safe codes only) and empty-mailbox hardening;
+  live SMTP + IMAP verification both succeed. See
+  `soft/tasks/done/2026-09-22-imap-verification-diagnosis.md`.

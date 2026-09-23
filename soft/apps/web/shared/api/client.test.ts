@@ -95,3 +95,36 @@ describe("describeApiError", () => {
     );
   });
 });
+
+describe("apiRequest request headers", () => {
+  function headerMock(): ReturnType<typeof vi.fn> {
+    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      void init;
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+  }
+
+  it("omits the JSON content-type for a bodyless request", async () => {
+    const fetchMock = headerMock();
+    vi.stubGlobal("fetch", fetchMock);
+    await apiRequest("/email-accounts/abc/verify-smtp", { method: "POST" });
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers["content-type"]).toBeUndefined();
+    expect(headers["x-internal-api-key"]).toBeDefined();
+    expect(init.body).toBeUndefined();
+  });
+
+  it("sets the JSON content-type when a body is present", async () => {
+    const fetchMock = headerMock();
+    vi.stubGlobal("fetch", fetchMock);
+    await apiRequest("/email-accounts", { method: "POST", body: { a: 1 } });
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("application/json");
+  });
+});

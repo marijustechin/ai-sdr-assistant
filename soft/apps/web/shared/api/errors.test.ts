@@ -33,4 +33,41 @@ describe("describeApiError", () => {
     const error = new ApiError("boom", { status: 500, code: "http_500" });
     expect(describeApiError(error, "fallback")).toBe("fallback");
   });
+
+  it("maps mailbox configuration/credential errors to specific, safe messages", () => {
+    const notConfigured = describeApiError(
+      new ApiError("mailbox_not_configured", { status: 400, code: "http_400" }),
+      "fallback",
+    );
+    expect(notConfigured).toContain("No SMTP/IMAP server settings");
+    expect(notConfigured).not.toContain("mailbox_not_configured");
+
+    expect(
+      describeApiError(
+        new ApiError("invalid_email_account_configuration", {
+          status: 400,
+          code: "http_400",
+        }),
+        "fallback",
+      ),
+    ).toContain("incomplete");
+
+    const missingPassword = describeApiError(
+      new ApiError("mailbox_credentials_missing", {
+        status: 409,
+        code: "http_409",
+      }),
+      "fallback",
+    );
+    expect(missingPassword).toContain("No password is stored");
+    expect(missingPassword).not.toContain("mailbox_credentials_missing");
+
+    // A generic 400 keeps the generic message.
+    expect(
+      describeApiError(
+        new ApiError("nope", { status: 400, code: "http_400" }),
+        "fallback",
+      ),
+    ).toBe("The API rejected the request as invalid.");
+  });
 });

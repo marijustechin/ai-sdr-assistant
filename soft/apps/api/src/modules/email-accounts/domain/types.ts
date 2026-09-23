@@ -1,10 +1,6 @@
-import type {
-  EmailAccountStatus,
-  EmailAuthKind,
-  EmailTlsMode,
-} from '@ai-sdr/contracts';
+import type { EmailAccountStatus, EmailTlsMode } from '@ai-sdr/contracts';
 
-export type { EmailAccountStatus, EmailAuthKind, EmailTlsMode };
+export type { EmailAccountStatus, EmailTlsMode };
 
 /** Public record — never carries a password, only its presence. */
 export interface EmailAccountRecord {
@@ -12,7 +8,6 @@ export interface EmailAccountRecord {
   label: string;
   accountEmail: string;
   status: EmailAccountStatus;
-  authKind: EmailAuthKind;
   provider: string | null;
   smtpHost: string | null;
   smtpPort: number | null;
@@ -33,7 +28,6 @@ export interface CreateEmailAccountData {
   label: string;
   accountEmail: string;
   status?: EmailAccountStatus;
-  authKind?: EmailAuthKind;
   provider?: string | null;
   smtpHost?: string | null;
   smtpPort?: number | null;
@@ -53,7 +47,6 @@ export interface UpdateEmailAccountData {
   label?: string;
   accountEmail?: string;
   status?: EmailAccountStatus;
-  authKind?: EmailAuthKind;
   provider?: string | null;
   smtpHost?: string | null;
   smtpPort?: number | null;

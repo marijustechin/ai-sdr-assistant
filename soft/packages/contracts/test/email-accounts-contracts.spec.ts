@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   CreateEmailAccountSchema,
   EmailAccountResponseSchema,
+  MailboxTestSendSchema,
+  MailboxVerificationResponseSchema,
   UpdateEmailAccountSchema,
 } from '../src/index.js';
 
@@ -87,7 +89,6 @@ describe('email account contracts', () => {
         label: 'x',
         accountEmail: 'x@y.invalid',
         status: 'ACTIVE',
-        authKind: 'PASSWORD',
         provider: null,
         smtpHost: null,
         smtpPort: null,
@@ -109,6 +110,20 @@ describe('email account contracts', () => {
         id: 'a1',
         smtpPassword: 'leak',
       }).success,
+    ).toBe(false);
+  });
+
+  it('validates the bounded verification result and explicit test-send', () => {
+    expect(
+      MailboxVerificationResponseSchema.safeParse({ ok: true, detail: 'x' })
+        .success,
+    ).toBe(true);
+    expect(
+      MailboxTestSendSchema.safeParse({ to: 'a@b.invalid', confirm: true })
+        .success,
+    ).toBe(true);
+    expect(
+      MailboxTestSendSchema.safeParse({ to: 'a@b.invalid' }).success,
     ).toBe(false);
   });
 });

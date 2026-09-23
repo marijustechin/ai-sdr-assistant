@@ -12,6 +12,30 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-22 — Password-only mailbox auth; reserved auth kind removed
+
+Email accounts are **password-authenticated** only (e.g. a hosting mailbox under
+our own domain). The reserved `authKind` (`PASSWORD | OAUTH2`) discriminator and
+enum were removed, so the model is simply: EmailAccount → SMTP + IMAP
+configuration → encrypted password → sender identities. A Microsoft OAuth2
+exploration was rolled back before release.
+
+- **Provider-neutral, bounded verification** was added for password mailboxes:
+  `POST /email-accounts/:id/verify-smtp` authenticates only;
+  `.../verify-imap` opens INBOX and reads ≤3 message headers (no ingestion); and
+  `.../test-send` sends exactly one message to a single human-supplied recipient
+  and requires `confirm: true`. These are explicit operator actions, never
+  automatic, and never a background transport.
+- **Secrets** stay encrypted with `EMAIL_SECRETS_KEY`; transport options are
+  built by pure helpers (host/port/explicit TLS + password); results and errors
+  carry only short redacted codes.
+- **Migration** `20260922160000_drop_email_auth_kind` drops the reserved
+  `auth_kind` column and `EmailAuthKind` enum. No OAuth tables, columns, enums,
+  environment variables, or Microsoft-specific code/docs remain. No automated
+  sending and no mailbox polling.
+
+---
+
 ## 2026-09-22 — Admin dashboard metrics via a read-only composition module
 
 The Dashboard now shows real counts instead of placeholders, without a

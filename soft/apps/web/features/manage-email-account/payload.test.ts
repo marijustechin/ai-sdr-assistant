@@ -13,7 +13,6 @@ function state(
     label: "Acme Mail",
     accountEmail: "mail@acme.invalid",
     status: "ACTIVE",
-    authKind: "PASSWORD",
     provider: "",
     credentialsShared: false,
     smtpEnabled: false,
@@ -40,7 +39,6 @@ describe("buildEmailAccountPayload", () => {
     expect(payload).toEqual({
       label: "Acme Mail",
       accountEmail: "mail@acme.invalid",
-      authKind: "PASSWORD",
       credentialsShared: false,
     });
   });

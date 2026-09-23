@@ -3,15 +3,16 @@ import { z } from 'zod';
 /**
  * Email-account contracts (the technical mailbox connection).
  *
- * An email account owns SMTP (sending, later) and IMAP (monitoring, later)
- * transport settings. Passwords are write-only secrets: they are never part of a
- * response, and reads expose only whether a password is configured. On update,
- * omitting a password preserves the stored secret; replacement and clearing are
- * explicit. No transport is executed by these endpoints.
+ * An email account owns SMTP (sending) and IMAP (monitoring) transport settings
+ * for a password-authenticated mailbox. Passwords are write-only secrets: they
+ * are never part of a response, and reads expose only whether a password is
+ * configured. On update, omitting a password preserves the stored secret;
+ * replacement and clearing are explicit. Transport is executed only by the
+ * bounded verification actions below (connection check, bounded read, single
+ * controlled test send).
  */
 
 export const EmailAccountStatusSchema = z.enum(['ACTIVE', 'DISABLED']);
-export const EmailAuthKindSchema = z.enum(['PASSWORD', 'OAUTH2']);
 export const EmailTlsModeSchema = z.enum(['NONE', 'STARTTLS', 'SSL_TLS']);
 
 const email = z.email().max(320);
@@ -51,7 +52,6 @@ export const CreateEmailAccountSchema = z
     label: z.string().trim().min(1).max(255),
     accountEmail: email,
     status: EmailAccountStatusSchema.optional(),
-    authKind: EmailAuthKindSchema.optional(),
     provider: z.string().trim().min(1).max(PROVIDER_MAX).optional(),
     smtpHost: host.optional(),
     smtpPort: port.optional(),
@@ -98,7 +98,6 @@ export const UpdateEmailAccountSchema = z
     label: z.string().trim().min(1).max(255).optional(),
     accountEmail: email.optional(),
     status: EmailAccountStatusSchema.optional(),
-    authKind: EmailAuthKindSchema.optional(),
     provider: z.string().trim().min(1).max(PROVIDER_MAX).nullable().optional(),
     smtpHost: host.nullable().optional(),
     smtpPort: port.nullable().optional(),
@@ -131,7 +130,6 @@ export const EmailAccountResponseSchema = z.strictObject({
   label: z.string(),
   accountEmail: z.string(),
   status: EmailAccountStatusSchema,
-  authKind: EmailAuthKindSchema,
   provider: z.string().nullable(),
   smtpHost: z.string().nullable(),
   smtpPort: z.number().int().nullable(),
@@ -148,9 +146,36 @@ export const EmailAccountResponseSchema = z.strictObject({
   updatedAt: z.string(),
 });
 
+/** Bounded verification result (no message content, no secrets). */
+export const MailboxVerificationResponseSchema = z.strictObject({
+  ok: z.boolean(),
+  detail: z.string(),
+});
+
+/**
+ * Explicit, single-recipient SMTP test send. `confirm` must be `true`: the
+ * action is never reachable by accident.
+ */
+export const MailboxTestSendSchema = z.strictObject({
+  to: email,
+  confirm: z.literal(true),
+});
+
+export const MailboxTestSendResponseSchema = z.strictObject({
+  ok: z.boolean(),
+  detail: z.string(),
+  messageId: z.string().nullable(),
+});
+
 export type EmailAccountStatus = z.infer<typeof EmailAccountStatusSchema>;
-export type EmailAuthKind = z.infer<typeof EmailAuthKindSchema>;
 export type EmailTlsMode = z.infer<typeof EmailTlsModeSchema>;
 export type CreateEmailAccountInput = z.infer<typeof CreateEmailAccountSchema>;
 export type UpdateEmailAccountInput = z.infer<typeof UpdateEmailAccountSchema>;
 export type EmailAccountResponse = z.infer<typeof EmailAccountResponseSchema>;
+export type MailboxVerificationResponse = z.infer<
+  typeof MailboxVerificationResponseSchema
+>;
+export type MailboxTestSendInput = z.infer<typeof MailboxTestSendSchema>;
+export type MailboxTestSendResponse = z.infer<
+  typeof MailboxTestSendResponseSchema
+>;

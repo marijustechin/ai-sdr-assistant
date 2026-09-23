@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmailAccountForm } from "@features/manage-email-account";
+import { EmailAccountForm, MailboxVerificationPanel } from "@features/manage-email-account";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { ApiError } from "@shared/api/client";
@@ -62,8 +62,9 @@ export default async function EmailAccountDetailPage({
           <p>{loadError}</p>
         </IntegrationNotice>
       ) : account ? (
-        <div className="max-w-3xl">
+        <div className="max-w-3xl space-y-6">
           <EmailAccountForm mode="edit" accountId={account.id} initial={account} />
+          <MailboxVerificationPanel account={account} />
         </div>
       ) : null}
     </>
