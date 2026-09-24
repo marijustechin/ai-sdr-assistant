@@ -79,6 +79,30 @@ function excerpt(value: string): string {
   return trimmed.length > MAX_EXCERPT ? trimmed.slice(0, MAX_EXCERPT) : trimmed;
 }
 
+/**
+ * Drops the quoted original/thread tail so our own inquiry text is never
+ * treated as supplier-authored commercial evidence. Only the supplier's new
+ * text (before the first quote marker) is kept. Not a full MIME/thread parser:
+ * it stops at the first `>`-quoted block, a signature separator, or a reply
+ * header block (`From:`/`Sent:`/`On … wrote:`).
+ */
+export function stripQuotedOriginal(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const kept: string[] = [];
+  for (const line of lines) {
+    if (/^\s*>/.test(line)) break;
+    if (/^\s*_{5,}\s*$/.test(line)) break;
+    if (/^\s*-{2,}\s*(original message|forwarded message|forwarded)/i.test(line)) {
+      break;
+    }
+    if (/^\s*(from|sent|to|cc|subject|date):\s/i.test(line)) break;
+    if (/^\s*on .+wrote:\s*$/i.test(line)) break;
+    if (/^\s*[-\u2014]{3,}\s*$/.test(line)) break;
+    kept.push(line);
+  }
+  return kept.join('\n').trim();
+}
+
 /** Parses an amount only when the separators are unambiguous; else null. */
 function parseAmount(raw: string): number | null {
   const value = raw.trim().replace(/\s/g, '');
@@ -140,7 +164,10 @@ function firstGroup(text: string, regex: RegExp, group = 1): string | null {
 export function extractQuote(text: string): ExtractedQuote {
   const warnings: string[] = [];
   const fieldProvenance: Record<string, string> = {};
-  const source = typeof text === 'string' ? text : '';
+  // Only the supplier-authored portion is evidence; our own quoted inquiry text
+  // is dropped so it cannot create false commercial fields.
+  const source =
+    typeof text === 'string' ? stripQuotedOriginal(text) : '';
 
   const price = matchPrice(source);
   let priceText: string | null = null;

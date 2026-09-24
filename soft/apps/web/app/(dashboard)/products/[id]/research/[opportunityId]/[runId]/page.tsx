@@ -12,6 +12,7 @@ import { CoverageSection } from "@/components/research/coverage-section";
 import { FollowUpsSection } from "@/components/research/follow-ups-section";
 import { OfferingsView } from "@/components/research/offerings-view";
 import { ResearchDetails } from "@/components/research/research-details";
+import { ResearchResultSummary } from "@/components/research/research-result-summary";
 import { RunOverview } from "@/components/research/run-overview";
 import { RunSummary } from "@/components/research/run-summary";
 import { ArrowLeftIcon } from "@/components/ui/icons";
@@ -20,6 +21,7 @@ import { describeApiError } from "@shared/api/errors";
 import { getProduct } from "@/lib/api/products";
 import {
   getResearchRun,
+  getResearchResult,
   listProductOffers,
   listProductOpportunities,
   listRunClaims,
@@ -43,6 +45,7 @@ import type {
   OpportunityRead,
   ResearchRunDetail,
 } from "@/lib/research/types";
+import type { ResearchResultRead } from "@/lib/research/result";
 
 export const metadata: Metadata = {
   title: "Research run",
@@ -68,6 +71,7 @@ export default async function ResearchRunPage({
   let evidence: EvidenceRead[] = [];
   let offerings: OfferingRead[] = [];
   let claims: ClaimRead[] = [];
+  let result: ResearchResultRead | null = null;
   let configured = true;
   let loadError: string | null = null;
 
@@ -91,6 +95,7 @@ export default async function ResearchRunPage({
     evidence = evidenceList;
     claims = claimList;
     offerings = offeringList;
+    result = await getResearchResult(opportunityId, runId);
   } catch (error) {
     if (error instanceof ApiError && error.code === "api_key_missing") {
       configured = false;
@@ -168,6 +173,16 @@ export default async function ResearchRunPage({
             offerName={offerName}
             markets={markets}
           />
+
+          {result ? (
+            <ResearchResultSummary
+              productId={id}
+              opportunityId={opportunityId}
+              runId={runId}
+              runStatus={run.status}
+              result={result}
+            />
+          ) : null}
 
           <RunSummary summary={summary} />
 

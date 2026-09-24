@@ -293,18 +293,29 @@ describe('Price inquiry (RFQ) drafts API (integration)', () => {
 
     const subject = String(draft.subject);
     const body = String(draft.body);
+    const summary = String(draft.specificationSummary);
     expect(subject).toContain('Abachi');
-    // Persisted attributes appear...
-    expect(body).toContain('Grade: A/B');
-    expect(body).toContain('Thickness: 25 mm');
-    expect(body).toContain('Species / material: Triplochiton scleroxylon');
-    // ...and unconfirmed/restricted values never do.
+    // The grounded specification (persisted attributes) is preserved on the draft.
+    expect(summary).toContain('Grade: A/B');
+    expect(summary).toContain('Thickness: 25 mm');
+    expect(summary).toContain('Species / material: Triplochiton scleroxylon');
+    // Unconfirmed/restricted values never appear anywhere.
+    expect(summary).not.toContain('PENDING-NOT-ALLOWED');
+    expect(summary).not.toContain('RESTRICTED-NOT-ALLOWED');
     expect(body).not.toContain('PENDING-NOT-ALLOWED');
     expect(body).not.toContain('RESTRICTED-NOT-ALLOWED');
-    // Asks for the quote fields.
-    for (const phrase of ['current price', 'pricing unit', 'MOQ', 'Incoterm', 'lead time', 'VAT', 'validity']) {
-      expect(body.toLowerCase()).toContain(phrase.toLowerCase());
+    // The first email is short and human: product grounded, current price asked.
+    expect(body).toContain('Abachi');
+    expect(body.toLowerCase()).toContain('current price');
+    // No numbered procurement checklist and no follow-up-only fields.
+    expect(body).not.toContain('Please quote:');
+    expect(body).not.toMatch(/^\s*1\.\s/m);
+    for (const phrase of ['incoterm', 'lead time', 'validity', 'loading']) {
+      expect(body.toLowerCase()).not.toContain(phrase);
     }
+    // Pricing unit and MOQ are not on record, so both are asked once.
+    expect(body.toLowerCase()).toContain('pricing unit');
+    expect(body.toLowerCase()).toContain('minimum order quantity');
     // No sending state or transport metadata.
     expect(draft).not.toHaveProperty('messageId');
     expect(draft).not.toHaveProperty('sentAt');
@@ -677,6 +688,7 @@ describe('Price inquiry (RFQ) drafts API (integration)', () => {
     const body = String(draft.body);
     expect(body).toMatch(/^(Dear|Hello)/);
     expect(body).toContain('Best regards,');
-    expect(body).toContain('Please quote:');
+    expect(body).toContain('I look forward to your reply.');
+    expect(body).not.toContain('Please quote:');
   });
 });

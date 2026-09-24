@@ -391,10 +391,14 @@ no new write path.
   linked → `409`; unusable recipient →
   `400`/`409`. Only safe error codes are returned; no credentials are exposed.
 - **Grounding rule:** only `CONFIRMED + OPERATIONAL` product facts are included
-  (matching the Research Context rule); `PENDING`/`RESTRICTED` values never appear.
-  The body only asks for price/unit/MOQ/Incoterm/loading/lead-time/VAT/validity
-  and never asserts volume, frequency, destination, urgency, purchasing authority,
-  or representation beyond the configured sender identity.
+  (matching the Research Context rule); `PENDING`/`RESTRICTED` values never appear
+  in the draft's `specificationSummary`. The first-contact **body** is short and
+  human: a greeting, one sentence ("I found {product} on your website…") asking the
+  current price, up to two clarifications (pricing unit and/or MOQ) only when not
+  already on record, a short follow-up line, and a structured closing. It never
+  numbers a procurement checklist, never pastes the full specification, and never
+  asserts volume, frequency, destination, urgency, purchasing authority, or a
+  representation beyond the configured sender identity.
 - **Future:** normalized market price (currency/unit conversion, summary) is a
   later Price Intelligence task; the sent/reply/quote records already reference
   this draft.
@@ -437,5 +441,46 @@ no new write path.
   `409`; missing subject/body → `400`; SMTP/IMAP transport failure → `502
   rfq_send_failed` / `rfq_reply_scan_failed` with a short safe code. No
   credentials are ever returned or logged.
-- **Boundary:** no price normalization/comparable-price summary; no automatic
-  polling; extraction reports only what the reply states (unknowns stay null).
+- **Boundary:** no price normalization/comparable-price summary; extraction
+  reports only what the reply states (unknowns stay null). Reply-check
+  scheduling is **DB-backed** (`quote_follow_ups`, owner here): sending creates a
+  schedule; a bounded, idempotent worker (env-gated in-process trigger, default
+  off) claims due rows via a compare-and-swap lease and reuses the correlation +
+  extraction above. Reply collection is **account-wide**: a scan matches each
+  candidate against **all** sent RFQ Message-IDs for the mailbox and routes it to
+  its own draft (one draft can never consume another's reply); an already-seen
+  UNMATCHED row whose headers reference a known outbound is repaired in place.
+  A matched reply is `REPLY_RECEIVED`; `QUOTE_EXTRACTED` requires a **usable
+  price** (`priceAmount` + `currency`). Extraction ignores the quoted original. Background work only checks replies to already sent
+  inquiries and never sends mail. A sent inquiry past the waiting window becomes
+  `NO_RESPONSE` (not pending); records are preserved. Guarded endpoints
+  `GET /opportunities/:id/quote-follow-ups`, `POST
+  /opportunities/:id/quote-follow-ups/run-due`.
+
+## 22. `research-result`
+
+- **Status:** implemented subset (2026-09-25) — the **publishable research
+  result** and the separation of research completion from supplier-reply
+  arrival. Guarded endpoints `POST
+  /opportunities/:id/research-runs/:runId/finalize` (human action) and
+  `GET .../result`.
+- **Responsibility:** finalize a run to `COMPLETED` or
+  `COMPLETED_WITH_PENDING_CLARIFICATIONS` (never keep it RUNNING solely for
+  outstanding RFQs), freeze the immutable result snapshot (owner
+  `market-researcher`, `research_results`), and compose the live result view
+  (counts + per-inquiry clarification state) from the owning modules.
+- **Tables read/written (owner):** `research_results` (owner
+  `market-researcher`). Reads `research_runs`, `price_inquiry_drafts`,
+  `supplier_quotes`/`quote_follow_ups` (via `quote-collection`), `evidence`,
+  `research_offerings`, `opportunity_companies`.
+- **Outputs:** counts (evidence/sources, current sellers, potential buyers,
+  public price observations, pending clarifications, **replies received without a
+  usable price**, **usable quotes received**, no-response) + per-inquiry
+  `clarificationState` (`AWAITING_REPLY | REPLY_RECEIVED | QUOTE_RECEIVED |
+  NO_RESPONSE`) with the follow-up status/next-check.
+- **Failure:** unknown run → `404`; internal key required. No writes to another
+  module's tables (finalize goes through `market-researcher`; inquiry state is
+  read-only via `price-inquiry`/`quote-collection`).
+- **Boundary:** a no-response is a valid final outcome; later supplier replies
+  enrich the result (bump `lastEnrichedAt`); the frozen snapshot is never
+  rewritten; full Price Intelligence results UI is a separate later task.

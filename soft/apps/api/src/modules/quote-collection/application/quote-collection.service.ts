@@ -29,6 +29,11 @@ import type { PriceInquiryDraftRecord } from '../../price-inquiry/domain/types.j
 import { SenderProfilesService } from '../../sender-profiles/application/sender-profiles.service.js';
 import type { SenderProfileRecord } from '../../sender-profiles/domain/types.js';
 import { buildMessageId } from '../domain/message-id.js';
+import {
+  nextCheckAt,
+  resolveFollowUpPolicy,
+} from '../domain/follow-up-policy.js';
+import type { InquiryClarificationView } from '../domain/follow-up-types.js';
 import { deriveMarketResearchPriceState } from '../domain/market-research-state.js';
 import { extractQuote } from '../domain/quote-extraction.js';
 import {
@@ -37,15 +42,32 @@ import {
 } from '../domain/reply-matching.js';
 import type {
   PersistOutboundData,
-  PersistQuoteData,
+  QuoteOutboundRecord,
 } from '../domain/types.js';
 import { QuoteCollectionRepository } from '../infrastructure/quote-collection.repository.js';
+import { QuoteFollowUpRepository } from '../infrastructure/quote-follow-up.repository.js';
+import { MarketResearcherService } from '../../market-researcher/application/research-runs.service.js';
 
 /** Bounded reply-scan window; a human action, never automatic. */
 const REPLY_SCAN_DAYS = 30;
 const REPLY_SCAN_LIMIT = 50;
 
 const SUBMITTED_DETAIL = 'Submitted to outgoing SMTP server';
+
+/** Result of one bounded account-wide reply scan. */
+export interface AccountScanSummary {
+  scanned: number;
+  persisted: number;
+  skipped: number;
+  matched: number;
+  /** Matched replies that yielded a usable price. */
+  extracted: number;
+  /** Matched replies with no usable price (REPLY_RECEIVED). */
+  noPrice: number;
+  unmatched: number;
+  /** Previously-UNMATCHED rows repaired by this scan. */
+  repaired: number;
+}
 
 /**
  * Application service for the market-research supplier quote-collection loop:
@@ -74,6 +96,10 @@ export class QuoteCollectionService {
     private readonly outboundPort: OutboundMailPort,
     @Inject(InboundMailPort)
     private readonly inboundPort: InboundMailPort,
+    @Inject(QuoteFollowUpRepository)
+    private readonly followUps: QuoteFollowUpRepository,
+    @Inject(MarketResearcherService)
+    private readonly runs: MarketResearcherService,
   ) {}
 
   /** Explicit, confirmed human send of one reviewed RFQ draft. */
@@ -149,6 +175,17 @@ export class QuoteCollectionService {
       providerMessageId,
     });
     await this.priceInquiry.markSent(draft.id);
+    const firstCheck = nextCheckAt(sentAt, 0, resolveFollowUpPolicy());
+    if (firstCheck) {
+      await this.followUps.ensure({
+        priceInquiryDraftId: draft.id,
+        outboundMessageId: outbound.id,
+        emailAccountId: outbound.emailAccountId,
+        opportunityId: draft.opportunityId,
+        leadId: draft.leadId,
+        nextCheckAt: firstCheck,
+      });
+    }
     const updated = await this.priceInquiry.getDraft(
       opportunityId,
       leadId,
@@ -163,10 +200,243 @@ export class QuoteCollectionService {
   }
 
   /**
-   * Human-triggered bounded check of the inquiry mailbox for replies to this
-   * RFQ. Never automatic; scans a bounded recent window; correlates by header
-   * first, bounded fallback only; persists new replies idempotently; extracts a
-   * structured quote where a reply is confidently matched.
+   * Bounded, account-wide reply scan. One scan considers **all** sent RFQs for
+   * the mailbox, so checking one inquiry can never swallow another inquiry's
+   * reply. Header matching (In-Reply-To / References) is authoritative; a
+   * bounded fallback is used only when headers are absent and unambiguous. An
+   * already-seen UNMATCHED row whose headers now reference a known outbound
+   * Message-ID is repaired in place (body re-fetched by its mailbox UID within
+   * this bounded scan) rather than skipped.
+   */
+  async scanAccountReplies(accountId: string): Promise<AccountScanSummary> {
+    const outbounds = await this.repository.listOutboundsForAccount(accountId);
+    const refs: OutboundRef[] = outbounds.map((outbound) => ({
+      id: outbound.id,
+      messageId: outbound.messageId,
+      recipientEmail: outbound.recipientEmail,
+      subject: outbound.subject,
+      sentAt: outbound.sentAt,
+    }));
+    const outboundById = new Map(outbounds.map((o) => [o.id, o]));
+
+    // Reconcile existing reply classifications: a replied inquiry is
+    // QUOTE_EXTRACTED only with a usable price, otherwise REPLY_RECEIVED.
+    // Idempotent and never touches an unanswered (SENT) inquiry.
+    const reconciled = new Set<string>();
+    for (const outbound of outbounds) {
+      if (reconciled.has(outbound.priceInquiryDraftId)) continue;
+      reconciled.add(outbound.priceInquiryDraftId);
+      const quotes = await this.repository.listQuotesForDrafts([
+        outbound.priceInquiryDraftId,
+      ]);
+      const usable = quotes.some(
+        (q) => q.priceAmount !== null && q.currency !== null,
+      );
+      await this.priceInquiry.reconcileReplyState(
+        outbound.priceInquiryDraftId,
+        usable,
+      );
+    }
+
+    let candidates: InboundMailCandidate[];
+    try {
+      candidates = await this.inboundPort.scanRecent(accountId, {
+        sinceDays: REPLY_SCAN_DAYS,
+        limit: REPLY_SCAN_LIMIT,
+      });
+    } catch (error) {
+      const code =
+        error instanceof MailTransportError ? error.code : 'scan_failed';
+      throw new BadGatewayException({ error: 'rfq_reply_scan_failed', code });
+    }
+
+    const summary: AccountScanSummary = {
+      scanned: candidates.length,
+      persisted: 0,
+      skipped: 0,
+      matched: 0,
+      extracted: 0,
+      noPrice: 0,
+      unmatched: 0,
+      repaired: 0,
+    };
+
+    for (const candidate of candidates) {
+      const existing = await this.repository.findInboundByMailboxUid(
+        accountId,
+        candidate.mailboxUid,
+      );
+      // Already-processed messages are skipped; a previously UNMATCHED row is
+      // re-evaluated (repair) in case it now matches a known outbound.
+      if (existing && existing.processingStatus !== 'UNMATCHED') {
+        summary.skipped += 1;
+        continue;
+      }
+
+      const match = matchReply(candidate, refs);
+      const outbound =
+        match.kind === 'header' || match.kind === 'fallback'
+          ? outboundById.get(match.outboundId)
+          : undefined;
+
+      if (!outbound) {
+        if (existing) {
+          summary.skipped += 1; // still unrelated; keep metadata-only
+          continue;
+        }
+        await this.repository.createInbound({
+          emailAccountId: accountId,
+          outboundMessageId: null,
+          priceInquiryDraftId: null,
+          mailboxUid: candidate.mailboxUid,
+          providerMessageId: candidate.providerMessageId,
+          inReplyTo: candidate.inReplyTo,
+          references: candidate.references,
+          fromEmail: candidate.fromEmail,
+          toEmail: candidate.toEmail,
+          subject: candidate.subject,
+          // Privacy: unrelated mail keeps bounded metadata only, never its body.
+          bodyText: '',
+          receivedAt: candidate.receivedAt,
+          processingStatus: 'UNMATCHED',
+          matchConfidence: 'NONE',
+          researchRunId: null,
+          sourceReferenceId: null,
+          evidenceId: null,
+        });
+        summary.persisted += 1;
+        summary.unmatched += 1;
+        continue;
+      }
+
+      const usablePrice = await this.routeMatchedReply(
+        accountId,
+        candidate,
+        outbound,
+        match.kind === 'header' ? 'HEADER' : 'FALLBACK',
+        existing,
+      );
+      if (existing) summary.repaired += 1;
+      else summary.persisted += 1;
+      summary.matched += 1;
+      if (usablePrice) summary.extracted += 1;
+      else summary.noPrice += 1;
+    }
+
+    return summary;
+  }
+
+  /**
+   * Routes one matched reply to its RFQ: persists/repairs the inbound row and
+   * evidence, extracts the supplier-authored text, advances the inquiry
+   * (`REPLY_RECEIVED` always; `QUOTE_EXTRACTED` only with a usable price),
+   * completes the follow-up and enriches the run result. Returns whether a
+   * usable price was found.
+   */
+  private async routeMatchedReply(
+    accountId: string,
+    candidate: InboundMailCandidate,
+    outbound: QuoteOutboundRecord,
+    confidence: 'HEADER' | 'FALLBACK',
+    existing: { id: string } | null,
+  ): Promise<boolean> {
+    const draftId = outbound.priceInquiryDraftId;
+    const draft = await this.priceInquiry.getDraftById(draftId);
+    const runId = (await this.leads.getLead(draft.opportunityId, draft.leadId))
+      .evidence.researchRunId;
+
+    const { sourceReferenceId, evidenceId } = await this.persistEvidence(
+      draft.opportunityId,
+      runId,
+      accountId,
+      candidate,
+    );
+
+    const quote = extractQuote(candidate.text);
+    const usablePrice = quote.priceAmount !== null && quote.currency !== null;
+    const processingStatus = usablePrice ? 'EXTRACTED' : 'MATCHED';
+
+    let inboundId: string;
+    if (existing) {
+      await this.repository.updateInboundMatch(existing.id, {
+        outboundMessageId: outbound.id,
+        priceInquiryDraftId: draftId,
+        processingStatus,
+        matchConfidence: confidence,
+        researchRunId: runId,
+        sourceReferenceId,
+        evidenceId,
+        bodyText: candidate.text,
+      });
+      inboundId = existing.id;
+    } else {
+      const created = await this.repository.createInbound({
+        emailAccountId: accountId,
+        outboundMessageId: outbound.id,
+        priceInquiryDraftId: draftId,
+        mailboxUid: candidate.mailboxUid,
+        providerMessageId: candidate.providerMessageId,
+        inReplyTo: candidate.inReplyTo,
+        references: candidate.references,
+        fromEmail: candidate.fromEmail,
+        toEmail: candidate.toEmail,
+        subject: candidate.subject,
+        bodyText: candidate.text,
+        receivedAt: candidate.receivedAt,
+        processingStatus,
+        matchConfidence: confidence,
+        researchRunId: runId,
+        sourceReferenceId,
+        evidenceId,
+      });
+      inboundId = created.id;
+    }
+
+    await this.repository.createQuote({
+      inboundMessageId: inboundId,
+      outboundMessageId: outbound.id,
+      priceInquiryDraftId: draftId,
+      researchRunId: runId,
+      priceText: quote.priceText,
+      priceAmount: quote.priceAmount,
+      currency: quote.currency,
+      priceUnit: quote.priceUnit,
+      moqText: quote.moqText,
+      incoterm: quote.incoterm,
+      loadingLocationText: quote.loadingLocationText,
+      leadTimeText: quote.leadTimeText,
+      validityText: quote.validityText,
+      vatIncluded: quote.vatIncluded,
+      qualificationText: quote.qualificationText,
+      fieldProvenance: quote.fieldProvenance,
+      warnings: quote.warnings,
+      sourceReferenceId,
+      evidenceId,
+    });
+
+    if (draft.status === 'SENT') {
+      await this.priceInquiry.markReplyReceived(draftId);
+    }
+    if (usablePrice && draft.status !== 'QUOTE_EXTRACTED') {
+      await this.priceInquiry.markQuoteExtracted(draftId);
+    }
+
+    const followUp = await this.followUps.findForDraft(draftId);
+    if (followUp && followUp.status === 'SCHEDULED') {
+      await this.followUps.markCompleted(
+        followUp.id,
+        usablePrice ? 'MATCHED' : 'REPLIED',
+        new Date(),
+      );
+    }
+    await this.runs.recordEnrichment(runId);
+    return usablePrice;
+  }
+
+  /**
+   * Human-triggered bounded check of the inquiry mailbox. It runs the
+   * account-wide scan above (so a shared mailbox routes every reply to its own
+   * RFQ) and returns the resulting collection item for this draft.
    */
   async checkReplies(
     opportunityId: string,
@@ -183,146 +453,78 @@ export class QuoteCollectionService {
     }
     const profile = await this.resolveActiveSender(draft);
     const accountId = await this.resolveSendAccount(draft, profile);
-    const lead = await this.leads.getLead(opportunityId, leadId);
-    const researchRunId = lead.evidence.researchRunId;
 
-    const outbounds = await this.repository.listOutboundsForAccount(accountId);
-    const refs: OutboundRef[] = outbounds
-      .filter((outbound) => outbound.priceInquiryDraftId === draftId)
-      .map((outbound) => ({
-        id: outbound.id,
-        messageId: outbound.messageId,
-        recipientEmail: outbound.recipientEmail,
-        subject: outbound.subject,
-        sentAt: outbound.sentAt,
-      }));
+    const summary = await this.scanAccountReplies(accountId);
 
-    let candidates: InboundMailCandidate[];
-    try {
-      candidates = await this.inboundPort.scanRecent(accountId, {
-        sinceDays: REPLY_SCAN_DAYS,
-        limit: REPLY_SCAN_LIMIT,
-      });
-    } catch (error) {
-      const code =
-        error instanceof MailTransportError ? error.code : 'scan_failed';
-      throw new BadGatewayException({ error: 'rfq_reply_scan_failed', code });
-    }
-
-    const summary = {
-      scanned: candidates.length,
-      persisted: 0,
-      skipped: 0,
-      matched: 0,
-      extracted: 0,
-      unmatched: 0,
-    };
-
-    for (const candidate of candidates) {
-      const existing = await this.repository.findInboundByMailboxUid(
-        accountId,
-        candidate.mailboxUid,
-      );
-      if (existing) {
-        summary.skipped += 1;
-        continue;
-      }
-
-      const match = matchReply(candidate, refs);
-      const matched =
-        (match.kind === 'header' || match.kind === 'fallback') &&
-        refs.some((ref) => ref.id === match.outboundId);
-
-      const inbound = await this.repository.createInbound({
-        emailAccountId: accountId,
-        outboundMessageId: matched
-          ? (match as { outboundId: string }).outboundId
-          : null,
-        priceInquiryDraftId: matched ? draftId : null,
-        mailboxUid: candidate.mailboxUid,
-        providerMessageId: candidate.providerMessageId,
-        inReplyTo: candidate.inReplyTo,
-        references: candidate.references,
-        fromEmail: candidate.fromEmail,
-        toEmail: candidate.toEmail,
-        subject: candidate.subject,
-        // Privacy: an unrelated/unmatched message keeps only bounded metadata
-        // (needed for idempotent scanning + human review) — never its body.
-        bodyText: matched ? candidate.text : '',
-        receivedAt: candidate.receivedAt,
-        processingStatus: matched ? 'MATCHED' : 'UNMATCHED',
-        matchConfidence:
-          match.kind === 'header'
-            ? 'HEADER'
-            : match.kind === 'fallback'
-              ? 'FALLBACK'
-              : 'NONE',
-        researchRunId: matched ? researchRunId : null,
-        sourceReferenceId: null,
-        evidenceId: null,
-      });
-      summary.persisted += 1;
-
-      if (!matched) {
-        summary.unmatched += 1;
-        continue;
-      }
-      summary.matched += 1;
-      await this.priceInquiry.markReplyReceived(draftId);
-
-      const { sourceReferenceId, evidenceId } = await this.persistEvidence(
-        opportunityId,
-        researchRunId,
-        accountId,
-        candidate,
-      );
-
-      const quote = extractQuote(candidate.text);
-      const quoteData: PersistQuoteData = {
-        inboundMessageId: inbound.id,
-        outboundMessageId: inbound.outboundMessageId,
-        priceInquiryDraftId: draftId,
-        researchRunId,
-        priceText: quote.priceText,
-        priceAmount: quote.priceAmount,
-        currency: quote.currency,
-        priceUnit: quote.priceUnit,
-        moqText: quote.moqText,
-        incoterm: quote.incoterm,
-        loadingLocationText: quote.loadingLocationText,
-        leadTimeText: quote.leadTimeText,
-        validityText: quote.validityText,
-        vatIncluded: quote.vatIncluded,
-        qualificationText: quote.qualificationText,
-        fieldProvenance: quote.fieldProvenance,
-        warnings: quote.warnings,
-        sourceReferenceId,
-        evidenceId,
-      };
-      await this.repository.createQuote(quoteData);
-
-      await this.repository.updateInboundMatch(inbound.id, {
-        outboundMessageId: inbound.outboundMessageId,
-        priceInquiryDraftId: draftId,
-        processingStatus: 'EXTRACTED',
-        matchConfidence: inbound.matchConfidence,
-        researchRunId,
-        sourceReferenceId,
-        evidenceId,
-      });
-      await this.priceInquiry.markQuoteExtracted(draftId);
-      summary.extracted += 1;
-    }
-
-    // Build the response from the post-transition state so the reported state
-    // always equals what is persisted.
     const fresh = await this.priceInquiry.getDraft(
       opportunityId,
       leadId,
       draftId,
     );
     const item = await this.buildItem(opportunityId, leadId, fresh);
-    return { ...summary, items: [item] };
+    return {
+      scanned: summary.scanned,
+      persisted: summary.persisted,
+      skipped: summary.skipped,
+      matched: summary.matched,
+      extracted: summary.extracted,
+      unmatched: summary.unmatched,
+      items: [item],
+    };
+  }
+
+  /** Read-only follow-up schedules for an opportunity (operator inspection). */
+  async listFollowUpsForOpportunity(opportunityId: string) {
+    return this.followUps.listForOpportunity(opportunityId);
+  }
+
+  /** The send time of the latest outbound message for a draft (for policy). */
+  async getLatestOutboundSentAt(draftId: string): Promise<Date | null> {
+    const outbound = await this.repository.findLatestOutboundForDraft(draftId);
+    return outbound ? outbound.sentAt : null;
+  }
+
+  /**
+   * Marks a still-waiting inquiry as NO_RESPONSE (waiting window elapsed) and
+   * enriches the research result. Only applies while the inquiry is still
+   * `SENT`; records are preserved.
+   */
+  async markInquiryNoResponse(draftId: string): Promise<void> {
+    const draft = await this.priceInquiry.getDraftById(draftId);
+    if (draft.status !== 'SENT') return;
+    await this.priceInquiry.markNoResponse(draftId);
+    const lead = await this.leads.getLead(draft.opportunityId, draft.leadId);
+    await this.runs.recordEnrichment(lead.evidence.researchRunId);
+  }
+
+  /**
+   * Per-draft clarification/follow-up view used by the research-result read
+   * model (quote + schedule state), without duplicating the draft lifecycle.
+   */
+  async getInquiryViews(
+    draftIds: string[],
+  ): Promise<InquiryClarificationView[]> {
+    if (draftIds.length === 0) return [];
+    const [quotes, followUps] = await Promise.all([
+      this.repository.listQuotesForDrafts(draftIds),
+      this.followUps.listForDrafts(draftIds),
+    ]);
+    return draftIds.map((draftId) => {
+      const quote =
+        quotes.find((q) => q.priceInquiryDraftId === draftId) ?? null;
+      const followUp =
+        followUps.find((f) => f.priceInquiryDraftId === draftId) ?? null;
+      return {
+        draftId,
+        quoteId: quote?.id ?? null,
+        quotePriceText: quote?.priceText ?? null,
+        quoteCurrency: quote?.currency ?? null,
+        followUpStatus: followUp?.status ?? null,
+        attemptCount: followUp?.attemptCount ?? 0,
+        nextCheckAt: followUp?.nextCheckAt ?? null,
+        lastCheckedAt: followUp?.lastCheckedAt ?? null,
+      };
+    });
   }
 
   /** Read-only collection view for the RFQ review screen. */

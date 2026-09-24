@@ -4,12 +4,18 @@ import type {
 } from '../../products-and-offers/domain/types.js';
 
 /**
- * Deterministic price-inquiry (RFQ) content generation from persisted data only.
+ * Deterministic price-inquiry content generation from persisted data only.
  *
- * The specification is grounded strictly in the persisted product row and its
- * CONFIRMED + OPERATIONAL facts (the same facts the Research Context may assert);
- * PENDING/RESTRICTED facts are ignored and no attribute is ever invented. The
- * result is stable for the same persisted inputs so it is testable.
+ * The first-contact message is deliberately short and human: a greeting, one
+ * sentence saying where the product was found and asking for the current price,
+ * up to two optional clarifying questions (pricing unit and/or MOQ), a simple
+ * follow-up line and a closing built from structured sender identity. It never
+ * dumps a numbered procurement checklist, and it never asserts volume, urgency,
+ * destination, purchasing authority or a company identity that was not
+ * configured. The persisted specification is still computed separately (for the
+ * draft's grounded `specificationSummary`), but it is not pasted into the email.
+ *
+ * The result is stable for the same persisted inputs so it is testable.
  */
 
 const MAX_FACTS = 25;
@@ -29,6 +35,13 @@ function factValue(fact: ProductFactRecord): string | null {
     return `${fact.valueText}${unit}`;
   }
   return null;
+}
+
+function hasFactValue(fact: ProductFactRecord): boolean {
+  return (
+    fact.valueNumeric !== null ||
+    (fact.valueText !== null && fact.valueText.trim().length > 0)
+  );
 }
 
 /** Builds the specification lines from the persisted product and its facts. */
@@ -62,14 +75,53 @@ export function buildSpecification(
   return { lines, summary: lines.join('\n') };
 }
 
-/** A locale template for the greeting, request text and closing. */
+export interface PriceInquiryClarifications {
+  /** Ask for the pricing unit only when no price unit is already on record. */
+  askPricingUnit: boolean;
+  /** Ask for the MOQ only when no MOQ is already on record. */
+  askMoq: boolean;
+}
+
+const MOQ_KEY = /(moq|minimum\s*order|min\.?\s*order|minimum\s*quantity|min\s*qty)/i;
+const UNIT_KEY = /(price[\s_-]?unit|pricing[\s_-]?unit|\bunit\b|price\s*basis)/i;
+
+/**
+ * Decides which clarifications the first email still needs, using only
+ * `CONFIRMED + OPERATIONAL` product facts (the same facts the Research Context
+ * may assert). If the public page already exposes a clear pricing unit or MOQ,
+ * the corresponding question is dropped. Never asserts anything it cannot see.
+ */
+export function assessPriceInquiryClarifications(
+  facts: ProductFactRecord[],
+): PriceInquiryClarifications {
+  const usable = facts.filter(
+    (fact) => fact.status === 'CONFIRMED' && fact.visibility === 'OPERATIONAL',
+  );
+  const moqKnown = usable.some(
+    (fact) => hasFactValue(fact) && MOQ_KEY.test(fact.key),
+  );
+  const unitKnown = usable.some((fact) => {
+    if (!hasFactValue(fact)) return false;
+    if (UNIT_KEY.test(fact.key)) return true;
+    // A price fact that already carries a unit (e.g. `Price` + unit `m3`).
+    return /price/i.test(fact.key) && (fact.unit?.trim().length ?? 0) > 0;
+  });
+  return { askPricingUnit: !unitKnown, askMoq: !moqKnown };
+}
+
+/** A locale template for the greeting, message sentences and closing. */
 interface LocaleTemplate {
   greetingNamed: (name: string) => string;
   greetingGeneric: string;
   subject: (productName: string) => string;
-  requestLine: string;
-  quoteHeading: string;
-  quoteItems: string[];
+  /** Where the product was found; a neutral default when nothing is known. */
+  defaultFoundOn: string;
+  foundSentence: (productName: string, foundOn: string) => string;
+  clarificationSentence: (topics: string) => string;
+  pricingUnitTopic: string;
+  moqTopic: string;
+  topicJoiner: string;
+  followUpSentence: string;
   closingPhrase: string;
 }
 
@@ -77,26 +129,23 @@ const EN: LocaleTemplate = {
   greetingNamed: (name) => `Dear ${name},`,
   greetingGeneric: 'Hello,',
   subject: (productName) => `Price inquiry: ${productName}`,
-  requestLine:
-    'We would like to request a quotation for the following product / specification:',
-  quoteHeading: 'Please quote:',
-  quoteItems: [
-    'your current price;',
-    'the pricing unit (e.g. m³, m², piece, pack);',
-    'the minimum order quantity (MOQ);',
-    'the Incoterm;',
-    'the loading / dispatch location;',
-    'the lead time / availability;',
-    'whether VAT is included;',
-    'the quotation validity.',
-  ],
+  defaultFoundOn: 'your website',
+  foundSentence: (productName, foundOn) =>
+    `I found ${productName} on ${foundOn} and would like to ask about the current price.`,
+  clarificationSentence: (topics) =>
+    `If possible, please also let me know ${topics}.`,
+  pricingUnitTopic: 'the pricing unit',
+  moqTopic: 'the minimum order quantity',
+  topicJoiner: ' and ',
+  followUpSentence: 'I look forward to your reply.',
   closingPhrase: 'Best regards,',
 };
 
 /**
  * Implemented locales. Only English exists today; future locales (`de`, `fi`,
- * `lt`, …) register here. A requested locale that is not implemented resolves to
- * English so the greeting, request text and closing always share one language.
+ * `lt`, …) register a `LocaleTemplate` here. A requested locale that is not
+ * implemented resolves to English, and the resolved locale is what is reported —
+ * English text is never labelled as another locale.
  */
 const LOCALES: Readonly<Record<string, LocaleTemplate>> = { en: EN };
 
@@ -114,11 +163,15 @@ export function isPriceInquiryLocaleImplemented(language: string): boolean {
 export interface PriceInquiryContentInput {
   locale: string;
   productName: string;
-  specificationLines: string[];
+  /** Where the product was found; defaults to a neutral phrase. */
+  foundOn?: string | null;
   recipientName: string | null;
   senderName: string;
   senderTitle: string | null;
   senderCompany: string | null;
+  /** Defaults to `true` when not supplied. */
+  askPricingUnit?: boolean;
+  askMoq?: boolean;
 }
 
 export interface PriceInquiryContent {
@@ -128,12 +181,13 @@ export interface PriceInquiryContent {
 }
 
 /**
- * Concise professional price inquiry. It only asks; it never asserts volume,
- * frequency, destination, urgency, purchasing authority, or a company
- * representation beyond the configured sender identity. The closing is built
- * from structured identity data (sender name, optional role/title, optional
- * company) — each line appears at most once, no company line is invented, and a
- * stored signature is never appended.
+ * Short, natural first-contact price inquiry. It only asks (current price, and
+ * optionally the pricing unit and MOQ); it never asserts volume, frequency,
+ * destination, urgency, purchasing authority, or a company representation beyond
+ * the configured sender identity. The closing is built from structured identity
+ * data (sender name, optional role/title, optional company) — each line appears
+ * at most once, no company line is invented, and a stored signature is never
+ * appended.
  */
 export function buildPriceInquiryContent(
   input: PriceInquiryContentInput,
@@ -143,8 +197,17 @@ export function buildPriceInquiryContent(
   const greeting = input.recipientName
     ? template.greetingNamed(input.recipientName)
     : template.greetingGeneric;
-  const spec = input.specificationLines.join('\n');
-  const quote = template.quoteItems.map((item, index) => `${index + 1}. ${item}`);
+  const foundOn = (input.foundOn ?? '').trim() || template.defaultFoundOn;
+
+  const askPricingUnit = input.askPricingUnit ?? true;
+  const askMoq = input.askMoq ?? true;
+  const topics: string[] = [];
+  if (askPricingUnit) topics.push(template.pricingUnitTopic);
+  if (askMoq) topics.push(template.moqTopic);
+  const clarification =
+    topics.length > 0
+      ? template.clarificationSentence(topics.join(template.topicJoiner))
+      : null;
 
   // Closing: phrase + sender name + optional title + optional company, each once.
   const seen = new Set<string>();
@@ -162,18 +225,16 @@ export function buildPriceInquiryContent(
     return true;
   });
 
-  const body = [
+  const lines = [
     greeting,
     '',
-    template.requestLine,
+    template.foundSentence(input.productName, foundOn),
     '',
-    spec,
-    '',
-    template.quoteHeading,
-    ...quote,
+    ...(clarification ? [clarification, ''] : []),
+    template.followUpSentence,
     '',
     ...closingLines,
-  ].join('\n');
+  ];
 
-  return { locale: input.locale, subject, body };
+  return { locale: input.locale, subject, body: lines.join('\n') };
 }

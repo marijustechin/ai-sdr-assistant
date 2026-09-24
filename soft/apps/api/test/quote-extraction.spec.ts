@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { extractQuote } from '../src/modules/quote-collection/domain/quote-extraction.js';
+import {
+  extractQuote,
+  stripQuotedOriginal,
+} from '../src/modules/quote-collection/domain/quote-extraction.js';
 
 describe('quote extraction (evidence-grounded, conservative)', () => {
   it('extracts the stated commercial terms with provenance', () => {
@@ -61,5 +64,37 @@ describe('quote extraction (evidence-grounded, conservative)', () => {
     expect(result.currency).toBe('GBP');
     expect(result.priceUnit).toBe('pallet');
     expect(result.incoterm).toBeNull();
+  });
+
+  it('does not treat our own quoted original inquiry as supplier evidence', () => {
+    const reply = [
+      'Deja šio produkto nebepalaikome ir kainos nepateiksime.',
+      '',
+      'From: info@consolva.lt <info@consolva.lt>',
+      'Sent: Thursday, 24 September 2026',
+      'Subject: FW: Dėl termo ayous (abachi) dailylentės kainos',
+      '',
+      '-----Original message-----',
+      'Mūsų užklausa: prašome nurodyti kainą 999 EUR už m3, MOQ 500 m3, FOB.',
+    ].join('\n');
+    expect(stripQuotedOriginal(reply)).not.toContain('999');
+    expect(stripQuotedOriginal(reply)).not.toContain('FOB');
+    const result = extractQuote(reply);
+    expect(result.priceAmount).toBeNull();
+    expect(result.currency).toBeNull();
+    expect(result.moqText).toBeNull();
+    expect(result.incoterm).toBeNull();
+  });
+
+  it('strips > quoted blocks and keeps the supplier-authored price', () => {
+    const reply = [
+      'Kaina 45 EUR už m2, MOQ 50 m2.',
+      '',
+      '> Turime omenyje, kad Jūsų pradinė kaina buvo 999 EUR m3.',
+    ].join('\n');
+    const result = extractQuote(reply);
+    expect(result.priceAmount).toBe(45);
+    expect(result.currency).toBe('EUR');
+    expect(result.priceUnit).toBe('m2');
   });
 });

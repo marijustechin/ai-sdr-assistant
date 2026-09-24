@@ -12,6 +12,112 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-25 — Reply collection is account-wide; a reply is not a usable quote
+
+Corrections after the controlled live verification exposed two production
+defects in the quote-collection loop:
+
+- **Account-wide reply scan (no cross-draft swallowing).** A mailbox scan now
+  considers **all** sent RFQs for the email account before classifying a
+  candidate: it loads every outbound RFQ Message-ID for the account, matches
+  each inbound candidate against the complete set (header `In-Reply-To` /
+  `References` authoritative; bounded fallback only when unique), and routes the
+  reply to the **owning** draft. Only then are truly unrelated messages
+  persisted as UNMATCHED **metadata-only** (body never stored). The manual
+  per-draft "Check for replies" runs this account-wide scan. When several due
+  follow-ups share one mailbox, the worker scans that account **once per batch**.
+- **Repair of already-swallowed rows.** An existing UNMATCHED row whose headers
+  now reference a known outbound Message-ID is **repaired in place** (body
+  re-fetched by its mailbox UID within the bounded scan, linked, evidence + quote
+  persisted) rather than skipped. Unrelated mailbox records are never touched.
+- **Reply ≠ usable quote.** `SENT → REPLY_RECEIVED` on any matched reply;
+  `→ QUOTE_EXTRACTED` **only** when extraction yields a genuinely usable price
+  (`priceAmount` **and** `currency` present). A reply with no usable price stays
+  `REPLY_RECEIVED`, retains its evidence + extraction warnings, stops the
+  waiting-for-reply follow-up, and is shown as "Reply received — no price
+  provided". A reconcile step (idempotent; never touches `SENT`) corrects any
+  earlier misclassification to match this rule.
+- **Quoted-original stripping.** Extraction operates only on the supplier-authored
+  portion; the quoted original/thread tail (`>` blocks, signature separators, or
+  a `From:`/`Sent:`/`On … wrote:` reply-header block) is dropped first, so our own
+  quoted inquiry text cannot produce false price/unit/MOQ fields. Not a full
+  thread parser.
+- **Result counts.** `repliesReceived` is tracked separately from
+  `quotesReceived` (usable price) and `pendingClarifications` (unanswered);
+  `NO_RESPONSE` remains non-pending.
+
+Reason: a shared inquiry mailbox and the semantic difference between "the
+supplier answered" and "the supplier gave a usable price" must not be conflated;
+both defects were observed on real supplier replies.
+
+---
+
+## 2026-09-25 — Research result finalizes independently; DB-backed quote follow-ups
+
+- **Research completion is independent from supplier-reply arrival.** A run may
+  be finalized/published as `COMPLETED` (no outstanding clarifications) or
+  `COMPLETED_WITH_PENDING_CLARIFICATIONS` (RFQs still awaiting replies). The run
+  is **never** kept `RUNNING` solely for outstanding supplier replies; that is
+  tracked per inquiry. `market-researcher` owns the frozen `research_results`
+  snapshot (completion timestamp + immutable summary); later replies **enrich**
+  the live result (bumping `lastEnrichedAt`) without rewriting the snapshot or
+  historical evidence.
+- **Price-clarification states reuse the existing inquiry lifecycle.**
+  `PriceInquiryStatus` gains `NO_RESPONSE`: `SENT` = clarification pending,
+  `REPLY_RECEIVED`/`QUOTE_EXTRACTED` = reply/quote, `NO_RESPONSE` = waiting
+  window elapsed with no reply (no longer pending; outbound/inquiry records
+  preserved). No parallel state model.
+- **DB-backed follow-up scheduling.** `quote-collection` owns
+  `quote_follow_ups` (scheduler source of truth, survives restarts): draft /
+  outbound / account references, status, `nextCheckAt`, attempt count,
+  `lastCheckedAt`, a worker lease, `completedAt`, and a short result code. Sending
+  an RFQ creates the schedule; a bounded worker claims due rows via a
+  compare-and-swap lease and reuses the existing IMAP correlation/extraction. An
+  in-process trigger (env-gated, `FOLLOW_UP_SCHEDULER_ENABLED`, default off) is
+  only a trigger — never the source of truth — and the manual "Check for
+  replies" action remains.
+- **Policy is configurable, calendar-based.** Default cadence: checks at 24h/48h/
+  72h and a 120h (5 calendar day) expiry; env-overridable
+  (`FOLLOW_UP_CHECK_DELAYS_HOURS`, `FOLLOW_UP_EXPIRY_HOURS`,
+  `FOLLOW_UP_LEASE_MINUTES`). There is no business-day/holiday calendar in this
+  slice — documented explicitly.
+- **Safety.** No automatic sending of new inquiries and no follow-up emails;
+  background work only *checks for replies* to already human-approved/sent
+  inquiries, never deletes/moves/marks-read mailbox messages, and keeps secrets
+  inside the transport boundary. A no-response is a valid final research outcome.
+
+Reason: a research result must be presentable now even when supplier replies are
+outstanding; separating completion from clarification keeps the run honest and
+makes late replies an enrichment rather than a reason to stay RUNNING.
+
+---
+
+## 2026-09-24 — First-contact price inquiry is short and human, not a procurement RFQ
+
+- The generated **first** message is: a greeting; one sentence stating where the
+  product was found ("I found {product} on your website") and asking for the
+  current price; up to two short clarifications (pricing unit and/or MOQ) only
+  when not already on record; a simple "look forward to your reply" line; and a
+  closing built from structured sender identity. No numbered checklist, no full
+  specification dump, and no Incoterm/lead-time/VAT/validity/loading questions in
+  the first email (those are follow-ups).
+- Clarifications are decided from `CONFIRMED + OPERATIONAL` facts only: ask the
+  pricing unit only when no price unit is on record, and ask MOQ only when no MOQ
+  is on record — never redundant, never invented.
+- The message cannot assert volume, urgency, destination, purchasing authority, or
+  a company identity that is not configured; `companyName` stays optional.
+- Content is locale-templated (`LocaleTemplate`) so `lt`/`de`/`fi` can be added
+  without restructuring; English is the only implemented locale, and English text
+  is never labelled as another locale (an unimplemented request resolves to `en`).
+- The grounded `specificationSummary` is still persisted on the draft for audit,
+  and downstream quote extraction is unchanged: a shorter inquiry does not weaken
+  parsing, and suppliers may still volunteer any terms.
+
+Reason: a shorter, natural message maximizes reply probability for first contact;
+the procurement-checklist style suited later clarification, not the opening email.
+
+---
+
 ## 2026-09-24 — Supplier quote collection is a Market Research operation (owning module `quote-collection`)
 
 - **Ownership.** A new module `quote-collection` owns the RFQ loop's three
@@ -163,10 +269,12 @@ rather than extending `outreach_drafts`.
   email account**; the product's assigned profile is the default.
 - **Grounded content, no invention:** the specification comes only from the
   persisted product row and its `CONFIRMED + OPERATIONAL` facts (the same facts the
-  Research Context may assert); `PENDING`/`RESTRICTED` values never appear. The
-  body only *asks* (price, unit, MOQ, Incoterm, loading location, lead time, VAT,
-  validity) and never asserts volume, frequency, destination, urgency, purchasing
-  authority, or a company representation beyond the configured identity.
+  Research Context may assert); `PENDING`/`RESTRICTED` values never appear. (The
+  original body asked for the full field set — price, unit, MOQ, Incoterm, loading
+  location, lead time, VAT, validity; this was later simplified to a short
+  first-contact message — see the 2026-09-24 "First-contact price inquiry is short
+  and human" decision.) It never asserts volume, frequency, destination, urgency,
+  purchasing authority, or a company representation beyond the configured identity.
 - **Future-proofing:** outbound message metadata, supplier replies, quotation
   evidence, and normalized price/currency/unit/MOQ/Incoterm/origin/lead
   time/validity will be added as records referencing `price_inquiry_drafts`. No

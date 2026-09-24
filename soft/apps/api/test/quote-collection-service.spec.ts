@@ -5,6 +5,8 @@ import type {
 } from '@ai-sdr/contracts';
 import { QuoteCollectionService } from '../src/modules/quote-collection/application/quote-collection.service.js';
 import { QuoteCollectionRepository } from '../src/modules/quote-collection/infrastructure/quote-collection.repository.js';
+import { QuoteFollowUpRepository } from '../src/modules/quote-collection/infrastructure/quote-follow-up.repository.js';
+import { MarketResearcherService } from '../src/modules/market-researcher/application/research-runs.service.js';
 import { PriceInquiryService } from '../src/modules/price-inquiry/application/price-inquiry.service.js';
 import type { PriceInquiryDraftRecord } from '../src/modules/price-inquiry/domain/types.js';
 import { SenderProfilesService } from '../src/modules/sender-profiles/application/sender-profiles.service.js';
@@ -119,6 +121,9 @@ class FakePriceInquiry {
   async getDraft() {
     return this.draft;
   }
+  async getDraftById() {
+    return this.draft;
+  }
   async listDrafts() {
     return [this.draft];
   }
@@ -133,6 +138,17 @@ class FakePriceInquiry {
   async markQuoteExtracted() {
     this.calls.push('markQuoteExtracted');
     this.draft.status = 'QUOTE_EXTRACTED';
+  }
+  async reconcileReplyState(_id: string, usable: boolean) {
+    if (
+      this.draft.status === 'REPLY_RECEIVED' ||
+      this.draft.status === 'QUOTE_EXTRACTED'
+    ) {
+      this.draft.status = usable ? 'QUOTE_EXTRACTED' : 'REPLY_RECEIVED';
+    }
+  }
+  async markNoResponse() {
+    this.draft.status = 'NO_RESPONSE';
   }
 }
 
@@ -195,6 +211,8 @@ function buildService(options: {
     },
   };
   const evidenceCalls: unknown[] = [];
+  const followUpCalls: string[] = [];
+  const enriched: string[] = [];
   const service = new QuoteCollectionService(
     repository as unknown as QuoteCollectionRepository,
     priceInquiry as unknown as PriceInquiryService,
@@ -242,8 +260,34 @@ function buildService(options: {
     {
       scanRecent: async () => options.candidates ?? [],
     } as unknown as InboundMailPort,
+    {
+      ensure: async (data: { priceInquiryDraftId: string }) => {
+        followUpCalls.push(`ensure:${data.priceInquiryDraftId}`);
+        return { id: 'fu1' };
+      },
+      findForDraft: async () => ({ id: 'fu1', status: 'SCHEDULED' }),
+      markCompleted: async () => {
+        followUpCalls.push('completed');
+      },
+      listForDrafts: async () => [],
+      listForOpportunity: async () => [],
+    } as unknown as QuoteFollowUpRepository,
+    {
+      recordEnrichment: async (runId: string) => {
+        enriched.push(runId);
+      },
+    } as unknown as MarketResearcherService,
   );
-  return { service, repository, priceInquiry, sent, draft, evidenceCalls };
+  return {
+    service,
+    repository,
+    priceInquiry,
+    sent,
+    draft,
+    evidenceCalls,
+    followUpCalls,
+    enriched,
+  };
 }
 
 function errorCode(error: unknown): string {
@@ -270,6 +314,8 @@ describe('quote collection service', () => {
     expect(stored.submissionStatus).toBe('SUBMITTED');
     expect(stored.messageId).toBe(result.outbound.messageId);
     expect(ctx.priceInquiry.calls).toContain('markSent');
+    // Sending schedules the DB-backed reply-check follow-up.
+    expect(ctx.followUpCalls).toContain('ensure:d1');
   });
 
   it('persists a failed attempt and leaves the draft reviewable', async () => {
@@ -365,6 +411,9 @@ describe('quote collection service', () => {
     expect(ctx.priceInquiry.calls).toContain('markQuoteExtracted');
     // The reported state matches the persisted (post-transition) state.
     expect(result.items[0]!.marketResearchState).toBe('QUOTE_EXTRACTED');
+    // A matched reply completes the follow-up and enriches the result.
+    expect(ctx.followUpCalls).toContain('completed');
+    expect(ctx.enriched).toContain('run1');
   });
 
   it('leaves an unmatched reply persisted but unlinked', async () => {

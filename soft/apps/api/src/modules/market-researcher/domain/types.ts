@@ -8,6 +8,7 @@ export type ResearchRunStatus =
   | 'RUNNING'
   | 'PAUSED'
   | 'COMPLETED'
+  | 'COMPLETED_WITH_PENDING_CLARIFICATIONS'
   | 'FAILED'
   | 'CANCELLED';
 
@@ -103,4 +104,23 @@ export interface RecordResearchQueryData {
   resultCount?: number;
   errorCode?: string;
   errorNote?: string;
+}
+
+/** Publishable result metadata for one run (frozen snapshot + enrichment). */
+export interface ResearchResultRecord {
+  id: string;
+  researchRunId: string;
+  opportunityId: string;
+  researchCompletedAt: Date;
+  lastEnrichedAt: Date;
+  frozenSnapshot: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface FinalizeResearchResultData {
+  researchRunId: string;
+  opportunityId: string;
+  researchCompletedAt: Date;
+  frozenSnapshot: unknown;
 }

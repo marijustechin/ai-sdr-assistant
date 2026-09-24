@@ -182,9 +182,35 @@ model ResearchRun {
   evidence      Evidence[]
   claims        Claim[]
   offerings     ResearchOffering[]
+  researchResult ResearchResult?
 
   @@index([opportunityId])
   @@map("research_runs")
+}
+
+/// Publishable market-research result metadata for one run. The **frozen
+/// snapshot** preserves the result as it was finalized; later supplier replies
+/// *enrich* the live view (and bump `lastEnrichedAt`) without rewriting this
+/// historical snapshot or the underlying evidence. Owned by `market-researcher`.
+/// @owner market-researcher
+model ResearchResult {
+  id                  String   @id @default(uuid()) @db.Uuid
+  researchRunId       String   @unique @map("research_run_id") @db.Uuid
+  opportunityId       String   @map("opportunity_id") @db.Uuid
+  /// When the research result was finalized/published.
+  researchCompletedAt DateTime @map("research_completed_at") @db.Timestamptz(6)
+  /// When the result was last enriched (e.g. a later supplier reply/quote).
+  lastEnrichedAt      DateTime @map("last_enriched_at") @db.Timestamptz(6)
+  /// Immutable summary captured at finalization (counts + who/what at that
+  /// moment). Later additions never rewrite it.
+  frozenSnapshot      Json     @map("frozen_snapshot")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  researchRun ResearchRun @relation(fields: [researchRunId], references: [id], onDelete: Cascade)
+
+  @@index([opportunityId])
+  @@map("research_results")
 }
 
 /// Target-market scope of a ResearchRun (explicit join + compound uniqueness).
@@ -586,6 +612,7 @@ model PriceInquiryDraft {
   emailAccount    EmailAccount?      @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
   quoteOutboundMessages QuoteOutboundMessage[] @relation("QuoteOutboundForDraft")
   quoteInboundMessages  QuoteInboundMessage[]  @relation("QuoteInboundForDraft")
+  quoteFollowUp         QuoteFollowUp?
 
   @@unique([fingerprint])
   @@index([opportunityId])
@@ -611,6 +638,11 @@ enum PriceInquiryStatus {
   SENT
   REPLY_RECEIVED
   QUOTE_EXTRACTED
+  /// The configured waiting window elapsed with no matched supplier reply.
+  /// The inquiry was sent and no response was received within that window; the
+  /// outbound/inquiry records are preserved and this no longer counts as
+  /// pending.
+  NO_RESPONSE
 }
 
 /// Market-research supplier quote collection. These three tables are owned by
@@ -762,6 +794,49 @@ model SupplierQuote {
   @@index([outboundMessageId])
   @@index([evidenceId])
   @@map("supplier_quotes")
+}
+
+/// Lifecycle of a DB-backed reply-check schedule for one sent RFQ. The DB row
+/// is the source of truth (survives restarts); any in-process trigger only
+/// claims due rows. Owned by `quote-collection`.
+/// @owner quote-collection
+enum QuoteFollowUpStatus {
+  SCHEDULED
+  COMPLETED
+  EXPIRED
+}
+
+/// A persisted, bounded reply-check schedule for one sent price inquiry. The
+/// scheduler may only *check for replies* to an already human-approved/sent
+/// inquiry; it never sends mail.
+/// @owner quote-collection
+model QuoteFollowUp {
+  id                  String              @id @default(uuid()) @db.Uuid
+  priceInquiryDraftId String              @unique @map("price_inquiry_draft_id") @db.Uuid
+  outboundMessageId   String?             @map("outbound_message_id") @db.Uuid
+  emailAccountId      String?             @map("email_account_id") @db.Uuid
+  opportunityId       String              @map("opportunity_id") @db.Uuid
+  leadId              String              @map("lead_id") @db.Uuid
+  status              QuoteFollowUpStatus @default(SCHEDULED)
+  /// Number of reply checks already attempted.
+  attemptCount        Int                 @default(0) @map("attempt_count")
+  /// The next time a reply check is due.
+  nextCheckAt         DateTime            @map("next_check_at") @db.Timestamptz(6)
+  lastCheckedAt       DateTime?           @map("last_checked_at") @db.Timestamptz(6)
+  /// Lease marker so a check is claimed by exactly one worker; stale leases can
+  /// be re-claimed after the lease window.
+  lockedUntil         DateTime?           @map("locked_until") @db.Timestamptz(6)
+  completedAt         DateTime?           @map("completed_at") @db.Timestamptz(6)
+  /// Short safe result code of the last check (e.g. NO_REPLY, MATCHED, EXPIRED).
+  lastResult          String?             @map("last_result") @db.VarChar(64)
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  draft PriceInquiryDraft @relation(fields: [priceInquiryDraftId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextCheckAt])
+  @@index([opportunityId])
+  @@map("quote_follow_ups")
 }
 
 /// A reusable, product-independent sender identity for outreach drafts. An
@@ -978,6 +1053,10 @@ enum ResearchRunStatus {
   RUNNING
   PAUSED
   COMPLETED
+  /// The research result is publishable, but one or more supplier price
+  /// clarifications (RFQs) are still awaiting a reply. The run is *not* kept
+  /// RUNNING for outstanding supplier replies; that is tracked per inquiry.
+  COMPLETED_WITH_PENDING_CLARIFICATIONS
   FAILED
   CANCELLED
 }

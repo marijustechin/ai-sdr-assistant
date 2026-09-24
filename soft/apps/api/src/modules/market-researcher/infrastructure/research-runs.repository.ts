@@ -3,13 +3,16 @@ import {
   Prisma,
   PrismaService,
   type ResearchQuery,
+  type ResearchResult,
   type ResearchRun,
 } from '@ai-sdr/database';
 import type {
   CreateQueuedResearchRunData,
   CreateResearchRunData,
+  FinalizeResearchResultData,
   RecordResearchQueryData,
   ResearchQueryRecord,
+  ResearchResultRecord,
   ResearchRunRecord,
   ResearchRunSummary,
   UpdateResearchRunData,
@@ -58,6 +61,19 @@ function toRunSummary(run: ResearchRun): ResearchRunSummary {
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
     checkpointAt: run.checkpointAt,
+  };
+}
+
+function toResultRecord(result: ResearchResult): ResearchResultRecord {
+  return {
+    id: result.id,
+    researchRunId: result.researchRunId,
+    opportunityId: result.opportunityId,
+    researchCompletedAt: result.researchCompletedAt,
+    lastEnrichedAt: result.lastEnrichedAt,
+    frozenSnapshot: result.frozenSnapshot,
+    createdAt: result.createdAt,
+    updatedAt: result.updatedAt,
   };
 }
 
@@ -208,6 +224,7 @@ export class ResearchRunsRepository {
       RUNNING: 0,
       PAUSED: 0,
       COMPLETED: 0,
+      COMPLETED_WITH_PENDING_CLARIFICATIONS: 0,
       FAILED: 0,
       CANCELLED: 0,
     } satisfies Record<ResearchRun['status'], number>;
@@ -226,6 +243,7 @@ export class ResearchRunsRepository {
       update.status = data.status;
       if (
         data.status === 'COMPLETED' ||
+        data.status === 'COMPLETED_WITH_PENDING_CLARIFICATIONS' ||
         data.status === 'FAILED' ||
         data.status === 'CANCELLED'
       ) {
@@ -280,5 +298,41 @@ export class ResearchRunsRepository {
       orderBy: { createdAt: 'asc' },
     });
     return queries.map(toQueryRecord);
+  }
+
+  /**
+   * Creates the frozen result snapshot once. A repeat finalize is a no-op: the
+   * original snapshot and completion timestamp are never rewritten.
+   */
+  async upsertResult(
+    data: FinalizeResearchResultData,
+  ): Promise<ResearchResultRecord> {
+    const row = await this.prisma.db.researchResult.upsert({
+      where: { researchRunId: data.researchRunId },
+      create: {
+        researchRunId: data.researchRunId,
+        opportunityId: data.opportunityId,
+        researchCompletedAt: data.researchCompletedAt,
+        lastEnrichedAt: data.researchCompletedAt,
+        frozenSnapshot: data.frozenSnapshot as Prisma.InputJsonValue,
+      },
+      update: {},
+    });
+    return toResultRecord(row);
+  }
+
+  async findResult(runId: string): Promise<ResearchResultRecord | null> {
+    const row = await this.prisma.db.researchResult.findUnique({
+      where: { researchRunId: runId },
+    });
+    return row ? toResultRecord(row) : null;
+  }
+
+  /** Bumps `lastEnrichedAt`; a run without a result row is a no-op. */
+  async touchEnrichment(runId: string, at: Date): Promise<void> {
+    await this.prisma.db.researchResult.updateMany({
+      where: { researchRunId: runId },
+      data: { lastEnrichedAt: at },
+    });
   }
 }

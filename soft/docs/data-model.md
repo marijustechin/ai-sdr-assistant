@@ -444,3 +444,30 @@ The research store keeps three things apart on purpose:
 A generic `search_results` table is deliberately **not** modelled. Domain-
 specific observations (e.g. price observations) are expected to reference
 `evidence` later rather than expanding this foundation now.
+
+## 8. Research result + pending-clarification follow-ups (2026-09-25)
+
+- **`ResearchResult`** (owner `market-researcher`, 1:1 with a run) — publishable
+  result metadata: `researchCompletedAt`, `lastEnrichedAt`, and an immutable
+  **`frozenSnapshot`** captured at finalization. A run finalizes to `COMPLETED`
+  (no outstanding clarifications) or `COMPLETED_WITH_PENDING_CLARIFICATIONS`
+  (RFQs awaiting replies); later supplier replies bump `lastEnrichedAt` and add
+  evidence/quotes but never rewrite the frozen snapshot.
+- **`QuoteFollowUp`** (owner `quote-collection`, one active schedule per sent
+  RFQ) — the DB source of truth for reply-check scheduling: `status`
+  (`SCHEDULED | COMPLETED | EXPIRED`), `nextCheckAt`, `attemptCount`,
+  `lastCheckedAt`, a worker `lockedUntil` lease, `completedAt`, and a short safe
+  `lastResult` (e.g. `NO_REPLY | MATCHED | NO_RESPONSE`). A sent inquiry that
+  reaches the waiting deadline with no matched reply transitions to
+  `PriceInquiryStatus.NO_RESPONSE` (no longer pending) while all outbound/inquiry
+  records are preserved. The schedule is env-configurable (default checks at
+  24h/48h/72h, 120h expiry — calendar hours, no holiday calendar) and is checked
+  by a bounded, idempotent worker that reuses the existing reply correlation and
+  quote extraction; the in-process trigger is only a trigger. Reply collection
+  is **account-wide** (a scan matches candidates against every sent RFQ
+  Message-ID for the mailbox and routes each to its own draft; a previously
+  UNMATCHED row referencing a known outbound is repaired in place). A matched
+  reply is `REPLY_RECEIVED`; `QUOTE_EXTRACTED` requires a usable price
+  (`priceAmount` + `currency`). Result counts keep `pendingClarifications`,
+  `repliesReceived` (no usable price) and `quotesReceived` (usable price)
+  separate.

@@ -10,11 +10,14 @@ import {
 } from '@nestjs/common';
 import {
   SendPriceInquirySchema,
+  RunDueFollowUpsSchema,
+  type RunDueFollowUpsInput,
   type SendPriceInquiryInput,
 } from '@ai-sdr/contracts';
 import { ZodValidationPipe } from '../../../common/zod-validation.pipe.js';
 import { InternalApiKeyGuard } from '../../../security/internal-api-key.guard.js';
 import { QuoteCollectionService } from '../application/quote-collection.service.js';
+import { FollowUpService } from '../application/follow-up.service.js';
 
 /**
  * Market-research supplier quote collection. Sending and reply checking are
@@ -27,6 +30,8 @@ export class QuoteCollectionController {
   constructor(
     @Inject(QuoteCollectionService)
     private readonly service: QuoteCollectionService,
+    @Inject(FollowUpService)
+    private readonly followUps: FollowUpService,
   ) {}
 
   @Post(
@@ -62,5 +67,23 @@ export class QuoteCollectionController {
     @Param('leadId', new ParseUUIDPipe()) leadId: string,
   ) {
     return this.service.listCollection(opportunityId, leadId);
+  }
+
+  /** Manual, bounded trigger for due reply checks (background scheduler is optional). */
+  @Post(':opportunityId/quote-follow-ups/run-due')
+  async runDue(
+    @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
+    @Body(new ZodValidationPipe(RunDueFollowUpsSchema))
+    body: RunDueFollowUpsInput,
+  ) {
+    return this.followUps.processDue(body.limit);
+  }
+
+  /** Read-only follow-up schedules for one opportunity. */
+  @Get(':opportunityId/quote-follow-ups')
+  async listFollowUps(
+    @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
+  ) {
+    return this.service.listFollowUpsForOpportunity(opportunityId);
   }
 }

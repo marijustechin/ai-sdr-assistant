@@ -16,6 +16,7 @@ import { EmailAccountsModule } from './modules/email-accounts/email-accounts.mod
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { PriceInquiryModule } from './modules/price-inquiry/price-inquiry.module.js';
 import { QuoteCollectionModule } from './modules/quote-collection/quote-collection.module.js';
+import { ResearchResultModule } from './modules/research-result/research-result.module.js';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { QuoteCollectionModule } from './modules/quote-collection/quote-collecti
     DashboardModule,
     PriceInquiryModule,
     QuoteCollectionModule,
+    ResearchResultModule,
   ],
   controllers: [HealthController, ReadinessController],
 })

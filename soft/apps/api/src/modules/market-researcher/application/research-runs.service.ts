@@ -14,7 +14,9 @@ import { OpportunitiesService } from '../../opportunities/application/opportunit
 import type {
   CreateQueuedResearchRunData,
   ResearchQueryRecord,
+  ResearchResultRecord,
   ResearchRunRecord,
+  ResearchRunStatus,
 } from '../domain/types.js';
 import { ResearchRunsRepository } from '../infrastructure/research-runs.repository.js';
 
@@ -236,6 +238,50 @@ export class MarketResearcherService {
   /** Used by the `evidence` module to authorise run-scoped writes/reads. */
   async assertRun(opportunityId: string, runId: string): Promise<void> {
     await this.findRunOrThrow(opportunityId, runId);
+  }
+
+  /**
+   * Publishes the research result: freezes the snapshot and moves the run to
+   * `COMPLETED` (no pending clarifications) or
+   * `COMPLETED_WITH_PENDING_CLARIFICATIONS` (RFQs still awaiting replies). A run
+   * is never kept RUNNING solely for outstanding supplier replies. Re-finalizing
+   * is idempotent — the original frozen snapshot is preserved.
+   */
+  async finalizeResult(
+    opportunityId: string,
+    runId: string,
+    params: { snapshot: unknown; pendingClarifications: number },
+  ): Promise<ResearchResultRecord> {
+    await this.findRunOrThrow(opportunityId, runId);
+    const status: ResearchRunStatus =
+      params.pendingClarifications > 0
+        ? 'COMPLETED_WITH_PENDING_CLARIFICATIONS'
+        : 'COMPLETED';
+    await this.repository.updateRun(runId, { status });
+    return this.repository.upsertResult({
+      researchRunId: runId,
+      opportunityId,
+      researchCompletedAt: new Date(),
+      frozenSnapshot: params.snapshot,
+    });
+  }
+
+  /** The frozen result envelope for a run (null until finalized). */
+  async getResultEnvelope(
+    opportunityId: string,
+    runId: string,
+  ): Promise<ResearchResultRecord | null> {
+    await this.findRunOrThrow(opportunityId, runId);
+    return this.repository.findResult(runId);
+  }
+
+  /**
+   * Records that the result was enriched by later data (e.g. a supplier reply).
+   * A run without a result row is a no-op; historical evidence is never
+   * rewritten.
+   */
+  async recordEnrichment(runId: string): Promise<void> {
+    await this.repository.touchEnrichment(runId, new Date());
   }
 
   private async findRunOrThrow(

@@ -82,6 +82,17 @@ export class PriceInquiryRepository {
     });
   }
 
+  /** All drafts for an opportunity (used by the research-result read model). */
+  async listDraftsForOpportunity(
+    opportunityId: string,
+  ): Promise<PriceInquiryDraftRow[]> {
+    return this.prisma.db.priceInquiryDraft.findMany({
+      where: { opportunityId },
+      include: INCLUDE,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
   async findDraft(
     opportunityId: string,
     leadId: string,

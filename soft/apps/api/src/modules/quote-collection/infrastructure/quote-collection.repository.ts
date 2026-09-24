@@ -217,6 +217,8 @@ export class QuoteCollectionRepository {
       researchRunId?: string | null;
       sourceReferenceId?: string | null;
       evidenceId?: string | null;
+      /** Provided only when repairing an earlier bodyless UNMATCHED row. */
+      bodyText?: string;
     },
   ): Promise<QuoteInboundRecord> {
     return toInbound(
@@ -227,6 +229,7 @@ export class QuoteCollectionRepository {
           priceInquiryDraftId: data.priceInquiryDraftId,
           processingStatus: data.processingStatus,
           matchConfidence: data.matchConfidence,
+          ...(data.bodyText !== undefined ? { bodyText: data.bodyText } : {}),
           ...(data.researchRunId !== undefined
             ? { researchRunId: data.researchRunId }
             : {}),

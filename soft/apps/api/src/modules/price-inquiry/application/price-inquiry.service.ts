@@ -17,6 +17,7 @@ import { ProductsAndOffersService } from '../../products-and-offers/application/
 import { SenderProfilesService } from '../../sender-profiles/application/sender-profiles.service.js';
 import type { SenderProfileRecord } from '../../sender-profiles/domain/types.js';
 import {
+  assessPriceInquiryClarifications,
   buildPriceInquiryContent,
   buildSpecification,
   resolvePriceInquiryLocale,
@@ -88,15 +89,17 @@ export class PriceInquiryService {
     const profile = await this.resolveUsableSender(selectedSenderProfileId);
 
     const language = resolvePriceInquiryLocale(input.language);
+    const clarifications = assessPriceInquiryClarifications(facts);
     const content = buildPriceInquiryContent({
       locale: language,
       productName: product.name,
-      specificationLines: specification.lines,
       recipientName:
         contact.contactType === 'NAMED_PERSON' ? contact.personName : null,
       senderName: profile.senderName,
       senderTitle: profile.senderTitle,
       senderCompany: profile.companyName,
+      askPricingUnit: clarifications.askPricingUnit,
+      askMoq: clarifications.askMoq,
     });
     const senderSnapshot = this.snapshot(profile);
 
@@ -251,6 +254,72 @@ export class PriceInquiryService {
 
   async markQuoteExtracted(draftId: string): Promise<void> {
     await this.transition(draftId, ['REPLY_RECEIVED', 'SENT'], 'QUOTE_EXTRACTED', {});
+  }
+
+  /**
+   * The waiting window elapsed with no matched reply. The inquiry was sent and
+   * no response was received; the outbound/inquiry records are preserved and
+   * the inquiry no longer counts as pending.
+   */
+  async markNoResponse(draftId: string): Promise<void> {
+    await this.transition(
+      draftId,
+      ['SENT', 'REPLY_RECEIVED', 'QUOTE_EXTRACTED'],
+      'NO_RESPONSE',
+      {},
+    );
+  }
+
+  /**
+   * Corrects a reply classification: a replied inquiry is `QUOTE_EXTRACTED`
+   * only when a usable price was extracted, otherwise `REPLY_RECEIVED`. Applied
+   * by the quote-collection reconcile step; it never touches an unanswered
+   * (`SENT`) inquiry and is idempotent.
+   */
+  async reconcileReplyState(
+    draftId: string,
+    hasUsablePrice: boolean,
+  ): Promise<void> {
+    const row = await this.repository.findDraftById(draftId);
+    if (!row) return;
+    if (row.status !== 'REPLY_RECEIVED' && row.status !== 'QUOTE_EXTRACTED') {
+      return;
+    }
+    const target = hasUsablePrice ? 'QUOTE_EXTRACTED' : 'REPLY_RECEIVED';
+    if (row.status !== target) {
+      await this.repository.updateStatus(draftId, target);
+    }
+  }
+
+  /** Loads one draft (any lead) for background reply checking / result reads. */
+  async getDraftById(draftId: string): Promise<PriceInquiryDraftRecord> {
+    const row = await this.repository.findDraftById(draftId);
+    if (!row) {
+      throw new NotFoundException({ error: 'price_inquiry_draft_not_found' });
+    }
+    const lead = await this.leads.getLead(row.opportunityId, row.leadId);
+    return this.toRecord(row, lead, await this.resolveCached(row, new Map()));
+  }
+
+  /** All drafts for an opportunity (research-result read model). */
+  async listDraftsForOpportunity(
+    opportunityId: string,
+  ): Promise<PriceInquiryDraftRecord[]> {
+    const rows = await this.repository.listDraftsForOpportunity(opportunityId);
+    const leadCache = new Map<string, LeadRecord>();
+    const profileCache = new Map<string, SenderProfileRecord | null>();
+    const records: PriceInquiryDraftRecord[] = [];
+    for (const row of rows) {
+      let lead = leadCache.get(row.leadId);
+      if (!lead) {
+        lead = await this.leads.getLead(row.opportunityId, row.leadId);
+        leadCache.set(row.leadId, lead);
+      }
+      records.push(
+        this.toRecord(row, lead, await this.resolveCached(row, profileCache)),
+      );
+    }
+    return records;
   }
 
   private async transition(

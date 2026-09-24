@@ -16,6 +16,7 @@ export const PriceInquiryStatusSchema = z.enum([
   'SENT',
   'REPLY_RECEIVED',
   'QUOTE_EXTRACTED',
+  'NO_RESPONSE',
 ]);
 
 const email = z.email().max(320);

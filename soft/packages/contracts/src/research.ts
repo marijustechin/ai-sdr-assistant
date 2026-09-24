@@ -14,6 +14,7 @@ export const ResearchRunStatusSchema = z.enum([
   'RUNNING',
   'PAUSED',
   'COMPLETED',
+  'COMPLETED_WITH_PENDING_CLARIFICATIONS',
   'FAILED',
   'CANCELLED',
 ]);
