@@ -21,7 +21,18 @@ import {
   type PriceInquiryDraftRead,
 } from "@entities/price-inquiry";
 import {
+  MARKET_RESEARCH_STATE_LABEL,
+  MARKET_RESEARCH_STATE_TONE,
+  MATCH_CONFIDENCE_LABEL,
+  QUOTE_FIELDS,
+  QUOTE_FIELD_LABEL,
+  type QuoteCollectionItemRead,
+  type SupplierQuoteRead,
+} from "@entities/quote-collection";
+import {
+  checkPriceInquiryRepliesAction,
   createPriceInquiryDraftAction,
+  sendPriceInquiryAction,
   updatePriceInquiryDraftAction,
 } from "./actions";
 
@@ -30,16 +41,70 @@ interface SenderOption {
   label: string;
 }
 
+function quoteFieldValue(
+  quote: SupplierQuoteRead,
+  field: (typeof QUOTE_FIELDS)[number],
+): string | null {
+  if (field === "vatIncluded") {
+    if (quote.vatIncluded === null) return null;
+    return quote.vatIncluded ? "Yes" : "No";
+  }
+  if (field === "priceAmount") {
+    return quote.priceAmount === null ? null : String(quote.priceAmount);
+  }
+  const value = quote[field];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function QuoteSummary({ quote }: { quote: SupplierQuoteRead }) {
+  return (
+    <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="success">Structured quote</Badge>
+        {quote.warnings.length > 0 ? (
+          <span className="text-xs text-muted-foreground">
+            {quote.warnings.length} warning(s)
+          </span>
+        ) : null}
+      </div>
+      <dl className="grid gap-1 sm:grid-cols-2">
+        {QUOTE_FIELDS.map((field) => {
+          const value = quoteFieldValue(quote, field);
+          return (
+            <div key={field} className="flex gap-2">
+              <dt className="text-muted-foreground">
+                {QUOTE_FIELD_LABEL[field]}:
+              </dt>
+              <dd className={value ? "text-foreground" : "text-muted-foreground"}>
+                {value ?? "Not stated"}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+      {quote.warnings.length > 0 ? (
+        <ul className="list-disc pl-5 text-xs text-warning-foreground">
+          {quote.warnings.map((warning) => (
+            <li key={warning}>{warning.replaceAll("_", " ")}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function DraftEditor({
   productId,
   opportunityId,
   leadId,
   draft,
+  collection,
 }: {
   productId: string;
   opportunityId: string;
   leadId: string;
   draft: PriceInquiryDraftRead;
+  collection: QuoteCollectionItemRead | null;
 }) {
   const [subject, setSubject] = useState(draft.subject);
   const [body, setBody] = useState(draft.body);
@@ -47,7 +112,13 @@ function DraftEditor({
     draft.recipientEmail ?? "",
   );
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [confirmingSend, setConfirmingSend] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  const sent = draft.status !== "READY_FOR_HUMAN_REVIEW";
+  const outbound = collection?.outbound ?? null;
 
   async function save() {
     setSaving(true);
@@ -69,13 +140,49 @@ function DraftEditor({
     setSaving(false);
   }
 
+  async function send() {
+    setSending(true);
+    setMessage(null);
+    const result = await sendPriceInquiryAction(
+      productId,
+      opportunityId,
+      leadId,
+      draft.id,
+      true,
+    );
+    setMessage(
+      result.ok ? "Submitted to outgoing SMTP server." : (result.message ?? null),
+    );
+    setSending(false);
+    setConfirmingSend(false);
+  }
+
+  async function checkReplies() {
+    setChecking(true);
+    setMessage(null);
+    const result = await checkPriceInquiryRepliesAction(
+      productId,
+      opportunityId,
+      leadId,
+      draft.id,
+    );
+    setMessage(result.message ?? (result.ok ? "Checked." : "Could not check."));
+    setChecking(false);
+  }
+
   return (
     <li className="space-y-3 rounded-lg border border-border p-4 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={PRICE_INQUIRY_STATUS_TONE[draft.status]}>
           {PRICE_INQUIRY_STATUS_LABEL[draft.status]}
         </Badge>
-        <Badge tone="outline">Not sent — awaiting human review</Badge>
+        {collection ? (
+          <Badge tone={MARKET_RESEARCH_STATE_TONE[collection.marketResearchState]}>
+            {MARKET_RESEARCH_STATE_LABEL[collection.marketResearchState]}
+          </Badge>
+        ) : (
+          <Badge tone="outline">Not sent — awaiting human review</Badge>
+        )}
         <span className="text-xs text-muted-foreground">
           v{draft.version} · {formatDateTime(draft.createdAt)}
         </span>
@@ -109,6 +216,23 @@ function DraftEditor({
         </p>
       ) : null}
 
+      {outbound ? (
+        <div className="space-y-1 rounded-lg border border-border p-3 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              tone={outbound.submissionStatus === "SUBMITTED" ? "success" : "danger"}
+            >
+              {outbound.submissionStatus === "SUBMITTED"
+                ? "Submitted to outgoing SMTP server"
+                : `Send failed (${outbound.failureCode ?? "error"})`}
+            </Badge>
+            <span>Sent {formatDateTime(outbound.sentAt)}</span>
+          </div>
+          <p className="break-all">Message-ID: {outbound.messageId}</p>
+          <p>To: {outbound.recipientEmail} · From: {outbound.fromEmail}</p>
+        </div>
+      ) : null}
+
       <FormField label="Recipient email" htmlFor={`rfq-recipient-${draft.id}`}>
         <Input
           id={`rfq-recipient-${draft.id}`}
@@ -116,6 +240,7 @@ function DraftEditor({
           value={recipientEmail}
           onChange={(e) => setRecipientEmail(e.target.value)}
           autoComplete="off"
+          disabled={sent}
         />
       </FormField>
       <FormField label="Subject" htmlFor={`rfq-subject-${draft.id}`}>
@@ -124,6 +249,7 @@ function DraftEditor({
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           autoComplete="off"
+          disabled={sent}
         />
       </FormField>
       <FormField label="Message" htmlFor={`rfq-body-${draft.id}`}>
@@ -132,20 +258,117 @@ function DraftEditor({
           rows={12}
           value={body}
           onChange={(e) => setBody(e.target.value)}
+          disabled={sent}
         />
       </FormField>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          onClick={save}
-          disabled={saving}
-          className="cursor-pointer"
-        >
-          {saving ? "Saving…" : "Save changes"}
-        </Button>
-        {message ? <span className="text-xs">{message}</span> : null}
-      </div>
+      {!sent ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="cursor-pointer"
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+          {confirmingSend ? (
+            <>
+              <Button
+                type="button"
+                onClick={send}
+                disabled={sending}
+                className="cursor-pointer"
+              >
+                {sending ? "Sending…" : "Confirm send"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setConfirmingSend(false)}
+                disabled={sending}
+                className="cursor-pointer"
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => setConfirmingSend(true)}
+              disabled={saving || draft.inputsStale || !recipientEmail}
+              className="cursor-pointer"
+            >
+              Send price inquiry
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            onClick={checkReplies}
+            disabled={checking}
+            className="cursor-pointer"
+          >
+            {checking ? "Checking…" : "Check for replies"}
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Manual, bounded mailbox check — nothing runs automatically.
+          </span>
+        </div>
+      )}
+
+      {message ? <p className="text-xs">{message}</p> : null}
+
+      {collection && collection.inboundMessages.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Supplier replies
+          </p>
+          <ul className="space-y-3">
+            {collection.inboundMessages.map((inbound) => {
+              const quote = collection.quotes.find(
+                (candidate) => candidate.inboundMessageId === inbound.id,
+              );
+              return (
+                <li
+                  key={inbound.id}
+                  className="space-y-2 rounded-lg border border-border p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge
+                      tone={
+                        inbound.processingStatus === "EXTRACTED"
+                          ? "success"
+                          : inbound.processingStatus === "MATCHED"
+                            ? "info"
+                            : "warning"
+                      }
+                    >
+                      {MATCH_CONFIDENCE_LABEL[inbound.matchConfidence]}
+                    </Badge>
+                    {inbound.receivedAt ? (
+                      <span>Received {formatDateTime(inbound.receivedAt)}</span>
+                    ) : null}
+                                  </div>
+                  <p className="text-muted-foreground">
+                    From: {inbound.fromEmail ?? "unknown"} ·{" "}
+                    {inbound.subject ?? "(no subject)"}
+                  </p>
+                  {inbound.processingStatus === "UNMATCHED" ? (
+                    <p className="text-xs text-warning-foreground">
+                      Could not be linked to this RFQ with confidence — needs
+                      human review.
+                    </p>
+                  ) : null}
+                  {quote ? <QuoteSummary quote={quote} /> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
 
       <details>
         <summary className="cursor-pointer text-xs text-primary underline-offset-2 hover:underline">
@@ -160,14 +383,15 @@ function DraftEditor({
 }
 
 /**
- * Price inquiry (RFQ) review panel. Drafts are persisted for human review and
- * are never sent from here; there is intentionally no send action.
+ * Price inquiry (RFQ) review panel. Drafts are reviewed here; sending and reply
+ * checking are explicit human actions (market research, never buyer outreach).
  */
 export function PriceInquiryPanel({
   productId,
   opportunityId,
   leadId,
   drafts,
+  collection,
   senderProfiles,
   defaultSenderProfileId,
 }: {
@@ -175,6 +399,7 @@ export function PriceInquiryPanel({
   opportunityId: string;
   leadId: string;
   drafts: PriceInquiryDraftRead[];
+  collection: QuoteCollectionItemRead[];
   senderProfiles: SenderOption[];
   defaultSenderProfileId: string | null;
 }) {
@@ -209,8 +434,8 @@ export function PriceInquiryPanel({
       <CardHeader>
         <CardTitle>Price inquiry (RFQ)</CardTitle>
         <CardDescription>
-          Ask this supplier to quote. Drafts are saved for human review; nothing
-          is sent from here.
+          A market-research request for a supplier quote. Send and reply checks
+          are explicit human actions.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -264,6 +489,9 @@ export function PriceInquiryPanel({
                 opportunityId={opportunityId}
                 leadId={leadId}
                 draft={draft}
+                collection={
+                  collection.find((item) => item.draftId === draft.id) ?? null
+                }
               />
             ))}
           </ul>

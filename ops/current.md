@@ -1,76 +1,94 @@
-# Task: RFQ / price intelligence draft workflow
+# Task: Market Research quote collection (RFQ send + bounded reply capture + quote extraction)
 
-**Status:** ACCEPTED — committing to main (`feat(rfq): add market research price inquiry workflow`)
-**Type:** delegation (implementation complete; human review passed)
+**Status:** READY_FOR_HUMAN_REVIEW
+**Type:** delegation (implementation complete; live smoke passed; awaiting human review)
 **Scope:** `soft/` implementation + canonical docs
 
 ## Objective
 
-Add a persisted, reviewable price inquiry (RFQ) draft linked to an eligible lead,
-product/specification, selected published recipient, and sender identity, with a
-small review UI. No outbound email is sent in this task.
+Implement the controlled market-research supplier quote-collection loop:
+approve/send a reviewed RFQ from the draft's resolved **inquiry** sender, persist
+immutable outbound metadata, poll the inquiry mailbox in a bounded read-only way,
+associate a supplier reply with its RFQ, persist the reply safely, extract
+structured quotation fields with evidence provenance, and reflect the state.
+No final market-price summary, no bulk/automatic sending, no background polling,
+no attachment parsing, no mail deletion/move. No commit/push.
 
 ## Deliverables
 
-- Dedicated `PriceInquiryDraft` model + additive migration
-  `20260922180000_add_price_inquiry_drafts`.
-- New `price-inquiry` API module; shared `ContactDiscoveryService.selectRecipient`
-  reused by `outreach-drafter` and `price-inquiry`.
-- Contracts + guarded endpoints (create/list/get/patch).
-- Web: `PriceInquiryPanel` on the lead detail page (create + editable review,
-  explicit "Not sent — awaiting human review").
-- Docs: decisions, module-map §20, data-governance, project-state, architecture,
-  soft data-model/data-ownership.
+- New module `quote-collection` owning `quote_outbound_messages`,
+  `quote_inbound_messages`, `supplier_quotes`; migration
+  `20260924200000_add_quote_collection` (additive; `PriceInquiryStatus` gains
+  `SENT`/`REPLY_RECEIVED`/`QUOTE_EXTRACTED`).
+- `email-accounts` transport ports (`OutboundMailPort`/`InboundMailPort`) + SMTP
+  send / bounded IMAP reply adapters; password decrypted only inside the port.
+- `price-inquiry` owner-only status transitions (`markSent`,
+  `markReplyReceived`, `markQuoteExtracted`).
+- Contracts `quote-collection.ts` + extended `PriceInquiryStatus`.
+- Web: RFQ panel send (confirmed) / check-replies actions + read-only collection
+  display; new `entities/quote-collection`.
 
 ## Acceptance criteria
 
-- [x] Persisted RFQ draft with company/lead/opportunity, product, contact,
-      recipient email, sender profile, subject/body, purpose, status, provenance.
-- [x] Status starts `READY_FOR_HUMAN_REVIEW`; no `SENT` state; no send action.
-- [x] Reuses outreach eligibility and recipient selection; sender must be active
-      and linked to an email account.
-- [x] Product/spec grounded in persisted data only; PENDING/RESTRICTED excluded.
-- [x] Tests/typecheck/lint/verify/build green; no transport invoked.
+- [x] Send only from `READY_FOR_HUMAN_REVIEW`, explicit `confirm: true`, from the
+      draft's **inquiry** sender; sender ACTIVE + linked; recipient present;
+      immutable sent snapshot + preserved Message-ID; safe failure code;
+      duplicate send prevented.
+- [x] Bounded IMAP scan; header correlation first, bounded fallback only when
+      unique; ambiguous replies left unlinked; idempotent by mailbox uid.
+- [x] Reply persisted with provenance; fields extracted only from evidence;
+      unknown → null; warnings recorded.
+- [x] Research linkage via run evidence; no normalized market price.
+- [x] Tests/typecheck/lint/build/verify green; no live I/O in tests.
 
 ## Verification
 
-- contracts 61, API 124, web 152 tests pass; verify.sh 60/0; build exit 0.
+- contracts 66, API 153, web 154 tests pass; typecheck/lint clean; build exit 0;
+  `scripts/verify.sh` 60/0; `git diff --check` clean.
 
 ## Blockers / notes
 
-- No live send/read performed. Next task: approval-gated SMTP **sending** of a
-  reviewed RFQ draft, then supplier-reply capture and quotation/price extraction.
+- No live send/read performed. Next task: convert faithfully-persisted supplier
+  quotes into normalized `ResearchOffering`/price intelligence and a
+  market-price summary (explicitly out of scope here).
+- The IMAP adapter's exact `bodyParts`/headers shape should be confirmed in the
+  controlled live smoke step below before relying on it in production.
+
+## Controlled live steps (require explicit human confirmation; not run here)
+
+1. Create an ACTIVE email account for the inquiry mailbox with SMTP + IMAP
+   settings and a stored password (`EMAIL_SECRETS_KEY` set on the API).
+2. Link an ACTIVE inquiry sender profile to that account; assign it as the
+   product's `inquirySenderProfileId`.
+3. Create an RFQ draft for a qualified lead + that product, review the
+   subject/body, then **Send price inquiry** and confirm. Expect
+   "Submitted to outgoing SMTP server" and a stored Message-ID.
+4. Have the supplier reply to that message.
+5. Click **Check for replies**. Expect the reply matched by headers and a
+   structured quote extracted (nulls/warnings where the reply is silent).
+
+## Controlled live smoke (executed 2026-09-24)
+
+Two controlled send/reply cycles against the inquiry mailbox
+(`tomas.berg@sapiensmetric.eu`, recipient = the operator-controlled mailbox
+itself; no third party emailed), per explicit human approval.
+
+- Smoke #1 exposed and drove fixes for: IMAP body shape (`BODY[TEXT]` empty →
+  BODYSTRUCTURE + numeric part fetch), stale `check-replies` state, fallback
+  over-match on the outgoing copy, and unmatched-body privacy.
+- Smoke #2 (post-fix): reply captured (**887 chars**), **HEADER** match via
+  `In-Reply-To`, exactly one inbound link + one quote, fields extracted
+  (`1234.5 EUR`, `m3`, `MOQ 25 m3`, `FOB`, lead `4 weeks`, valid `30 days`,
+  VAT excluded, no warnings), API state = DB state = `QUOTE_EXTRACTED`, re-scan
+  idempotent (`persisted=0 skipped=5`), no unrelated body persisted
+  (UNMATCHED bodies length 0).
+- Both smoke drafts are marked `[TEST SMOKE - not a real supplier inquiry]`;
+  their rows are test-only, marked + documented (no production delete path; no
+  raw DB writes). No mail deleted/moved/marked-read.
+
+Full detail: `soft/tasks/done/2026-09-24-quote-collection.md`.
 
 ## Completion record
 
-Implementation complete 2026-09-22; workspace READY_FOR_HUMAN_REVIEW. No
-commit/push. Full detail: `soft/tasks/done/2026-09-22-price-inquiry-rfq-drafts.md`.
-
-## Finalization (2026-09-24)
-
-Pre-commit review passed; no secrets, `.env`, credentials, logs, live mailbox
-data, or temp artifacts in the change set (`.env`/`.env.local` are gitignored).
-Invariants confirmed: both product sender fields optional and independent; no
-inquiry→outreach fallback; outreach uses only `outreachSenderProfileId`; RFQ
-defaults only to `inquirySenderProfileId` with explicit override validated;
-sender company optional; closing from structured identity; no transport/send
-path in `price-inquiry`. Migrations (in order)
-`20260922180000` → `20260922220000` → `20260922240000` applied to `ai_sdr` and
-`ai_sdr_test_api`. Verification: contracts 61, API 124, web 152; typecheck/lint
-clean; production build exit 0; `scripts/verify.sh` 60/0; `git diff --check`
-clean. Committed to main; no live send/read performed.
-
-## Follow-up (same task)
-
-- Sender profile: company/brand optional + optional role/title; generated RFQ
-  closing built from structured identity (never the stored signature); draft
-  `language` persisted for future locales (English implemented). Migration
-  `20260922220000_sender_profile_optional_company_title`.
-- Separate sender contexts per product: replaced the single
-  `products.sender_profile_id` with `outreach_sender_profile_id` (buyer/sales
-  outreach) and a new nullable `inquiry_sender_profile_id` (market-research
-  price inquiries / RFQ). RFQ resolution: explicit selection → product inquiry
-  sender → else `409 inquiry_sender_profile_required`; **never** the outreach
-  sender. Buyer outreach uses only the outreach sender. Product create/edit now
-  shows two clearly separate selects with helper text. Additive migration
-  `20260922240000_product_split_sender_profiles`. No send/transport.
+Implementation complete 2026-09-24; workspace READY_FOR_HUMAN_REVIEW. No
+commit/push. Full detail: `soft/tasks/done/2026-09-24-quote-collection.md`.

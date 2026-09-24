@@ -4,7 +4,11 @@
  */
 
 export type PriceInquiryPurpose = "PRICE_INQUIRY";
-export type PriceInquiryStatus = "READY_FOR_HUMAN_REVIEW";
+export type PriceInquiryStatus =
+  | "READY_FOR_HUMAN_REVIEW"
+  | "SENT"
+  | "REPLY_RECEIVED"
+  | "QUOTE_EXTRACTED";
 
 export interface PriceInquirySenderSnapshotRead {
   senderName: string;
@@ -51,4 +55,21 @@ export interface PriceInquiryActionResult {
   message?: string;
   fieldErrors?: Record<string, string>;
   draft?: PriceInquiryDraftRead;
+}
+
+export interface SendPriceInquiryActionResult {
+  ok: boolean;
+  message?: string;
+  draft?: PriceInquiryDraftRead;
+}
+
+export interface CheckRepliesActionResult {
+  ok: boolean;
+  message?: string;
+  scanned?: number;
+  persisted?: number;
+  matched?: number;
+  extracted?: number;
+  unmatched?: number;
+  skipped?: number;
 }

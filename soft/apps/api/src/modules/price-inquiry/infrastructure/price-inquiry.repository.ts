@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Prisma, PrismaService } from '@ai-sdr/database';
 import type {
   CreatePriceInquiryDraftData,
+  PriceInquiryStatus,
   SenderSnapshot,
   UpdatePriceInquiryDraftData,
 } from '../domain/types.js';
@@ -88,6 +89,29 @@ export class PriceInquiryRepository {
   ): Promise<PriceInquiryDraftRow | null> {
     return this.prisma.db.priceInquiryDraft.findFirst({
       where: { id: draftId, opportunityId, leadId },
+      include: INCLUDE,
+    });
+  }
+
+  /** Loads one draft by id (used by the owner's status transitions). */
+  async findDraftById(draftId: string): Promise<PriceInquiryDraftRow | null> {
+    return this.prisma.db.priceInquiryDraft.findUnique({
+      where: { id: draftId },
+      include: INCLUDE,
+    });
+  }
+
+  /**
+   * Writes the draft status. Only the `price-inquiry` service calls this; the
+   * quote-collection module goes through that service.
+   */
+  async updateStatus(
+    draftId: string,
+    status: PriceInquiryStatus,
+  ): Promise<PriceInquiryDraftRow> {
+    return this.prisma.db.priceInquiryDraft.update({
+      where: { id: draftId },
+      data: { status },
       include: INCLUDE,
     });
   }

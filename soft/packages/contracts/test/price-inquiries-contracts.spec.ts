@@ -92,10 +92,17 @@ describe('price inquiry contracts', () => {
         smtpPassword: 'leak',
       }).success,
     ).toBe(false);
+    // The lifecycle now includes the send/reply/quote states.
     expect(
       PriceInquiryDraftResponseSchema.safeParse({
         ...VALID_RESPONSE,
         status: 'SENT',
+      }).success,
+    ).toBe(true);
+    expect(
+      PriceInquiryDraftResponseSchema.safeParse({
+        ...VALID_RESPONSE,
+        status: 'DELIVERED',
       }).success,
     ).toBe(false);
   });

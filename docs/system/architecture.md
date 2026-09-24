@@ -89,6 +89,7 @@ root `modules/` workspace**.
 | 17 | `email-accounts` | Mailbox transport (SMTP + IMAP config, encrypted secrets; no sending/monitoring) | **implemented (subset)** |
 | 18 | `dashboard` | Read-only admin summary (aggregate counts; owns no tables) | **implemented (subset)** |
 | 19 | `price-inquiry` | Price inquiry (RFQ) drafts (persisted, human review; no sending) | **implemented (subset)** |
+| 20 | `quote-collection` | Market-research supplier quote loop (approval-gated send, bounded reply capture, quote extraction) | **implemented (subset)** |
 
 What **is** implemented today is the host + data foundation, not the modules:
 the API host, liveness/readiness endpoints, the central PostgreSQL database, the

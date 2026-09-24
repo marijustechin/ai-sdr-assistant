@@ -15,6 +15,7 @@ import { SenderProfilesModule } from './modules/sender-profiles/sender-profiles.
 import { EmailAccountsModule } from './modules/email-accounts/email-accounts.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { PriceInquiryModule } from './modules/price-inquiry/price-inquiry.module.js';
+import { QuoteCollectionModule } from './modules/quote-collection/quote-collection.module.js';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { PriceInquiryModule } from './modules/price-inquiry/price-inquiry.module
     OutreachDrafterModule,
     DashboardModule,
     PriceInquiryModule,
+    QuoteCollectionModule,
   ],
   controllers: [HealthController, ReadinessController],
 })

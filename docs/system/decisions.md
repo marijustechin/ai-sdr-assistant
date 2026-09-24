@@ -12,6 +12,75 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-24 — Supplier quote collection is a Market Research operation (owning module `quote-collection`)
+
+- **Ownership.** A new module `quote-collection` owns the RFQ loop's three
+  tables — `quote_outbound_messages` (immutable send snapshot), `quote_inbound_messages`
+  (bounded supplier replies), and `supplier_quotes` (extracted commercial terms).
+  `price-inquiry` remains the sole writer of `price_inquiry_drafts`; reply/quote
+  processing advances draft status only through `PriceInquiryService`
+  (`markSent`/`markReplyReceived`/`markQuoteExtracted`). This keeps supplier
+  price clarification explicitly **market research**, never buyer outreach.
+- **Approval-gated send.** A draft may be sent only from
+  `READY_FOR_HUMAN_REVIEW`, by an explicit `confirm: true` human action, from the
+  draft's resolved **inquiry** sender (never the product's outreach sender). It
+  requires a present recipient, an ACTIVE sender profile linked to an ACTIVE
+  email account, non-empty subject/body, and non-stale inputs. Send is never
+  autonomous or bulk.
+- **Immutable outbound.** Each attempt persists a snapshot (from/recipient/
+  subject/body as sent) plus the **generated Message-ID we require the server to
+  use**, a submission status, and a short safe failure code on failure. Editing
+  the draft later never changes the sent record. Failures leave the draft
+  reviewable; a submitted outbound blocks a duplicate send.
+- **Transport ports stay in `email-accounts`.** `quote-collection` depends on
+  provider-neutral `OutboundMailPort` / `InboundMailPort`; the SMTP/IMAP adapters
+  resolve the account and decrypt the password **only inside the transport
+  boundary**. Credentials are never returned, logged, or stored in the new
+  tables.
+- **Bounded, idempotent reply capture.** A human-triggered "Check for replies"
+  scans only the draft's inquiry mailbox over a bounded recent window, reads
+  headers plus the plain-text body (no attachments; no delete/move/mark-read),
+  and is idempotent per mailbox message (`uidValidity:uid`). No background
+  polling is scheduled.
+- **Correlation.** Standards-based first (`In-Reply-To`/`References` against our
+  Message-ID). The bounded fallback (recipient relationship + normalized subject
+  + a sent-time window) is used only when headers are absent and only when it is
+  unique; ambiguous replies stay unlinked for human review. A message whose own
+  Message-ID equals one of our outbound Message-IDs (an outgoing copy) is never
+  treated as a reply, and localized reply/forward prefixes (e.g. `Ats.:`) are
+  normalized for the fallback subject comparison.
+- **Body extraction.** The inbound body is read by inspecting each message's
+  `BODYSTRUCTURE` and fetching only the concrete `text/plain` MIME part (else the
+  `text/html` part, converted to bounded plain text) by its part number, decoding
+  its transfer-encoding; attachments and embedded messages are never fetched. A
+  plain `BODY[TEXT]` request did **not** return content on the live hosted
+  provider, so it is not used. Empty/unusable messages yield an empty body — text
+  is never fabricated.
+- **Unmatched-message privacy.** A reply that cannot be confidently linked is
+  stored with bounded metadata only (mailbox uid, provider Message-ID,
+  In-Reply-To/References, from/to/subject, received time, processing state) for
+  human review; its body and evidence are **not** persisted. Only a confidently
+  matched reply's body becomes evidence/quotes.
+- **Extraction and normalization boundary.** Structured fields (price text/
+  amount/currency/unit, MOQ, Incoterm, loading, lead time, validity, VAT,
+  qualification) are extracted only where stated, each with a supporting excerpt
+  and warnings; unknown/ambiguous values stay null. The original terms are stored
+  faithfully; no unit normalization/comparable price is derived here (a later
+  Price Intelligence task).
+- **Research linkage.** The raw reply is persisted as run evidence
+  (`SourceReference` type `EMAIL_REPLY` + `Evidence`) and the inbound/quote rows
+  carry the lead's `researchRunId`; a derived `marketResearchState`
+  (PREPARED / AWAITING_REPLY / REPLY_RECEIVED / QUOTE_EXTRACTED / NO_RESPONSE) is
+  a view over the existing objects, not a second workflow model.
+
+Reason: supplier quotes are a market-research observation, not sales outreach.
+Keeping the loop in its own module with owner-mediated status transitions,
+human-only triggers, and evidence-grounded extraction prevents a sales identity
+or an unreviewed message from entering the price-intelligence record, and keeps
+secrets inside the single transport owner.
+
+---
+
 ## 2026-09-24 — Outreach and inquiry senders are separate product contexts
 
 - `products` carries **two independent, optional** sender assignments:

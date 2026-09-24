@@ -24,6 +24,7 @@ import {
 import type {
   CreatePriceInquiryDraftData,
   PriceInquiryDraftRecord,
+  PriceInquiryStatus,
   SenderSnapshot,
   UpdatePriceInquiryDraftData,
 } from '../domain/types.js';
@@ -230,6 +231,48 @@ export class PriceInquiryService {
 
     const updated = await this.repository.updateDraft(draftId, data);
     return this.toRecord(updated, lead, profile);
+  }
+
+  /**
+   * Owner-only lifecycle transitions, called by `quote-collection` after an
+   * explicit human send or bounded reply processing. Never reached from buyer
+   * outreach. A wrong-state send is a conflict; reply/quote steps are
+   * idempotent so a repeated scan cannot regress or double-advance a draft.
+   */
+  async markSent(draftId: string): Promise<void> {
+    await this.transition(draftId, ['READY_FOR_HUMAN_REVIEW'], 'SENT', {
+      conflict: 'rfq_not_ready_to_send',
+    });
+  }
+
+  async markReplyReceived(draftId: string): Promise<void> {
+    await this.transition(draftId, ['SENT'], 'REPLY_RECEIVED', {});
+  }
+
+  async markQuoteExtracted(draftId: string): Promise<void> {
+    await this.transition(draftId, ['REPLY_RECEIVED', 'SENT'], 'QUOTE_EXTRACTED', {});
+  }
+
+  private async transition(
+    draftId: string,
+    allowedFrom: PriceInquiryStatus[],
+    to: PriceInquiryStatus,
+    options: { conflict?: string },
+  ): Promise<void> {
+    const row = await this.repository.findDraftById(draftId);
+    if (!row) {
+      throw new NotFoundException({ error: 'price_inquiry_draft_not_found' });
+    }
+    if (row.status === to) return; // idempotent
+    if (!allowedFrom.includes(row.status)) {
+      // Already advanced past this step — no-op. An unexpected state only
+      // errors when the caller asked for a strict conflict.
+      if (options.conflict) {
+        throw new ConflictException({ error: options.conflict });
+      }
+      return;
+    }
+    await this.repository.updateStatus(draftId, to);
   }
 
   /** Established outreach eligibility: not rejected, not stale, and qualified. */

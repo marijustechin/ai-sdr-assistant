@@ -24,6 +24,7 @@ import { describeApiError } from "@shared/api/errors";
 import { listCompanyContacts } from "@/lib/api/contacts";
 import { listOutreachDrafts } from "@entities/outreach-draft/api";
 import { listPriceInquiryDrafts } from "@entities/price-inquiry/api";
+import { listQuoteCollection } from "@entities/quote-collection/api";
 import { listSenderProfiles } from "@entities/sender-profile/api";
 import { isUsableSenderProfile } from "@entities/price-inquiry";
 import { getLead } from "@/lib/api/leads";
@@ -37,6 +38,7 @@ import {
 import type { ContactRead } from "@/lib/contacts/types";
 import type { OutreachDraftRead } from "@entities/outreach-draft";
 import type { PriceInquiryDraftRead } from "@entities/price-inquiry";
+import type { QuoteCollectionItemRead } from "@entities/quote-collection";
 import type { LeadRead } from "@/lib/leads/types";
 
 export const metadata: Metadata = {
@@ -73,6 +75,7 @@ export default async function LeadDetailPage({
   let drafts: OutreachDraftRead[] = [];
   let draftsUnavailable = false;
   let rfqDrafts: PriceInquiryDraftRead[] = [];
+  let quoteCollection: QuoteCollectionItemRead[] = [];
   let senderProfiles: Array<{ id: string; label: string }> = [];
   let configured = true;
   let loadError: string | null = null;
@@ -105,6 +108,11 @@ export default async function LeadDetailPage({
       rfqDrafts = await listPriceInquiryDrafts(opportunityId, leadId);
     } catch {
       rfqDrafts = [];
+    }
+    try {
+      quoteCollection = await listQuoteCollection(opportunityId, leadId);
+    } catch {
+      quoteCollection = [];
     }
     try {
       senderProfiles = (await listSenderProfiles())
@@ -371,6 +379,7 @@ export default async function LeadDetailPage({
             opportunityId={opportunityId}
             leadId={leadId}
             drafts={rfqDrafts}
+            collection={quoteCollection}
             senderProfiles={senderProfiles}
             defaultSenderProfileId={
               product.inquirySenderProfileId &&

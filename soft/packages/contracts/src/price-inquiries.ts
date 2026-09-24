@@ -5,12 +5,18 @@ import { z } from 'zod';
  *
  * A price inquiry draft is generated from persisted product/specification data
  * and linked to the opportunity, lead, company, product, selected published
- * recipient, and sender identity. It never sends mail: every draft starts at
- * `READY_FOR_HUMAN_REVIEW`. No `SENT` state exists in this slice.
+ * recipient, and sender identity. It starts at `READY_FOR_HUMAN_REVIEW`; an
+ * explicit human send (owned by `quote-collection`) moves it through `SENT`,
+ * `REPLY_RECEIVED`, and `QUOTE_EXTRACTED`. Drafting alone never sends.
  */
 
 export const PriceInquiryPurposeSchema = z.enum(['PRICE_INQUIRY']);
-export const PriceInquiryStatusSchema = z.enum(['READY_FOR_HUMAN_REVIEW']);
+export const PriceInquiryStatusSchema = z.enum([
+  'READY_FOR_HUMAN_REVIEW',
+  'SENT',
+  'REPLY_RECEIVED',
+  'QUOTE_EXTRACTED',
+]);
 
 const email = z.email().max(320);
 

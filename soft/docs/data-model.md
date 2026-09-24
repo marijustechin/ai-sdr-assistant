@@ -73,7 +73,10 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `ContactSource` | `contact_sources` | Contact provenance: a `source_references` row (deduplicated by URL) + retrieval date + supporting excerpt; many per contact. | `contact-discovery` |
 | `OutreachDraft` | `outreach_drafts` | Evidence-backed **initial** outreach draft (or explicit `BLOCKED` outcome): recipient reference, subject/body, language, preparation status, rationale, context/evidence references, sender profile reference + non-secret identity snapshot + resolved `email_account_id` reference, precise missing fields; append-only/versioned + idempotent fingerprint; no send state. | `outreach-drafter` |
 | `SenderProfile` | `sender_profiles` | Reusable, product-independent sender **identity** (label, sender name, optional **role/title**, optional **company/brand**, From/Reply-To, optional signature, status) with an optional `email_account_id` reference; carries no transport credentials; usable without a company/brand. | `sender-profiles` |
-| `PriceInquiryDraft` | `price_inquiry_drafts` | Persisted, reviewable **price inquiry (RFQ) draft** linked to opportunity/lead/company/product/contact/sender; exact recipient + rationale; editable subject/body plus the immutable generated original; grounded `specification_summary`; status `READY_FOR_HUMAN_REVIEW`; no send state. | `price-inquiry` |
+| `PriceInquiryDraft` | `price_inquiry_drafts` | Persisted, reviewable **price inquiry (RFQ) draft** linked to opportunity/lead/company/product/contact/sender; exact recipient + rationale; editable subject/body plus the immutable generated original; grounded `specification_summary`; status `READY_FOR_HUMAN_REVIEW \| SENT \| REPLY_RECEIVED \| QUOTE_EXTRACTED`. | `price-inquiry` |
+| `QuoteOutboundMessage` | `quote_outbound_messages` | Immutable snapshot of one outbound RFQ send attempt (draft/sender/account refs, from/reply-to/recipient, subject/body as sent, preserved Message-ID, submission status + safe failure code); no credentials. | `quote-collection` |
+| `QuoteInboundMessage` | `quote_inbound_messages` | Bounded supplier reply (provider Message-ID, In-Reply-To/References, from/to/subject, received time, plain-text body, idempotent by mailbox uid, processing status, match confidence, research/evidence links). | `quote-collection` |
+| `SupplierQuote` | `supplier_quotes` | Structured commercial terms extracted from a supplier reply (price text/amount/currency/unit, MOQ, Incoterm, loading, lead time, validity, VAT, qualification) with per-field provenance and warnings; unknown fields stay null. | `quote-collection` |
 | `EmailAccount` | `email_accounts` | Technical password-mailbox connection (account email, status, `provider`, SMTP + IMAP host/port/TLS/username, `credentials_shared`); SMTP/IMAP passwords stored only as authenticated ciphertext (key in server config). | `email-accounts` |
 
 Every model carries a `/// @owner <module>` tag in `schema.prisma` (§5 of
@@ -340,17 +343,47 @@ application service — no module writes another module's table.
   **editable** `subject`/`body` plus the immutable `generatedSubject`/
   `generatedBody` (auditability); a grounded `specificationSummary` built only from
   the persisted product and its `CONFIRMED + OPERATIONAL` facts.
-- `purpose` (`PRICE_INQUIRY`) and `status` (`READY_FOR_HUMAN_REVIEW`); no `SENT`
-  state. `fingerprint` makes a create with identical inputs idempotent.
+- `purpose` (`PRICE_INQUIRY`) and `status` (`READY_FOR_HUMAN_REVIEW | SENT |
+  REPLY_RECEIVED | QUOTE_EXTRACTED`). Status changes are written only by
+  `price-inquiry`; the `quote-collection` loop advances them through the owner's
+  application service. `fingerprint` makes a create with identical inputs
+  idempotent.
 - `language` records the draft locale; the greeting, request text and closing are
   generated in that one language (English is the only implemented generator
   today; unimplemented locales resolve to English). The closing is built from
   structured sender identity (name + optional role/title + optional company) —
   never from the stored profile signature — with each line appearing at most once
   and no company invented.
-- **Future price intelligence** (outbound message metadata, supplier replies,
-  quotation evidence, normalized price/currency/unit/MOQ/Incoterm/origin/lead
-  time/validity) attach to this draft in later tasks.
+
+### 3.18 `QuoteOutboundMessage` / `QuoteInboundMessage` / `SupplierQuote` (market-research quote collection)
+
+Owned by `quote-collection`; this is the Market Research supplier quote loop,
+never buyer outreach. No transport credentials are stored here.
+
+- **`QuoteOutboundMessage`** — an immutable record of one outbound RFQ send
+  attempt: references to the draft/sender profile/email account plus the
+  from/reply-to/recipient, the `subject`/`body` **as sent**, the preserved
+  `messageId` we required the server to use, an optional server
+  `providerMessageId`, a `submissionStatus` (`SUBMITTED | FAILED`), a short safe
+  `failureCode`, and `sentAt`. Editing the draft later never changes it; a
+  submitted row blocks a resend.
+- **`QuoteInboundMessage`** — a bounded supplier reply: `mailboxUid`
+  (`uidValidity:uid`, unique per account for idempotency), provider Message-ID,
+  `inReplyTo`/`references`, from/to/subject, received time, the plain-text
+  `bodyText` (from the `text/plain` MIME part, else bounded sanitized HTML; no
+  attachments), `processingStatus`
+  (`MATCHED | UNMATCHED | EXTRACTED`), `matchConfidence`
+  (`HEADER | FALLBACK | NONE`), and optional research linkage
+  (`researchRunId`, `sourceReferenceId`, `evidenceId`). An unmatched reply is
+  kept with bounded metadata **only** (its `bodyText` stays empty and no evidence
+  is created); a message whose Message-ID equals an outbound Message-ID is
+  excluded as an outgoing copy.
+- **`SupplierQuote`** — the structured commercial terms extracted from one reply
+  (one per inbound message): `priceText`/`priceAmount`/`currency`/`priceUnit`,
+  `moqText`, `incoterm`, `loadingLocationText`, `leadTimeText`, `validityText`,
+  `vatIncluded`, `qualificationText`, a `fieldProvenance` map (field → supporting
+  excerpt), and `warnings`. Values are stored exactly as stated; a field not
+  clearly present stays null and no unit normalization happens here.
 
 ---
 

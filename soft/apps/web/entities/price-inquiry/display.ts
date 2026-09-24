@@ -4,10 +4,16 @@ type BadgeTone = "neutral" | "info" | "success" | "warning" | "danger" | "outlin
 
 export const PRICE_INQUIRY_STATUS_LABEL: Record<PriceInquiryStatus, string> = {
   READY_FOR_HUMAN_REVIEW: "Ready for human review",
+  SENT: "Sent — awaiting reply",
+  REPLY_RECEIVED: "Reply received",
+  QUOTE_EXTRACTED: "Quote extracted",
 };
 
 export const PRICE_INQUIRY_STATUS_TONE: Record<PriceInquiryStatus, BadgeTone> = {
   READY_FOR_HUMAN_REVIEW: "info",
+  SENT: "warning",
+  REPLY_RECEIVED: "info",
+  QUOTE_EXTRACTED: "success",
 };
 
 /**

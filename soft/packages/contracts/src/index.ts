@@ -10,3 +10,4 @@ export * from './sender-profiles.js';
 export * from './email-accounts.js';
 export * from './dashboard.js';
 export * from './price-inquiries.js';
+export * from './quote-collection.js';

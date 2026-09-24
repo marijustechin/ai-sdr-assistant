@@ -243,6 +243,8 @@ model SourceReference {
   opportunityLeads OpportunityCompany[]
   contactSources ContactSource[]
   outreachDrafts OutreachDraft[]
+  quoteInboundMessages QuoteInboundMessage[]
+  supplierQuotes  SupplierQuote[]
 
   @@unique([url])
   @@map("source_references")
@@ -268,6 +270,8 @@ model Evidence {
   offerings       ResearchOffering[]
   opportunityLeads OpportunityCompany[]
   outreachDrafts  OutreachDraft[]
+  quoteInboundMessages QuoteInboundMessage[]
+  supplierQuotes  SupplierQuote[]
 
   @@index([sourceReferenceId])
   @@index([researchRunId])
@@ -439,7 +443,7 @@ model OpportunityCompany {
   sourceReference SourceReference @relation(fields: [sourceReferenceId], references: [id], onDelete: Restrict)
   evidence        Evidence        @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
   claim           Claim?          @relation(fields: [claimId], references: [id], onDelete: SetNull)
-  outreachDrafts  OutreachDraft[]
+  outreachDrafts OutreachDraft[]
   priceInquiryDrafts PriceInquiryDraft[]
 
   @@unique([dedupKey])
@@ -580,6 +584,8 @@ model PriceInquiryDraft {
   contact         Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
   senderProfile   SenderProfile?     @relation(fields: [senderProfileId], references: [id], onDelete: SetNull)
   emailAccount    EmailAccount?      @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
+  quoteOutboundMessages QuoteOutboundMessage[] @relation("QuoteOutboundForDraft")
+  quoteInboundMessages  QuoteInboundMessage[]  @relation("QuoteInboundForDraft")
 
   @@unique([fingerprint])
   @@index([opportunityId])
@@ -596,10 +602,166 @@ enum PriceInquiryPurpose {
   PRICE_INQUIRY
 }
 
-/// Review status of a price inquiry draft. It never sends, so no `SENT` state
-/// exists; every draft starts `READY_FOR_HUMAN_REVIEW`.
+/// Lifecycle of a price inquiry draft. A draft starts at
+/// `READY_FOR_HUMAN_REVIEW`; an explicit human send moves it to `SENT`, and the
+/// bounded reply/quote steps move it to `REPLY_RECEIVED` / `QUOTE_EXTRACTED`.
+/// Status changes are written only by the owning `price-inquiry` module.
 enum PriceInquiryStatus {
   READY_FOR_HUMAN_REVIEW
+  SENT
+  REPLY_RECEIVED
+  QUOTE_EXTRACTED
+}
+
+/// Market-research supplier quote collection. These three tables are owned by
+/// `quote-collection` and represent the controlled RFQ loop for **market
+/// research** (supplier price inquiries), never buyer outreach. No transport
+/// credentials are stored here; sending/reading happens only through
+/// `email-accounts` ports invoked by an explicit human action.
+
+/// Submission result of an outbound RFQ message.
+enum QuoteOutboundStatus {
+  SUBMITTED
+  FAILED
+}
+
+/// Processing state of a persisted inbound supplier reply.
+enum QuoteInboundStatus {
+  MATCHED
+  UNMATCHED
+  EXTRACTED
+}
+
+/// How an inbound reply was correlated to an outbound RFQ.
+enum QuoteMatchConfidence {
+  HEADER
+  FALLBACK
+  NONE
+}
+
+/// An immutable record of one outbound RFQ send attempt. The subject/body
+/// snapshot and Message-ID are preserved verbatim even if the draft is edited
+/// later. Never stores credentials.
+/// @owner quote-collection
+model QuoteOutboundMessage {
+  id                 String              @id @default(uuid()) @db.Uuid
+  priceInquiryDraftId String             @map("price_inquiry_draft_id") @db.Uuid
+  opportunityId      String              @map("opportunity_id") @db.Uuid
+  leadId             String              @map("lead_id") @db.Uuid
+  companyId          String              @map("company_id") @db.Uuid
+  productId          String              @map("product_id") @db.Uuid
+  senderProfileId    String?             @map("sender_profile_id") @db.Uuid
+  emailAccountId     String?             @map("email_account_id") @db.Uuid
+  fromEmail          String              @map("from_email") @db.VarChar(320)
+  replyToEmail       String?             @map("reply_to_email") @db.VarChar(320)
+  recipientEmail     String              @map("recipient_email") @db.VarChar(320)
+  subject            String              @db.VarChar(512)
+  body               String              @db.Text
+  /// The Message-ID we generated and asked the server to use (preserved).
+  messageId          String              @unique @map("message_id") @db.VarChar(512)
+  /// Server-accepted identifier for the submitted message, when reported.
+  providerMessageId  String?             @map("provider_message_id") @db.VarChar(512)
+  submissionStatus   QuoteOutboundStatus @default(SUBMITTED) @map("submission_status")
+  /// Short, safe failure code when submission failed (never a raw error).
+  failureCode        String?             @map("failure_code") @db.VarChar(64)
+  sentAt             DateTime            @map("sent_at") @db.Timestamptz(6)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  draft          PriceInquiryDraft     @relation("QuoteOutboundForDraft", fields: [priceInquiryDraftId], references: [id], onDelete: Cascade)
+  senderProfile  SenderProfile?        @relation(fields: [senderProfileId], references: [id], onDelete: SetNull)
+  emailAccount   EmailAccount?         @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
+  inboundMessages QuoteInboundMessage[]
+  quotes         SupplierQuote[]
+
+  @@index([priceInquiryDraftId])
+  @@index([emailAccountId])
+  @@index([recipientEmail])
+  @@map("quote_outbound_messages")
+}
+
+/// A persisted inbound supplier reply, correlated to an outbound RFQ where
+/// confidence is sufficient. Idempotent per mailbox message (`mailboxUid`).
+/// @owner quote-collection
+model QuoteInboundMessage {
+  id                 String             @id @default(uuid()) @db.Uuid
+  emailAccountId     String?            @map("email_account_id") @db.Uuid
+  outboundMessageId  String?            @map("outbound_message_id") @db.Uuid
+  priceInquiryDraftId String?           @map("price_inquiry_draft_id") @db.Uuid
+  /// Bounded mailbox identity for idempotency (`uidValidity:uid`).
+  mailboxUid         String             @map("mailbox_uid") @db.VarChar(128)
+  providerMessageId  String?            @map("provider_message_id") @db.VarChar(512)
+  inReplyTo          String?            @map("in_reply_to") @db.VarChar(512)
+  references         String[]           @map("references")
+  fromEmail          String?            @map("from_email") @db.VarChar(320)
+  toEmail            String?            @map("to_email") @db.VarChar(320)
+  subject            String?            @db.VarChar(512)
+  bodyText           String             @map("body_text") @db.Text
+  receivedAt         DateTime?          @map("received_at") @db.Timestamptz(6)
+  processingStatus   QuoteInboundStatus @default(UNMATCHED) @map("processing_status")
+  matchConfidence    QuoteMatchConfidence @default(NONE) @map("match_confidence")
+  /// Research linkage (the link's run) for market-research state; a plain
+  /// reference, not a second research-run model.
+  researchRunId      String?            @map("research_run_id") @db.Uuid
+  sourceReferenceId  String?            @map("source_reference_id") @db.Uuid
+  evidenceId         String?            @map("evidence_id") @db.Uuid
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  emailAccount    EmailAccount?        @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
+  outboundMessage QuoteOutboundMessage? @relation(fields: [outboundMessageId], references: [id], onDelete: SetNull)
+  draft           PriceInquiryDraft?   @relation("QuoteInboundForDraft", fields: [priceInquiryDraftId], references: [id], onDelete: SetNull)
+  sourceReference SourceReference?     @relation(fields: [sourceReferenceId], references: [id], onDelete: SetNull)
+  evidence        Evidence?            @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  quote           SupplierQuote?
+
+  @@unique([emailAccountId, mailboxUid])
+  @@index([outboundMessageId])
+  @@index([priceInquiryDraftId])
+  @@index([evidenceId])
+  @@map("quote_inbound_messages")
+}
+
+/// Structured commercial terms extracted from a supplier reply, with evidence
+/// provenance. Every field is either explicitly present in the reply or null;
+/// values are never invented. Original terms are stored faithfully — no
+/// cross-unit normalization happens here.
+/// @owner quote-collection
+model SupplierQuote {
+  id                 String    @id @default(uuid()) @db.Uuid
+  inboundMessageId   String    @unique @map("inbound_message_id") @db.Uuid
+  outboundMessageId  String?   @map("outbound_message_id") @db.Uuid
+  priceInquiryDraftId String?  @map("price_inquiry_draft_id") @db.Uuid
+  researchRunId      String?   @map("research_run_id") @db.Uuid
+  /// Original price text exactly as stated (never parsed).
+  priceText          String?   @map("price_text") @db.Text
+  priceAmount        Decimal?  @map("price_amount") @db.Decimal(18, 6)
+  currency           String?   @db.VarChar(12)
+  priceUnit          String?   @map("price_unit") @db.VarChar(64)
+  moqText            String?   @map("moq_text") @db.VarChar(255)
+  incoterm           String?   @db.VarChar(16)
+  loadingLocationText String?  @map("loading_location_text") @db.VarChar(255)
+  leadTimeText       String?   @map("lead_time_text") @db.VarChar(255)
+  validityText       String?   @map("validity_text") @db.VarChar(255)
+  /// Null when the reply does not state whether VAT is included.
+  vatIncluded        Boolean?  @map("vat_included")
+  /// Spec qualification / deviation noted by the supplier, if any.
+  qualificationText  String?   @map("qualification_text") @db.Text
+  /// field → short excerpt from the reply supporting that value.
+  fieldProvenance    Json?     @map("field_provenance")
+  warnings           String[]  @map("warnings")
+  sourceReferenceId  String?   @map("source_reference_id") @db.Uuid
+  evidenceId         String?   @map("evidence_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  inboundMessage  QuoteInboundMessage  @relation(fields: [inboundMessageId], references: [id], onDelete: Cascade)
+  outboundMessage QuoteOutboundMessage? @relation(fields: [outboundMessageId], references: [id], onDelete: SetNull)
+  sourceReference SourceReference?     @relation(fields: [sourceReferenceId], references: [id], onDelete: SetNull)
+  evidence        Evidence?            @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+
+  @@index([priceInquiryDraftId])
+  @@index([outboundMessageId])
+  @@index([evidenceId])
+  @@map("supplier_quotes")
 }
 
 /// A reusable, product-independent sender identity for outreach drafts. An
@@ -630,6 +792,7 @@ model SenderProfile {
   productInquiries Product[]         @relation("ProductInquirySender")
   outreachDrafts OutreachDraft[]
   priceInquiryDrafts PriceInquiryDraft[]
+  quoteOutboundMessages QuoteOutboundMessage[]
 
   @@index([emailAccountId])
   @@map("sender_profiles")
@@ -674,6 +837,8 @@ model EmailAccount {
   senderProfiles SenderProfile[]
   outreachDrafts OutreachDraft[]
   priceInquiryDrafts PriceInquiryDraft[]
+  quoteOutboundMessages QuoteOutboundMessage[]
+  quoteInboundMessages QuoteInboundMessage[]
 
   @@map("email_accounts")
 }

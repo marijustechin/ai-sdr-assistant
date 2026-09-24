@@ -371,8 +371,9 @@ no new write path.
   `GET/PATCH .../price-inquiry-drafts/:id`.
 - **Responsibility:** own RFQ drafts. Generate a concise English price inquiry
   from the persisted product/specification and the selected recipient + sender
-  identity. **No transport is executed**: every draft starts at
-  `READY_FOR_HUMAN_REVIEW`, there is no `SENT` state, and no send action exists.
+  identity. **Drafting executes no transport**; a draft is sent only by the
+  `quote-collection` loop through an explicit human action, which advances the
+  status via this module's application service.
 - **Tables read/written (owner):** `price_inquiry_drafts`. Reuses (by reference)
   `opportunities`, `opportunity_companies`, `companies`, `products`, `contacts`,
   `sender_profiles`, `email_accounts`.
@@ -383,7 +384,8 @@ no new write path.
 - **Sender resolution:** explicit `senderProfileId` → else the product's
   `inquirySenderProfileId` → else `409 inquiry_sender_profile_required`. The
   product's **outreach** sender is never a fallback.
-- **Outputs:** `PriceInquiryDraft` (status `READY_FOR_HUMAN_REVIEW`).
+- **Outputs:** `PriceInquiryDraft` (status `READY_FOR_HUMAN_REVIEW | SENT |
+  REPLY_RECEIVED | QUOTE_EXTRACTED`). Status transitions are owner-only.
 - **Failure:** lead rejected/stale/not-eligible → `409`; unknown product → `400`;
   sender profile (missing → `inquiry_sender_profile_required`) / disabled / not
   linked → `409`; unusable recipient →
@@ -393,6 +395,47 @@ no new write path.
   The body only asks for price/unit/MOQ/Incoterm/loading/lead-time/VAT/validity
   and never asserts volume, frequency, destination, urgency, purchasing authority,
   or representation beyond the configured sender identity.
-- **Future:** outbound message metadata, supplier replies, quotation evidence, and
-  normalized price (currency/unit/MOQ/Incoterm/origin/lead-time/validity) will
-  reference this draft; none is implemented yet.
+- **Future:** normalized market price (currency/unit conversion, summary) is a
+  later Price Intelligence task; the sent/reply/quote records already reference
+  this draft.
+
+## 21. `quote-collection`
+
+- **Status:** implemented subset (2026-09-24) — the **Market Research supplier
+  quote collection** loop: approval-gated RFQ send, bounded reply capture,
+  correlation, and structured quote extraction. Guarded endpoints
+  `POST .../price-inquiry-drafts/:id/send` (`{confirm:true}`),
+  `POST .../price-inquiry-drafts/:id/check-replies`, and
+  `GET .../quote-collection`.
+- **Responsibility:** send a reviewed RFQ from its resolved **inquiry** sender,
+  persist an immutable outbound snapshot, bounded-read the inbox for replies,
+  correlate a reply to its RFQ, persist it safely, and extract structured terms.
+  This is **market research**, never buyer outreach. No bulk sending, no
+  follow-ups, no background polling, no attachment parsing, no mail
+  move/delete/mark-read.
+- **Tables read/written (owner):** `quote_outbound_messages`,
+  `quote_inbound_messages`, `supplier_quotes`. Reuses (by reference)
+  `price_inquiry_drafts` (via `price-inquiry`), `sender_profiles`,
+  `email_accounts`, `opportunities`, `opportunity_companies`, `companies`,
+  `products`, `source_references`, `evidence`, `research_runs`.
+- **Inputs:** lead + RFQ draft id; `email-accounts` ports for SMTP/IMAP
+  (password decrypted only inside the transport boundary).
+- **Send preconditions:** status `READY_FOR_HUMAN_REVIEW`, explicit
+  `confirm: true`, non-stale inputs, usable recipient, ACTIVE sender profile
+  linked to an ACTIVE email account, non-empty subject/body; a submitted outbound
+  blocks a resend.
+- **Correlation:** `In-Reply-To`/`References` against our Message-ID first;
+  bounded fallback (sender + normalized subject + sent-time window) only when
+  headers are absent and only when unique; ambiguous replies stay unlinked.
+- **Outputs:** `QuoteOutboundMessage` (immutable), `QuoteInboundMessage`
+  (idempotent per mailbox uid), `SupplierQuote` (fields with per-field
+  provenance/warnings), and a derived `marketResearchState`. The inbound body is
+  read by inspecting `BODYSTRUCTURE` and fetching only the concrete `text/plain`
+  part (else bounded sanitized `text/html`); attachments are never fetched, and
+  an unmatched message keeps bounded metadata only (no body, no evidence).
+- **Failure:** not-ready/already-sent/stale/recipient/sender/account problems →
+  `409`; missing subject/body → `400`; SMTP/IMAP transport failure → `502
+  rfq_send_failed` / `rfq_reply_scan_failed` with a short safe code. No
+  credentials are ever returned or logged.
+- **Boundary:** no price normalization/comparable-price summary; no automatic
+  polling; extraction reports only what the reply states (unknowns stay null).
