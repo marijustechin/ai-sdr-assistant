@@ -14,6 +14,7 @@ export function toSenderProfileRecord(
     id: profile.id,
     label: profile.label,
     senderName: profile.senderName,
+    senderTitle: profile.senderTitle,
     companyName: profile.companyName,
     fromEmail: profile.fromEmail,
     replyToEmail: profile.replyToEmail,
@@ -40,7 +41,8 @@ export class SenderProfilesRepository {
       data: {
         label: data.label,
         senderName: data.senderName,
-        companyName: data.companyName,
+        senderTitle: data.senderTitle ?? null,
+        companyName: data.companyName ?? null,
         fromEmail: data.fromEmail,
         replyToEmail: data.replyToEmail ?? null,
         signature: data.signature ?? null,
@@ -72,6 +74,7 @@ export class SenderProfilesRepository {
     const update: Prisma.SenderProfileUpdateInput = {};
     if (data.label !== undefined) update.label = data.label;
     if (data.senderName !== undefined) update.senderName = data.senderName;
+    if (data.senderTitle !== undefined) update.senderTitle = data.senderTitle;
     if (data.companyName !== undefined) update.companyName = data.companyName;
     if (data.fromEmail !== undefined) update.fromEmail = data.fromEmail;
     if (data.replyToEmail !== undefined) update.replyToEmail = data.replyToEmail;

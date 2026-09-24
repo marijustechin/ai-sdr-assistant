@@ -1,9 +1,23 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { CreateContactInput, UpdateContactInput } from '@ai-sdr/contracts';
 import { EvidenceService } from '../../evidence/application/evidence.service.js';
 import { LeadDiscovererService } from '../../lead-discoverer/application/lead-discoverer.service.js';
 import type { ContactRecord, CreateContactData } from '../domain/types.js';
 import { ContactRepository } from '../infrastructure/contact.repository.js';
+
+/** A published purchasing/procurement/specification role (generic keywords). */
+const RELEVANT_ROLE_PATTERN =
+  /(procure|purchas|buyer|sourcing|supply ?chain|import|einkauf|pirkim|iepirk|hank|ostu|ostja)/i;
+
+export interface RecipientSelection {
+  contact: ContactRecord | null;
+  recipientRationale: string;
+}
 
 /**
  * Application service for the `contact-discovery` module. Owns `contacts` and
@@ -71,6 +85,74 @@ export class ContactDiscoveryService {
   async listContacts(companyId: string): Promise<ContactRecord[]> {
     await this.leads.getCompany(companyId);
     return this.repository.listContacts(companyId);
+  }
+
+  /**
+   * Shared recipient selection for outreach and price inquiries. Considers only
+   * **usable** contacts with a **published** email; prefers a named person whose
+   * published title is explicitly relevant to purchasing/procurement, otherwise
+   * the earliest general company business email. It never infers a person's
+   * responsibility, and returns `contact: null` when nothing usable exists.
+   *
+   * The `recipientRationale` is a short human-readable explanation of the
+   * selection (persisted alongside the draft).
+   */
+  async selectRecipient(
+    companyId: string,
+    requestedContactId?: string,
+  ): Promise<RecipientSelection> {
+    const usable = (await this.listContacts(companyId)).filter(
+      (contact) => contact.usabilityStatus === 'USABLE' && contact.email,
+    );
+
+    if (requestedContactId) {
+      const requested = usable.find(
+        (contact) => contact.id === requestedContactId,
+      );
+      if (!requested) {
+        throw new BadRequestException({
+          error: 'contact_not_usable_or_missing_email',
+        });
+      }
+      return {
+        contact: requested,
+        recipientRationale:
+          'Operator-specified recipient (usable, published email).',
+      };
+    }
+
+    const named = usable
+      .filter(
+        (contact) =>
+          contact.contactType === 'NAMED_PERSON' &&
+          contact.personJobTitle !== null &&
+          RELEVANT_ROLE_PATTERN.test(contact.personJobTitle),
+      )
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    if (named.length > 0) {
+      const contact = named[0] as ContactRecord;
+      return {
+        contact,
+        recipientRationale: `Named contact with a published role relevant to purchasing (${contact.personJobTitle}).`,
+      };
+    }
+
+    const general = usable
+      .filter((contact) => contact.contactType === 'GENERAL_COMPANY')
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+    if (general) {
+      return {
+        contact: general,
+        recipientRationale:
+          'No named contact publishes a role relevant to purchasing; used the general company business email.',
+      };
+    }
+
+    return {
+      contact: null,
+      recipientRationale:
+        'No usable published business email is recorded for this company.',
+    };
   }
 
   async updateContact(

@@ -7,6 +7,7 @@ import type { SenderProfileStatus } from "@entities/sender-profile";
 export interface SenderProfileFormState {
   label: string;
   senderName: string;
+  senderTitle: string;
   companyName: string;
   fromEmail: string;
   replyToEmail: string;
@@ -19,6 +20,8 @@ export interface SenderProfileFormState {
  * Build the sender-profile request body from the form state.
  *
  * - Identity fields are always included. Blank Reply-To/signature are omitted.
+ * - `senderTitle` and `companyName` are optional; a blank value is omitted on
+ *   create and cleared (`null`) on edit. A company/brand is never invented.
  * - `status` is included only when editing.
  * - `emailAccountId` is included when chosen; on edit an empty selection clears
  *   the reference explicitly.
@@ -30,9 +33,18 @@ export function buildSenderProfilePayload(
   const values: Record<string, unknown> = {
     label: state.label,
     senderName: state.senderName,
-    companyName: state.companyName,
     fromEmail: state.fromEmail,
   };
+  if (state.senderTitle.trim().length > 0) {
+    values.senderTitle = state.senderTitle;
+  } else if (mode === "edit") {
+    values.senderTitle = null;
+  }
+  if (state.companyName.trim().length > 0) {
+    values.companyName = state.companyName;
+  } else if (mode === "edit") {
+    values.companyName = null;
+  }
   if (state.replyToEmail.trim().length > 0) {
     values.replyToEmail = state.replyToEmail;
   }

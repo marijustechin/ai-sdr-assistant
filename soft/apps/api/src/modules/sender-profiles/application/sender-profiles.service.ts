@@ -36,7 +36,12 @@ export class SenderProfilesService {
     return this.repository.create({
       label: input.label,
       senderName: input.senderName,
-      companyName: input.companyName,
+      ...(input.senderTitle !== undefined
+        ? { senderTitle: input.senderTitle }
+        : {}),
+      ...(input.companyName !== undefined
+        ? { companyName: input.companyName }
+        : {}),
       fromEmail: input.fromEmail,
       ...(input.replyToEmail !== undefined
         ? { replyToEmail: input.replyToEmail }
@@ -81,6 +86,7 @@ export class SenderProfilesService {
     const data: UpdateSenderProfileData = {};
     if (input.label !== undefined) data.label = input.label;
     if (input.senderName !== undefined) data.senderName = input.senderName;
+    if (input.senderTitle !== undefined) data.senderTitle = input.senderTitle;
     if (input.companyName !== undefined) data.companyName = input.companyName;
     if (input.fromEmail !== undefined) data.fromEmail = input.fromEmail;
     if (input.replyToEmail !== undefined) data.replyToEmail = input.replyToEmail;

@@ -88,6 +88,7 @@ root `modules/` workspace**.
 | 16 | `sender-profiles` | Reusable sender **identities** (no credentials; optional mailbox reference) | **implemented (subset)** |
 | 17 | `email-accounts` | Mailbox transport (SMTP + IMAP config, encrypted secrets; no sending/monitoring) | **implemented (subset)** |
 | 18 | `dashboard` | Read-only admin summary (aggregate counts; owns no tables) | **implemented (subset)** |
+| 19 | `price-inquiry` | Price inquiry (RFQ) drafts (persisted, human review; no sending) | **implemented (subset)** |
 
 What **is** implemented today is the host + data foundation, not the modules:
 the API host, liveness/readiness endpoints, the central PostgreSQL database, the

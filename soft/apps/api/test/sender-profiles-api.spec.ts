@@ -82,6 +82,27 @@ describe('Sender profiles API (integration)', () => {
     expect(list[0]?.id).toBe(profile.id);
   });
 
+  it('creates a minimal profile without company/brand, and accepts an optional title', async () => {
+    const minimal = await api('POST', '/sender-profiles', {
+      label: 'Minimal',
+      senderName: 'Tomas Berg',
+      fromEmail: 'tomas@example.invalid',
+    });
+    expect(minimal.statusCode).toBe(201);
+    const profile = minimal.json() as Json;
+    expect(profile.companyName).toBeNull();
+    expect(profile.senderTitle).toBeNull();
+
+    const titled = await api('POST', '/sender-profiles', {
+      label: 'Titled',
+      senderName: 'Tomas Berg',
+      senderTitle: 'Sourcing & Procurement',
+      fromEmail: 'tomas.titled@example.invalid',
+    });
+    expect(titled.statusCode).toBe(201);
+    expect((titled.json() as Json).senderTitle).toBe('Sourcing & Procurement');
+  });
+
   it('references a mailbox connection and rejects an unknown one', async () => {
     const account = (
       await api('POST', '/email-accounts', {
@@ -151,37 +172,53 @@ describe('Sender profiles API (integration)', () => {
     expect(missing.statusCode).toBe(404);
   });
 
-  it('assigns a profile to a product and clears it, without regression', async () => {
+  it('keeps outreach and inquiry sender assignments as separate, optional fields', async () => {
     const profile = (await api('POST', '/sender-profiles', identity)).json() as Json;
     const product = (
       await api('POST', '/products', { name: 'Cladding' })
     ).json() as Json;
-    expect(product.senderProfileId).toBeNull();
+    // Neither context assigned by default.
+    expect(product.outreachSenderProfileId).toBeNull();
+    expect(product.inquirySenderProfileId).toBeNull();
 
-    const assigned = await api(
+    // Outreach only.
+    const outreachOnly = await api(
       'PATCH',
       `/products/${product.id as string}`,
-      { senderProfileId: profile.id },
+      { outreachSenderProfileId: profile.id },
     );
-    expect(assigned.statusCode).toBe(200);
-    expect((assigned.json() as Json).senderProfileId).toBe(profile.id);
+    expect(outreachOnly.statusCode).toBe(200);
+    expect((outreachOnly.json() as Json).outreachSenderProfileId).toBe(profile.id);
+    expect((outreachOnly.json() as Json).inquirySenderProfileId).toBeNull();
+
+    // Inquiry only (outreach still set independently).
+    const inquiryOnly = await api(
+      'PATCH',
+      `/products/${product.id as string}`,
+      { inquirySenderProfileId: profile.id },
+    );
+    expect((inquiryOnly.json() as Json).inquirySenderProfileId).toBe(profile.id);
+    expect((inquiryOnly.json() as Json).outreachSenderProfileId).toBe(profile.id);
 
     const read = (
       await api('GET', `/products/${product.id as string}`)
     ).json() as Json;
-    expect(read.senderProfileId).toBe(profile.id);
+    expect(read.outreachSenderProfileId).toBe(profile.id);
+    expect(read.inquirySenderProfileId).toBe(profile.id);
 
+    // Clearing one clears only that context.
     const cleared = await api(
       'PATCH',
       `/products/${product.id as string}`,
-      { senderProfileId: null },
+      { outreachSenderProfileId: null },
     );
-    expect((cleared.json() as Json).senderProfileId).toBeNull();
+    expect((cleared.json() as Json).outreachSenderProfileId).toBeNull();
+    expect((cleared.json() as Json).inquirySenderProfileId).toBe(profile.id);
 
     const unknownProfile = await api(
       'PATCH',
       `/products/${product.id as string}`,
-      { senderProfileId: UNKNOWN_UUID },
+      { inquirySenderProfileId: UNKNOWN_UUID },
     );
     expect(unknownProfile.statusCode).toBe(400);
     expect((unknownProfile.json() as Json).error).toBe(

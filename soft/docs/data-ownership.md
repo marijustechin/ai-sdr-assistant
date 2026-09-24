@@ -39,7 +39,7 @@ This document defines the canonical table list, the single write-owner per table
 | `target_markets` | Where/to whom the product should be sold | `opportunities` |
 | `opportunity_target_markets` | Opportunity↔target-market join (compound unique) | `opportunities` |
 | `target_market_suggestions` | Research-driven suggestions (PENDING→ACCEPTED/REJECTED) | `opportunities` |
-| `products` | Reusable product catalog (canonical product identity) | `products-and-offers` |
+| `products` | Reusable product catalog (canonical product identity); optional separate `outreach_sender_profile_id` (buyer outreach) and `inquiry_sender_profile_id` (market-research RFQ) assignments | `products-and-offers` |
 | `offers` | Concrete sellable product form (variant) of one product | `products-and-offers` |
 | `opportunity_offers` | Per-opportunity commercial terms (1:1 with opportunity; deferred — not in T-004) | `products-and-offers` |
 | `product_facts` | Typed facts (PENDING/CONFIRMED/SUPERSEDED); exactly one Product or Offer subject | `products-and-offers` |
@@ -63,8 +63,9 @@ This document defines the canonical table list, the single write-owner per table
 | `contact_sources` | Contact↔source provenance (source reference deduplicated by URL + retrieval date + excerpt; many per contact) — **impl** (owner moved from the planned `evidence` to `contact-discovery`; `source_references` stays `evidence`-owned) | `contact-discovery` |
 | `research_record_sources` | ResearchRecord↔source join | `evidence` |
 | `outreach_draft_sources` | Draft↔source join | `evidence` |
+| `price_inquiry_drafts` | Persisted, reviewable price inquiry (RFQ) drafts: references to opportunity/lead/company/product/contact/sender, recipient email + rationale, editable subject/body + immutable generated original, grounded specification summary, provenance, status `READY_FOR_HUMAN_REVIEW` — **impl** | `price-inquiry` |
 | `outreach_drafts` | Initial outreach drafts: recipient ref, subject/body, language, `PREPARED \| BLOCKED`, rationale, context/evidence refs, sender profile ref + non-secret identity snapshot + resolved `email_account_id` ref, precise missing fields; versioned + idempotent; no send state — **impl** | `outreach-drafter` |
-| `sender_profiles` | Reusable sender **identities** (label, sender/company, From/Reply-To, signature, status) + optional `email_account_id`; **no** transport credentials; referenced by `products` and `outreach_drafts` — **impl** | `sender-profiles` |
+| `sender_profiles` | Reusable sender **identities** (label, sender name, optional **role/title**, optional **company/brand**, From/Reply-To, optional signature, status) + optional `email_account_id`; **no** transport credentials; usable without a company/brand — **impl** | `sender-profiles` |
 | `email_accounts` | Technical password-mailbox connection (account email, status, `provider`, SMTP + IMAP host/port/TLS/username, `credentials_shared`); SMTP/IMAP passwords stored only as authenticated ciphertext (key in server config); referenced by `sender_profiles` and `outreach_drafts` — **impl** | `email-accounts` |
 | `outreach_draft_research` | Draft↔research join (traceability) | `outreach-drafter` |
 | `customer_profiles` | Versioned ideal-customer profiles | `knowledge` |

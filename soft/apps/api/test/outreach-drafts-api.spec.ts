@@ -169,7 +169,7 @@ describe('Outreach drafts API (integration)', () => {
 
   async function assign(productId: string, senderProfileId: string | null) {
     const res = await api('PATCH', `/products/${productId}`, {
-      senderProfileId,
+      outreachSenderProfileId: senderProfileId,
     });
     expect(res.statusCode).toBe(200);
   }

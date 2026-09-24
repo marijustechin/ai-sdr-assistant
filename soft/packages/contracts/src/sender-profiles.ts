@@ -3,10 +3,12 @@ import { z } from 'zod';
 /**
  * Sender-profile contracts.
  *
- * A sender profile is a reusable **identity** (label, names, From/Reply-To,
- * signature) that optionally references a mailbox connection (`emailAccountId`,
- * owned by `email-accounts`). It never carries transport credentials — those
- * live only on the email account.
+ * A sender profile is a reusable **identity** (label, sender name, optional
+ * role/title, optional company/brand, From/Reply-To) that optionally references
+ * a mailbox connection (`emailAccountId`, owned by `email-accounts`). It never
+ * carries transport credentials — those live only on the email account. A
+ * company/brand and a signature are optional; generation must never invent a
+ * company, and must not depend on a stored signature.
  */
 
 export const SenderProfileStatusSchema = z.enum(['ACTIVE', 'DISABLED']);
@@ -16,7 +18,8 @@ const email = z.email().max(320);
 export const CreateSenderProfileSchema = z.strictObject({
   label: z.string().trim().min(1).max(255),
   senderName: z.string().trim().min(1).max(255),
-  companyName: z.string().trim().min(1).max(255),
+  senderTitle: z.string().trim().min(1).max(255).optional(),
+  companyName: z.string().trim().min(1).max(255).optional(),
   fromEmail: email,
   replyToEmail: email.optional(),
   signature: z.string().max(4000).optional(),
@@ -24,11 +27,12 @@ export const CreateSenderProfileSchema = z.strictObject({
   emailAccountId: z.uuid().optional(),
 });
 
-/** Partial update. `emailAccountId: null` clears the mailbox connection. */
+/** Partial update. `null` clears an optional field. */
 export const UpdateSenderProfileSchema = z.strictObject({
   label: z.string().trim().min(1).max(255).optional(),
   senderName: z.string().trim().min(1).max(255).optional(),
-  companyName: z.string().trim().min(1).max(255).optional(),
+  senderTitle: z.string().trim().min(1).max(255).nullable().optional(),
+  companyName: z.string().trim().min(1).max(255).nullable().optional(),
   fromEmail: email.optional(),
   replyToEmail: email.nullable().optional(),
   signature: z.string().max(4000).nullable().optional(),
@@ -41,7 +45,8 @@ export const SenderProfileResponseSchema = z.strictObject({
   id: z.string().min(1),
   label: z.string(),
   senderName: z.string(),
-  companyName: z.string(),
+  senderTitle: z.string().nullable(),
+  companyName: z.string().nullable(),
   fromEmail: z.string(),
   replyToEmail: z.string().nullable(),
   signature: z.string().nullable(),

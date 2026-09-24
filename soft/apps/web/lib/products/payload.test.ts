@@ -43,6 +43,26 @@ describe("buildCreateProductPayload", () => {
       lifecycleStatus: "ACTIVE",
     });
   });
+
+  it("keeps outreach and inquiry senders as separate fields", () => {
+    expect(
+      buildCreateProductPayload({
+        name: "Abachi",
+        outreachSenderProfileId: "outreach-1",
+        inquirySenderProfileId: "inquiry-1",
+      }),
+    ).toEqual({
+      name: "Abachi",
+      outreachSenderProfileId: "outreach-1",
+      inquirySenderProfileId: "inquiry-1",
+    });
+    expect(
+      buildCreateProductPayload({
+        name: "Abachi",
+        outreachSenderProfileId: "outreach-1",
+      }),
+    ).toEqual({ name: "Abachi", outreachSenderProfileId: "outreach-1" });
+  });
 });
 
 describe("buildUpdateProductPayload", () => {
@@ -61,7 +81,8 @@ describe("buildUpdateProductPayload", () => {
       description: "Updated summary",
       category: null,
       lifecycleStatus: "ARCHIVED",
-      senderProfileId: null,
+      outreachSenderProfileId: null,
+      inquirySenderProfileId: null,
     });
   });
 

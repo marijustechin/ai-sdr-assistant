@@ -233,7 +233,7 @@ describe('Dashboard summary API (integration)', () => {
     });
     expect(profile.statusCode).toBe(201);
     await api('PATCH', `/products/${productId}`, {
-      senderProfileId: (profile.json() as Json).id,
+      outreachSenderProfileId: (profile.json() as Json).id,
     });
     const draft = await api(
       'POST',

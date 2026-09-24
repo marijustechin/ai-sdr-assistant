@@ -7,6 +7,7 @@ function profile(overrides: Partial<SenderProfileRead> = {}): SenderProfileRead 
     id: "p1",
     label: "Acme Sales",
     senderName: "Jane Doe",
+    senderTitle: null,
     companyName: "Acme Timber",
     fromEmail: "jane@acme.invalid",
     replyToEmail: null,

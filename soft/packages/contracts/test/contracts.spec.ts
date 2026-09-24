@@ -88,7 +88,8 @@ describe('product read and update contracts', () => {
     description: 'Heat-treated.',
     category: 'hardwood timber',
     lifecycleStatus: 'ACTIVE',
-    senderProfileId: null,
+    outreachSenderProfileId: null,
+    inquirySenderProfileId: null,
     createdAt: '2026-09-15T10:00:00.000Z',
     updatedAt: '2026-09-15T11:00:00.000Z',
   };

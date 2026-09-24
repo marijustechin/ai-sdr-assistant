@@ -100,7 +100,9 @@ export default async function SenderProfilesPage() {
                   </Badge>
                 </div>
                 <CardDescription>
-                  {profile.senderName} · {profile.companyName} · {profile.fromEmail}
+                  {[profile.senderName, profile.senderTitle, profile.companyName, profile.fromEmail]
+                    .filter((part): part is string => Boolean(part))
+                    .join(" · ")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap items-center justify-between gap-2 text-sm">

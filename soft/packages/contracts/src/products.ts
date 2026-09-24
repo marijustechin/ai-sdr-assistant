@@ -31,7 +31,8 @@ export const CreateProductSchema = z.strictObject({
   description: z.string().trim().min(1).optional(),
   category: z.string().trim().min(1).max(120).optional(),
   lifecycleStatus: ProductLifecycleStatusSchema.optional(),
-  senderProfileId: z.uuid().optional(),
+  outreachSenderProfileId: z.uuid().optional(),
+  inquirySenderProfileId: z.uuid().optional(),
 });
 
 export const CreateOfferSchema = z.strictObject({
@@ -50,13 +51,15 @@ export const UpdateProductSchema = z.strictObject({
   description: z.string().trim().min(1).nullable().optional(),
   category: z.string().trim().min(1).max(120).nullable().optional(),
   lifecycleStatus: ProductLifecycleStatusSchema.optional(),
-  senderProfileId: z.uuid().nullable().optional(),
+  outreachSenderProfileId: z.uuid().nullable().optional(),
+  inquirySenderProfileId: z.uuid().nullable().optional(),
 });
 
 /**
  * Public Product read shape. Intentionally small: identity, the stored text
  * fields, lifecycle, and timestamps. No facts, offers, target markets, research
- * status, or derived values.
+ * status, or derived values. The two sender assignments are **separate
+ * contexts**: outreach (buyer/sales) and inquiry (market-research RFQ).
  */
 export const ProductResponseSchema = z.strictObject({
   id: z.string().min(1),
@@ -65,7 +68,8 @@ export const ProductResponseSchema = z.strictObject({
   description: z.string().nullable(),
   category: z.string().nullable(),
   lifecycleStatus: ProductLifecycleStatusSchema,
-  senderProfileId: z.string().nullable(),
+  outreachSenderProfileId: z.string().nullable(),
+  inquirySenderProfileId: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

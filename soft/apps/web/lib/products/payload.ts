@@ -24,7 +24,12 @@ export function buildCreateProductPayload(
   if (values.description) payload.description = values.description;
   if (values.category) payload.category = values.category;
   if (values.lifecycleStatus) payload.lifecycleStatus = values.lifecycleStatus;
-  if (values.senderProfileId) payload.senderProfileId = values.senderProfileId;
+  if (values.outreachSenderProfileId) {
+    payload.outreachSenderProfileId = values.outreachSenderProfileId;
+  }
+  if (values.inquirySenderProfileId) {
+    payload.inquirySenderProfileId = values.inquirySenderProfileId;
+  }
   return payload;
 }
 
@@ -44,6 +49,11 @@ export function buildUpdateProductPayload(
     ...(values.lifecycleStatus
       ? { lifecycleStatus: values.lifecycleStatus }
       : {}),
-    senderProfileId: values.senderProfileId ? values.senderProfileId : null,
+    outreachSenderProfileId: values.outreachSenderProfileId
+      ? values.outreachSenderProfileId
+      : null,
+    inquirySenderProfileId: values.inquirySenderProfileId
+      ? values.inquirySenderProfileId
+      : null,
   };
 }

@@ -11,7 +11,8 @@ export interface SenderProfileRead {
   id: string;
   label: string;
   senderName: string;
-  companyName: string;
+  senderTitle: string | null;
+  companyName: string | null;
   fromEmail: string;
   replyToEmail: string | null;
   signature: string | null;

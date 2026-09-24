@@ -54,7 +54,7 @@ export interface DraftContentInput {
   observedActivityText: string;
   offerSummary: string;
   senderName: string;
-  senderCompany: string;
+  senderCompany: string | null;
   signature?: string;
 }
 
@@ -65,7 +65,10 @@ export interface DraftContent {
 
 export function buildDraftContent(input: DraftContentInput): DraftContent {
   const scaffold = SCAFFOLDS[input.language] ?? DEFAULT_SCAFFOLD;
-  const signatureLines = [input.senderName, input.senderCompany];
+  const signatureLines: string[] = [input.senderName];
+  if (input.senderCompany && input.senderCompany !== input.senderName) {
+    signatureLines.push(input.senderCompany);
+  }
   if (input.signature) {
     signatureLines.push('', input.signature);
   }

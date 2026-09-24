@@ -14,6 +14,7 @@ import { OutreachDrafterModule } from './modules/outreach-drafter/outreach-draft
 import { SenderProfilesModule } from './modules/sender-profiles/sender-profiles.module.js';
 import { EmailAccountsModule } from './modules/email-accounts/email-accounts.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
+import { PriceInquiryModule } from './modules/price-inquiry/price-inquiry.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module.js';
     EmailAccountsModule,
     OutreachDrafterModule,
     DashboardModule,
+    PriceInquiryModule,
   ],
   controllers: [HealthController, ReadinessController],
 })

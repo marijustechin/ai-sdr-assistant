@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import {
-  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -9,7 +8,6 @@ import {
 import type { PrepareOutreachDraftInput } from '@ai-sdr/contracts';
 import type { ResearchContext } from '@ai-sdr/contracts';
 import { ContactDiscoveryService } from '../../contact-discovery/application/contact-discovery.service.js';
-import type { ContactRecord } from '../../contact-discovery/domain/types.js';
 import { ResearchContextService } from '../../control-plane/application/research-context.service.js';
 import { LeadDiscovererService } from '../../lead-discoverer/application/lead-discoverer.service.js';
 import type { LeadRecord } from '../../lead-discoverer/domain/types.js';
@@ -27,10 +25,6 @@ import {
   OutreachDraftRepository,
   type OutreachDraftRow,
 } from '../infrastructure/outreach-draft.repository.js';
-
-/** A published purchasing/procurement/specification role (generic keywords). */
-const RELEVANT_ROLE_PATTERN =
-  /(procure|purchas|buyer|sourcing|supply ?chain|import|einkauf|pirkim|iepirk|hank|ostu|ostja)/i;
 
 interface SenderResolution {
   assignmentId: string | null;
@@ -80,13 +74,8 @@ export class OutreachDrafterService {
       throw new ConflictException({ error: 'lead_not_eligible' });
     }
 
-    const usable = (await this.contacts.listContacts(lead.companyId)).filter(
-      (contact) => contact.usabilityStatus === 'USABLE' && contact.email,
-    );
-    const { contact, recipientRationale } = this.selectRecipient(
-      usable,
-      input.contactId,
-    );
+    const { contact, recipientRationale } =
+      await this.contacts.selectRecipient(lead.companyId, input.contactId);
 
     const chosen = input.language
       ? {
@@ -266,7 +255,9 @@ export class OutreachDrafterService {
   ): Promise<SenderResolution> {
     if (!productId) return { assignmentId: null, profile: null };
     const product = await this.products.getProduct(productId);
-    const assignmentId = product?.senderProfileId ?? null;
+    // Buyer outreach uses only the product's outreach sender; the inquiry
+    // sender is a separate context and is never consulted here.
+    const assignmentId = product?.outreachSenderProfileId ?? null;
     const profile = assignmentId
       ? await this.senderProfiles.getProfile(assignmentId)
       : null;
@@ -282,60 +273,6 @@ export class OutreachDrafterService {
     } catch {
       return { assignmentId: null, profile: null };
     }
-  }
-
-  private selectRecipient(
-    usable: ContactRecord[],
-    requestedContactId?: string,
-  ): { contact: ContactRecord | null; recipientRationale: string } {
-    if (requestedContactId) {
-      const requested = usable.find(
-        (contact) => contact.id === requestedContactId,
-      );
-      if (!requested) {
-        throw new BadRequestException({
-          error: 'contact_not_usable_or_missing_email',
-        });
-      }
-      return {
-        contact: requested,
-        recipientRationale:
-          'Operator-specified recipient (usable, published email).',
-      };
-    }
-
-    const named = usable
-      .filter(
-        (contact) =>
-          contact.contactType === 'NAMED_PERSON' &&
-          contact.personJobTitle !== null &&
-          RELEVANT_ROLE_PATTERN.test(contact.personJobTitle),
-      )
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-    if (named.length > 0) {
-      const contact = named[0] as ContactRecord;
-      return {
-        contact,
-        recipientRationale: `Named contact with a published role relevant to purchasing (${contact.personJobTitle}).`,
-      };
-    }
-
-    const general = usable
-      .filter((contact) => contact.contactType === 'GENERAL_COMPANY')
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
-    if (general) {
-      return {
-        contact: general,
-        recipientRationale:
-          'No named contact publishes a role relevant to purchasing; used the general company business email.',
-      };
-    }
-
-    return {
-      contact: null,
-      recipientRationale:
-        'No usable published business email is recorded for this company.',
-    };
   }
 
   private toRecord(

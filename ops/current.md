@@ -1,60 +1,76 @@
-# Task: Password mailbox SMTP/IMAP verification — READY_FOR_HUMAN_REVIEW
+# Task: RFQ / price intelligence draft workflow
 
-**Status:** READY_FOR_HUMAN_REVIEW
-**Type:** delegation (implementation complete; awaiting human review)
+**Status:** ACCEPTED — committing to main (`feat(rfq): add market research price inquiry workflow`)
+**Type:** delegation (implementation complete; human review passed)
 **Scope:** `soft/` implementation + canonical docs
 
 ## Objective
 
-Roll back the (uncommitted) Microsoft OAuth2 work and keep only provider-neutral,
-password-authenticated SMTP/IMAP functionality: bounded connection verification, a
-bounded IMAP read, a bounded single-recipient test send, and secret redaction.
-The model is simply: EmailAccount → SMTP + IMAP config → encrypted password →
-sender identities.
+Add a persisted, reviewable price inquiry (RFQ) draft linked to an eligible lead,
+product/specification, selected published recipient, and sender identity, with a
+small review UI. No outbound email is sent in this task.
 
 ## Deliverables
 
-- Removed: Microsoft OAuth flow/PKCE/state, OAuth callback route, OAuth
-  service/repository, token persistence, OAuth columns/table/enum,
-  `MICROSOFT_OAUTH_*` env, Microsoft connection UI/status, Microsoft docs/tests.
-- Kept/adapted: `nodemailer` + `imapflow`, `domain/mailbox-transport.ts`
-  (password builders), `application/mailbox-verifier.service.ts` (bounded
-  `verify-smtp` / `verify-imap` / `test-send`), contracts for the verification
-  result + confirmed test send, and the web verification panel + Server Actions.
-- New migration `20260922160000_drop_email_auth_kind` (removes the reserved
-  `auth_kind` column and `EmailAuthKind` enum).
+- Dedicated `PriceInquiryDraft` model + additive migration
+  `20260922180000_add_price_inquiry_drafts`.
+- New `price-inquiry` API module; shared `ContactDiscoveryService.selectRecipient`
+  reused by `outreach-drafter` and `price-inquiry`.
+- Contracts + guarded endpoints (create/list/get/patch).
+- Web: `PriceInquiryPanel` on the lead detail page (create + editable review,
+  explicit "Not sent — awaiting human review").
+- Docs: decisions, module-map §20, data-governance, project-state, architecture,
+  soft data-model/data-ownership.
 
 ## Acceptance criteria
 
-- [x] No Microsoft/OAuth schema, code, env, or docs remain.
-- [x] Password SMTP/IMAP verification works in code + tests (no live connection run).
-- [x] Secrets are never returned/logged; failures are short redacted codes.
-- [x] Tests/typecheck/lint/verify/build green.
+- [x] Persisted RFQ draft with company/lead/opportunity, product, contact,
+      recipient email, sender profile, subject/body, purpose, status, provenance.
+- [x] Status starts `READY_FOR_HUMAN_REVIEW`; no `SENT` state; no send action.
+- [x] Reuses outreach eligibility and recipient selection; sender must be active
+      and linked to an email account.
+- [x] Product/spec grounded in persisted data only; PENDING/RESTRICTED excluded.
+- [x] Tests/typecheck/lint/verify/build green; no transport invoked.
 
 ## Verification
 
-- contracts 57, API 103, web 138 tests pass; verify.sh 60/0; build exit 0.
+- contracts 61, API 124, web 152 tests pass; verify.sh 60/0; build exit 0.
 
 ## Blockers / notes
 
-- No live send/read performed.
-- Prisma schema-engine is blocked by Device Guard on this host; the migration was
-  applied via `psql` and recorded. Tests run with `TEST_DB_SKIP_MIGRATE=1`
-  (default unchanged).
+- No live send/read performed. Next task: approval-gated SMTP **sending** of a
+  reviewed RFQ draft, then supplier-reply capture and quotation/price extraction.
 
 ## Completion record
 
 Implementation complete 2026-09-22; workspace READY_FOR_HUMAN_REVIEW. No
-commit/push. Full detail: `soft/tasks/done/2026-09-22-mailbox-password-verification.md`.
+commit/push. Full detail: `soft/tasks/done/2026-09-22-price-inquiry-rfq-drafts.md`.
 
-## Follow-up (same review scope)
+## Finalization (2026-09-24)
 
-- Mailbox verification **feedback**: per-action `idle | pending | success | error`
-  state for SMTP, IMAP and test send (emerald-300 verified button, destructive
-  error button, safe detail), and a fix for the spurious generic 400 caused by
-  bodyless POSTs sending `content-type: application/json`. See
-  `soft/tasks/done/2026-09-22-mailbox-verification-feedback.md`.
-- **IMAP verification diagnosis**: staged instrumentation (TCP/TLS probe then
-  auth/INBOX/fetch classification, safe codes only) and empty-mailbox hardening;
-  live SMTP + IMAP verification both succeed. See
-  `soft/tasks/done/2026-09-22-imap-verification-diagnosis.md`.
+Pre-commit review passed; no secrets, `.env`, credentials, logs, live mailbox
+data, or temp artifacts in the change set (`.env`/`.env.local` are gitignored).
+Invariants confirmed: both product sender fields optional and independent; no
+inquiry→outreach fallback; outreach uses only `outreachSenderProfileId`; RFQ
+defaults only to `inquirySenderProfileId` with explicit override validated;
+sender company optional; closing from structured identity; no transport/send
+path in `price-inquiry`. Migrations (in order)
+`20260922180000` → `20260922220000` → `20260922240000` applied to `ai_sdr` and
+`ai_sdr_test_api`. Verification: contracts 61, API 124, web 152; typecheck/lint
+clean; production build exit 0; `scripts/verify.sh` 60/0; `git diff --check`
+clean. Committed to main; no live send/read performed.
+
+## Follow-up (same task)
+
+- Sender profile: company/brand optional + optional role/title; generated RFQ
+  closing built from structured identity (never the stored signature); draft
+  `language` persisted for future locales (English implemented). Migration
+  `20260922220000_sender_profile_optional_company_title`.
+- Separate sender contexts per product: replaced the single
+  `products.sender_profile_id` with `outreach_sender_profile_id` (buyer/sales
+  outreach) and a new nullable `inquiry_sender_profile_id` (market-research
+  price inquiries / RFQ). RFQ resolution: explicit selection → product inquiry
+  sender → else `409 inquiry_sender_profile_required`; **never** the outreach
+  sender. Buyer outreach uses only the outreach sender. Product create/edit now
+  shows two clearly separate selects with helper text. Additive migration
+  `20260922240000_product_split_sender_profiles`. No send/transport.

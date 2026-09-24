@@ -12,6 +12,105 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-24 — Outreach and inquiry senders are separate product contexts
+
+- `products` carries **two independent, optional** sender assignments:
+  `outreach_sender_profile_id` (buyer/sales outreach) and
+  `inquiry_sender_profile_id` (market-research price inquiries / RFQ). The prior
+  single `products.sender_profile_id` is **renamed** to
+  `outreach_sender_profile_id` (existing assignments preserved); the inquiry
+  field is new, nullable, and empty until explicitly set. Both are validated
+  through `sender-profiles` (unknown → `400 sender_profile_not_found`; no silent
+  default, no first-profile fallback).
+- **No cross-context fallback.** `outreach-drafter` reads only the **outreach**
+  field; `price-inquiry` resolves an explicit `senderProfileId` first, then the
+  product's **inquiry** field, and otherwise fails
+  `409 inquiry_sender_profile_required`. An inquiry is never created under the
+  outreach identity, and outreach never uses the inquiry identity.
+- **Inquiry eligibility.** An inquiry sender must be `ACTIVE` **and** linked to a
+  mailbox (`email_accounts`) before it can create an RFQ; an unlinked profile is
+  rejected (`409 sender_profile_not_linked`).
+- **UI.** Product create/edit exposes two clearly separate selects — *Outreach
+  sender profile* and *Inquiry sender profile* — each optional and both
+  referencing usable active profiles, with helper text stating each purpose.
+
+Reason: buyer outreach and market-research supplier inquiries serve different
+audiences and identities. A single implicit product sender let a sales identity
+be used for a supplier RFQ (and vice versa). Explicit, separate contexts make the
+intent human-visible and machine-enforced.
+
+---
+
+## 2026-09-22 — Sender profiles: optional company/brand, structured closing, locale
+
+Two domain corrections to the price-inquiry (RFQ) work:
+
+- **Company/brand is optional.** `sender_profiles.companyName` is nullable, and an
+  optional **`senderTitle`** (role/title) was added. A sender profile is fully
+  usable with only a sender name, a From email, and (for RFQ) a linked mailbox.
+  When no company is configured, **no generated content may invent or imply one**.
+- **The RFQ closing is generated from structured identity, never from a stored
+  signature.** Generation no longer reads `signature`; the closing is
+  `Best regards,` + sender name + optional role/title + optional company, each
+  line at most once and only when configured. A stored signature remains an
+  optional free-text field on the profile for special cases but is not appended
+  blindly to generated RFQs. English is the only implemented locale today; a
+  requested locale that is not implemented resolves to English so the greeting,
+  request text and closing always share one language. The RFQ draft already
+  persists `language`; future locales (`de`, `fi`, `lt`, …) register in one place.
+- **Not stored as identity:** closing phrases (`Best regards,`, …) are template
+  text, not sender-profile data.
+- Additive migration `20260922220000_sender_profile_optional_company_title`
+  (`company_name` drops NOT NULL; adds `sender_title`). No data removed.
+
+Reason: keep the sender model minimal and honest, and make multilingual RFQs a
+matter of adding a locale template rather than changing the model.
+
+---
+
+## 2026-09-22 — Price inquiry (RFQ) drafts use a dedicated model, reusing concepts
+
+The first **price intelligence** workflow is a persisted, reviewable **RFQ
+draft**. Existing **companies, leads, contacts, products, sender profiles and
+email accounts are reused by reference** — no duplicate company/contact concepts.
+A **dedicated `price_inquiry_drafts` table** (owner `price-inquiry`) is used
+rather than extending `outreach_drafts`.
+
+- **Why not extend `outreach_drafts`?** That model is *buyer* outreach: an
+  evidence-backed initial pitch to a lead, append-only/versioned, with
+  `PREPARED | BLOCKED` preparation semantics and no product grounding. An RFQ asks
+  a *supplier* to quote against a persisted **product/specification** and needs an
+  explicit human-review status and **editable** review fields. Mixing directions
+  under a `purpose` flag would muddy both. The new table has its own
+  `PriceInquiryPurpose`/`PriceInquiryStatus` (`READY_FOR_HUMAN_REVIEW`), a
+  `productId`, an immutable generated subject/body, an editable copy, and the
+  grounded `specificationSummary`.
+- **Reused, not forked:** recipient selection moved into its owner,
+  `ContactDiscoveryService.selectRecipient` (usable published contacts; prefer a
+  named role relevant to purchasing, else the general business email), and is used
+  by both `outreach-drafter` and `price-inquiry`. Eligibility mirrors the
+  established outreach gate (not rejected, not stale, agent-qualified or
+  human-shortlisted). Sender identity must be an **ACTIVE** profile **linked to an
+  email account**; the product's assigned profile is the default.
+- **Grounded content, no invention:** the specification comes only from the
+  persisted product row and its `CONFIRMED + OPERATIONAL` facts (the same facts the
+  Research Context may assert); `PENDING`/`RESTRICTED` values never appear. The
+  body only *asks* (price, unit, MOQ, Incoterm, loading location, lead time, VAT,
+  validity) and never asserts volume, frequency, destination, urgency, purchasing
+  authority, or a company representation beyond the configured identity.
+- **Future-proofing:** outbound message metadata, supplier replies, quotation
+  evidence, and normalized price/currency/unit/MOQ/Incoterm/origin/lead
+  time/validity will be added as records referencing `price_inquiry_drafts`. No
+  reply parsing or price normalization is implemented now.
+- **No transport:** every draft starts at `READY_FOR_HUMAN_REVIEW`; there is no
+  `SENT` state and no sending action. Actual sending remains a separate,
+  approval-gated task.
+
+Reason: keep one clear concept per purpose while reusing the domain concepts and
+recipient-selection logic that already exist.
+
+---
+
 ## 2026-09-22 — Password-only mailbox auth; reserved auth kind removed
 
 Email accounts are **password-authenticated** only (e.g. a hosting mailbox under

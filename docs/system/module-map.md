@@ -298,11 +298,14 @@ table write. Table writes remain single-owner (`data-governance.md`).
 - **Failure:** validation errors reject the command; an unknown/invalid account
   reference is rejected without creating a profile.
 
-`products-and-offers` holds an **optional** `products.sender_profile_id`
-assignment (validated through this service; no silent default), and
-`outreach-drafter` resolves the assigned active profile, snapshots its non-secret
-identity, and records the referenced `email_account_id` on each draft
-(`outreach_drafts.sender_profile_id` + `sender_snapshot` + `email_account_id`).
+`products-and-offers` holds **two separate, optional** sender assignments on a
+product — `products.outreach_sender_profile_id` (buyer/sales outreach) and
+`products.inquiry_sender_profile_id` (market-research price inquiries / RFQ) —
+each validated through this service with no silent default and no cross-context
+fallback. `outreach-drafter` resolves only the **outreach** assignment, snapshots
+its non-secret identity, and records the referenced `email_account_id` on each
+draft (`outreach_drafts.sender_profile_id` + `sender_snapshot` +
+`email_account_id`). `price-inquiry` resolves only the **inquiry** assignment.
 
 ## 18. `email-accounts`
 
@@ -358,3 +361,38 @@ implemented in this slice.
 
 `dashboard` is excluded from product/business rules: it introduces no schema and
 no new write path.
+
+## 20. `price-inquiry`
+
+- **Status:** implemented subset (2026-09-22) — the first **price intelligence**
+  slice: a persisted, reviewable **price inquiry (RFQ) draft**
+  (`price_inquiry_drafts`). Guarded endpoints
+  `POST/GET /opportunities/:id/leads/:leadId/price-inquiry-drafts` and
+  `GET/PATCH .../price-inquiry-drafts/:id`.
+- **Responsibility:** own RFQ drafts. Generate a concise English price inquiry
+  from the persisted product/specification and the selected recipient + sender
+  identity. **No transport is executed**: every draft starts at
+  `READY_FOR_HUMAN_REVIEW`, there is no `SENT` state, and no send action exists.
+- **Tables read/written (owner):** `price_inquiry_drafts`. Reuses (by reference)
+  `opportunities`, `opportunity_companies`, `companies`, `products`, `contacts`,
+  `sender_profiles`, `email_accounts`.
+- **Inputs:** lead + `productId` (+ optional `senderProfileId`, `contactId`,
+  `language`); reuse: `lead-discoverer` (eligibility), `contact-discovery`
+  (`selectRecipient`), `products-and-offers` (product + facts),
+  `sender-profiles` (identity).
+- **Sender resolution:** explicit `senderProfileId` → else the product's
+  `inquirySenderProfileId` → else `409 inquiry_sender_profile_required`. The
+  product's **outreach** sender is never a fallback.
+- **Outputs:** `PriceInquiryDraft` (status `READY_FOR_HUMAN_REVIEW`).
+- **Failure:** lead rejected/stale/not-eligible → `409`; unknown product → `400`;
+  sender profile (missing → `inquiry_sender_profile_required`) / disabled / not
+  linked → `409`; unusable recipient →
+  `400`/`409`. Only safe error codes are returned; no credentials are exposed.
+- **Grounding rule:** only `CONFIRMED + OPERATIONAL` product facts are included
+  (matching the Research Context rule); `PENDING`/`RESTRICTED` values never appear.
+  The body only asks for price/unit/MOQ/Incoterm/loading/lead-time/VAT/validity
+  and never asserts volume, frequency, destination, urgency, purchasing authority,
+  or representation beyond the configured sender identity.
+- **Future:** outbound message metadata, supplier replies, quotation evidence, and
+  normalized price (currency/unit/MOQ/Incoterm/origin/lead-time/validity) will
+  reference this draft; none is implemented yet.

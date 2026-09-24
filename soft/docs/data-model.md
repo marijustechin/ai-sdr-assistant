@@ -72,7 +72,8 @@ Product 1 ──── N Offer ──── N Opportunity N ──── M Targe
 | `Contact` | `contacts` | Public business contact for a company (general vs named person; email/phone/contact-page URL; original values + dedup-normalized columns; usability + published-vs-deliverability). | `contact-discovery` |
 | `ContactSource` | `contact_sources` | Contact provenance: a `source_references` row (deduplicated by URL) + retrieval date + supporting excerpt; many per contact. | `contact-discovery` |
 | `OutreachDraft` | `outreach_drafts` | Evidence-backed **initial** outreach draft (or explicit `BLOCKED` outcome): recipient reference, subject/body, language, preparation status, rationale, context/evidence references, sender profile reference + non-secret identity snapshot + resolved `email_account_id` reference, precise missing fields; append-only/versioned + idempotent fingerprint; no send state. | `outreach-drafter` |
-| `SenderProfile` | `sender_profiles` | Reusable, product-independent sender **identity** (label, sender/company, From/Reply-To, signature, status) with an optional `email_account_id` reference; carries no transport credentials. | `sender-profiles` |
+| `SenderProfile` | `sender_profiles` | Reusable, product-independent sender **identity** (label, sender name, optional **role/title**, optional **company/brand**, From/Reply-To, optional signature, status) with an optional `email_account_id` reference; carries no transport credentials; usable without a company/brand. | `sender-profiles` |
+| `PriceInquiryDraft` | `price_inquiry_drafts` | Persisted, reviewable **price inquiry (RFQ) draft** linked to opportunity/lead/company/product/contact/sender; exact recipient + rationale; editable subject/body plus the immutable generated original; grounded `specification_summary`; status `READY_FOR_HUMAN_REVIEW`; no send state. | `price-inquiry` |
 | `EmailAccount` | `email_accounts` | Technical password-mailbox connection (account email, status, `provider`, SMTP + IMAP host/port/TLS/username, `credentials_shared`); SMTP/IMAP passwords stored only as authenticated ciphertext (key in server config). | `email-accounts` |
 
 Every model carries a `/// @owner <module>` tag in `schema.prisma` (§5 of
@@ -293,15 +294,21 @@ application service — no module writes another module's table.
 ### 3.15 `SenderProfile` (reusable sender identities)
 
 - A reusable, product-independent sender **identity**: `label`, `senderName`,
-  `companyName`, `fromEmail`, optional `replyToEmail`/`signature`, `status`
+  optional `senderTitle` (role/title), optional `companyName` (company/brand),
+  `fromEmail`, optional `replyToEmail`/`signature`, `status`
   (`ACTIVE | DISABLED`), and an optional `emailAccountId` reference. It carries
-  **no** transport configuration or credentials.
-- **No hard delete** (referenced by `products.sender_profile_id` and
-  `outreach_drafts.sender_profile_id`); disable instead.
-- `products.sender_profile_id` is an **optional** assignment (NULL or a
-  profile). `outreach_drafts.sender_profile_id` + `sender_snapshot` record the
-  non-secret identity actually used; `sender_snapshot` never contains transport
-  credentials.
+  **no** transport configuration or credentials, and is fully usable without a
+  company/brand. Generated content never invents a company and does not depend on
+  the stored `signature`.
+- **No hard delete** (referenced by `products.outreach_sender_profile_id`,
+  `products.inquiry_sender_profile_id`, and `outreach_drafts.sender_profile_id`);
+  disable instead.
+- `products.outreach_sender_profile_id` (buyer/sales outreach) and
+  `products.inquiry_sender_profile_id` (market-research price inquiries / RFQ)
+  are **separate, optional** assignments (each NULL or a profile). They never
+  fall back to one another. `outreach_drafts.sender_profile_id` +
+  `sender_snapshot` record the non-secret identity actually used;
+  `sender_snapshot` never contains transport credentials.
 
 ### 3.16 `EmailAccount` (technical mailbox connection)
 
@@ -323,6 +330,27 @@ application service — no module writes another module's table.
   that open a connection are the explicit operator actions (`verify-smtp`,
   `verify-imap`, `test-send`). There is no automated sending or mailbox polling.
   (An exploratory OAuth2 `authKind` was removed; accounts are password-only.)
+
+### 3.17 `PriceInquiryDraft` (price inquiry / RFQ)
+
+- A persisted, reviewable **RFQ draft**. It references (never duplicates) an
+  opportunity, lead (`opportunity_companies`), company, `product`, selected
+  `contact`, `sender_profile`, and `email_account`.
+- Stores the exact `recipientEmail` and a short `recipientRationale`; an
+  **editable** `subject`/`body` plus the immutable `generatedSubject`/
+  `generatedBody` (auditability); a grounded `specificationSummary` built only from
+  the persisted product and its `CONFIRMED + OPERATIONAL` facts.
+- `purpose` (`PRICE_INQUIRY`) and `status` (`READY_FOR_HUMAN_REVIEW`); no `SENT`
+  state. `fingerprint` makes a create with identical inputs idempotent.
+- `language` records the draft locale; the greeting, request text and closing are
+  generated in that one language (English is the only implemented generator
+  today; unimplemented locales resolve to English). The closing is built from
+  structured sender identity (name + optional role/title + optional company) —
+  never from the stored profile signature — with each line appearing at most once
+  and no company invented.
+- **Future price intelligence** (outbound message metadata, supplier replies,
+  quotation evidence, normalized price/currency/unit/MOQ/Incoterm/origin/lead
+  time/validity) attach to this draft in later tasks.
 
 ---
 

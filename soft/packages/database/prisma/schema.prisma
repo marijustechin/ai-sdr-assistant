@@ -28,16 +28,22 @@ model Product {
   description    String?                @db.Text
   category       String?                @db.VarChar(120)
   lifecycleStatus ProductLifecycleStatus @default(DRAFT) @map("lifecycle_status")
-  /// Optional sender profile used when drafting outreach for this product.
-  senderProfileId String?               @map("sender_profile_id") @db.Uuid
+  /// Optional sender profile used for **buyer/sales outreach** only.
+  outreachSenderProfileId String?              @map("outreach_sender_profile_id") @db.Uuid
+  /// Optional sender profile used for **market-research price inquiries (RFQ)**
+  /// only. Never falls back to the outreach sender.
+  inquirySenderProfileId  String?              @map("inquiry_sender_profile_id") @db.Uuid
   createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   offers Offer[]
   facts  ProductFact[]
-  senderProfile SenderProfile? @relation(fields: [senderProfileId], references: [id], onDelete: SetNull)
+  priceInquiryDrafts PriceInquiryDraft[]
+  outreachSenderProfile SenderProfile? @relation("ProductOutreachSender", fields: [outreachSenderProfileId], references: [id], onDelete: SetNull)
+  inquirySenderProfile  SenderProfile? @relation("ProductInquirySender", fields: [inquirySenderProfileId], references: [id], onDelete: SetNull)
 
-  @@index([senderProfileId])
+  @@index([outreachSenderProfileId])
+  @@index([inquirySenderProfileId])
   @@map("products")
 }
 
@@ -121,6 +127,7 @@ model Opportunity {
   researchRuns  ResearchRun[]
   leads         OpportunityCompany[]
   outreachDrafts OutreachDraft[]
+  priceInquiryDrafts PriceInquiryDraft[]
 
   @@index([offerId])
   @@map("opportunities")
@@ -385,6 +392,7 @@ model Company {
   leads OpportunityCompany[]
   contacts Contact[]
   outreachDrafts OutreachDraft[]
+  priceInquiryDrafts PriceInquiryDraft[]
 
   @@unique([identityKey])
   @@index([normalizedName])
@@ -432,6 +440,7 @@ model OpportunityCompany {
   evidence        Evidence        @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
   claim           Claim?          @relation(fields: [claimId], references: [id], onDelete: SetNull)
   outreachDrafts  OutreachDraft[]
+  priceInquiryDrafts PriceInquiryDraft[]
 
   @@unique([dedupKey])
   @@unique([opportunityId, companyId])
@@ -521,6 +530,78 @@ enum OutreachPreparationStatus {
   BLOCKED
 }
 
+/// A persisted, reviewable **price inquiry / RFQ draft**. Generated from
+/// persisted product/specification data and linked to the opportunity, lead,
+/// company, product, recipient contact, and sender identity. It never sends:
+/// every draft starts at `READY_FOR_HUMAN_REVIEW` and no transport is invoked.
+/// Future price-intelligence records (outbound message metadata, supplier reply,
+/// quotation/document evidence, normalized price/currency/unit/MOQ/Incoterm/
+/// origin/lead-time/validity) will reference this draft.
+/// @owner price-inquiry
+model PriceInquiryDraft {
+  id                   String   @id @default(uuid()) @db.Uuid
+  opportunityId        String   @map("opportunity_id") @db.Uuid
+  leadId               String   @map("lead_id") @db.Uuid
+  companyId            String   @map("company_id") @db.Uuid
+  productId            String   @map("product_id") @db.Uuid
+  /// Selected published recipient (never inferred); the exact email is copied.
+  contactId            String?  @map("contact_id") @db.Uuid
+  recipientEmail       String?  @map("recipient_email") @db.VarChar(320)
+  recipientRationale   String   @map("recipient_rationale") @db.Text
+  /// Sender identity snapshot (non-secret) used for this draft.
+  senderProfileId      String?  @map("sender_profile_id") @db.Uuid
+  emailAccountId       String?  @map("email_account_id") @db.Uuid
+  senderSnapshot       Json?    @map("sender_snapshot")
+  purpose              PriceInquiryPurpose @default(PRICE_INQUIRY)
+  status               PriceInquiryStatus  @default(READY_FOR_HUMAN_REVIEW)
+  language             String   @db.VarChar(35)
+  /// Editable review fields.
+  subject              String   @db.VarChar(512)
+  body                 String   @db.Text
+  /// Immutable original generation, preserved for auditability.
+  generatedSubject     String   @map("generated_subject") @db.VarChar(512)
+  generatedBody        String   @map("generated_body") @db.Text
+  /// The exact persisted specification grounding used to generate the draft.
+  specificationSummary String   @map("specification_summary") @db.Text
+  rationale            String   @db.Text
+  /// Provenance of the company/contact selection.
+  sourceReferenceId    String?  @map("source_reference_id") @db.Uuid
+  evidenceId           String?  @map("evidence_id") @db.Uuid
+  claimId              String?  @map("claim_id") @db.Uuid
+  version              Int      @default(1)
+  fingerprint          String   @db.VarChar(64)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  opportunity     Opportunity        @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  lead            OpportunityCompany @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  company         Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  product         Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  contact         Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  senderProfile   SenderProfile?     @relation(fields: [senderProfileId], references: [id], onDelete: SetNull)
+  emailAccount    EmailAccount?      @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([fingerprint])
+  @@index([opportunityId])
+  @@index([leadId])
+  @@index([companyId])
+  @@index([productId])
+  @@index([contactId])
+  @@index([senderProfileId])
+  @@map("price_inquiry_drafts")
+}
+
+/// Purpose of a persisted draft. Only `PRICE_INQUIRY` (RFQ) exists in this slice.
+enum PriceInquiryPurpose {
+  PRICE_INQUIRY
+}
+
+/// Review status of a price inquiry draft. It never sends, so no `SENT` state
+/// exists; every draft starts `READY_FOR_HUMAN_REVIEW`.
+enum PriceInquiryStatus {
+  READY_FOR_HUMAN_REVIEW
+}
+
 /// A reusable, product-independent sender identity for outreach drafts. An
 /// identity carries **no** transport configuration: it references an
 /// `EmailAccount` (owned by `email-accounts`) for the mailbox connection used to
@@ -530,7 +611,11 @@ model SenderProfile {
   id             String              @id @default(uuid()) @db.Uuid
   label          String              @db.VarChar(255)
   senderName     String              @map("sender_name") @db.VarChar(255)
-  companyName    String              @map("company_name") @db.VarChar(255)
+  /// Optional role/title (e.g. "Sourcing & Procurement"); used for the RFQ
+  /// closing. A company/brand is never invented when absent.
+  senderTitle    String?             @map("sender_title") @db.VarChar(255)
+  /// Optional company/brand. A sender profile is fully usable without it.
+  companyName    String?             @map("company_name") @db.VarChar(255)
   fromEmail      String              @map("from_email") @db.VarChar(320)
   replyToEmail   String?             @map("reply_to_email") @db.VarChar(320)
   signature      String?             @db.Text
@@ -541,8 +626,10 @@ model SenderProfile {
   updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   emailAccount   EmailAccount?       @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
-  products       Product[]
+  products       Product[]           @relation("ProductOutreachSender")
+  productInquiries Product[]         @relation("ProductInquirySender")
   outreachDrafts OutreachDraft[]
+  priceInquiryDrafts PriceInquiryDraft[]
 
   @@index([emailAccountId])
   @@map("sender_profiles")
@@ -586,6 +673,7 @@ model EmailAccount {
 
   senderProfiles SenderProfile[]
   outreachDrafts OutreachDraft[]
+  priceInquiryDrafts PriceInquiryDraft[]
 
   @@map("email_accounts")
 }
@@ -634,6 +722,7 @@ model Contact {
   company Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   sources ContactSource[]
   outreachDrafts OutreachDraft[]
+  priceInquiryDrafts PriceInquiryDraft[]
 
   @@unique([dedupKey])
   @@index([companyId])

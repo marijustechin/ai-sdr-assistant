@@ -50,7 +50,7 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `target_markets` | Country/region + market segment | `opportunities` | impl |
 | `opportunity_target_markets` | Opportunity↔target-market join (compound-unique) | `opportunities` | impl |
 | `target_market_suggestions` | Research-driven suggestions (PENDING→ACCEPTED/REJECTED) | `opportunities` | plan |
-| `products` | Canonical product identity / catalog | `products-and-offers` | impl |
+| `products` | Canonical product identity / catalog. Optional, separate `outreach_sender_profile_id` (buyer/sales outreach) and `inquiry_sender_profile_id` (market-research RFQ) sender assignments; no cross-context fallback | `products-and-offers` | impl |
 | `offers` | Concrete sellable product form (variant) of one product | `products-and-offers` | impl |
 | `product_facts` | Typed facts (PENDING/CONFIRMED/SUPERSEDED; OPERATIONAL/RESTRICTED) | `products-and-offers` | impl |
 | `opportunity_offers` | Per-opportunity commercial terms (1:1) | `products-and-offers` | plan |
@@ -74,9 +74,10 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `contact_sources` | Contact↔source provenance (source reference deduplicated by URL + retrieval date + supporting excerpt); one contact may have many sources | `contact-discovery` | impl |
 | `research_record_sources` | ResearchRecord↔source join | `evidence` | plan |
 | `outreach_draft_sources` | Draft↔source join | `evidence` | plan |
-| `sender_profiles` | Reusable, product-independent **sender identities** (label, sender/company, From/Reply-To, signature, status) + optional `email_account_id`; owns **no** transport credentials | `sender-profiles` | impl |
+| `sender_profiles` | Reusable, product-independent **sender identities** (label, sender name, optional **role/title**, optional **company/brand**, From/Reply-To, optional signature, status) + optional `email_account_id`; owns **no** transport credentials; usable without a company/brand, and generation must not depend on the stored signature | `sender-profiles` | impl |
 | `email_accounts` | Technical **mailbox connection** for a password-authenticated mailbox (account email, status, `provider`, SMTP + IMAP host/port/TLS/username, `credentialsShared`); passwords stored only as authenticated ciphertext (`EMAIL_SECRETS_KEY` server-side, never DB/Git); referenced by `sender_profiles.email_account_id` and `outreach_drafts.email_account_id` | `email-accounts` | impl |
 | `outreach_drafts` | Evidence-backed **initial** outreach drafts: recipient reference, subject/body, language, preparation status (`PREPARED \| BLOCKED`), rationale, context/evidence references, sender profile reference + non-secret identity snapshot, and precise missing fields; append-only/versioned + idempotent fingerprint; no send state | `outreach-drafter` | impl |
+| `price_inquiry_drafts` | Persisted, reviewable **price inquiry (RFQ) drafts**: references to opportunity/lead/company/product/contact/sender, exact recipient email + selection rationale, editable subject/body with the immutable generated original, grounded `specification_summary`, provenance, status `READY_FOR_HUMAN_REVIEW`; no send state | `price-inquiry` | impl |
 | `outreach_draft_research` | Draft↔research join | `outreach-drafter` | plan |
 | `customer_profiles` | Versioned ideal-customer profiles | `knowledge` | plan |
 | `buyer_personas` | Versioned buyer personas | `knowledge` | plan |

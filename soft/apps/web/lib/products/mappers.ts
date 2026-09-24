@@ -14,6 +14,7 @@ export function productResponseToFormValues(
     description: product.description ?? undefined,
     category: product.category ?? undefined,
     lifecycleStatus: product.lifecycleStatus,
-    senderProfileId: product.senderProfileId ?? undefined,
+    outreachSenderProfileId: product.outreachSenderProfileId ?? undefined,
+    inquirySenderProfileId: product.inquirySenderProfileId ?? undefined,
   };
 }

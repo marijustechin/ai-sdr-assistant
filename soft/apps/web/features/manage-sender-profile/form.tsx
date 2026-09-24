@@ -31,6 +31,7 @@ import type {
 interface FormState {
   label: string;
   senderName: string;
+  senderTitle: string;
   companyName: string;
   fromEmail: string;
   replyToEmail: string;
@@ -43,6 +44,7 @@ function initialState(profile?: SenderProfileRead): FormState {
   return {
     label: profile?.label ?? "",
     senderName: profile?.senderName ?? "",
+    senderTitle: profile?.senderTitle ?? "",
     companyName: profile?.companyName ?? "",
     fromEmail: profile?.fromEmail ?? "",
     replyToEmail: profile?.replyToEmail ?? "",
@@ -134,10 +136,18 @@ export function SenderProfileForm({
             <FormField label="Sender name" htmlFor="senderName" required error={fieldError("senderName")}>
               <Input value={state.senderName} onChange={(e) => set("senderName", e.target.value)} autoComplete="off" />
             </FormField>
-            <FormField label="Company / brand name" htmlFor="companyName" required error={fieldError("companyName")}>
-              <Input value={state.companyName} onChange={(e) => set("companyName", e.target.value)} autoComplete="off" />
+            <FormField label="Role / title (optional)" htmlFor="senderTitle" error={fieldError("senderTitle")}>
+              <Input value={state.senderTitle} onChange={(e) => set("senderTitle", e.target.value)} autoComplete="off" />
             </FormField>
           </div>
+          <FormField
+            label="Company / brand name (optional)"
+            htmlFor="companyName"
+            error={fieldError("companyName")}
+            hint="Used for the RFQ closing only when set; a company is never invented."
+          >
+            <Input value={state.companyName} onChange={(e) => set("companyName", e.target.value)} autoComplete="off" />
+          </FormField>
           <div className="grid gap-5 sm:grid-cols-2">
             <FormField label="From email" htmlFor="fromEmail" required error={fieldError("fromEmail")}>
               <Input type="email" value={state.fromEmail} onChange={(e) => set("fromEmail", e.target.value)} autoComplete="off" />
@@ -146,7 +156,7 @@ export function SenderProfileForm({
               <Input type="email" value={state.replyToEmail} onChange={(e) => set("replyToEmail", e.target.value)} autoComplete="off" />
             </FormField>
           </div>
-          <FormField label="Signature (optional)" htmlFor="signature" error={fieldError("signature")}>
+          <FormField label="Signature (optional; not used in generated RFQs)" htmlFor="signature" error={fieldError("signature")}>
             <Textarea rows={3} value={state.signature} onChange={(e) => set("signature", e.target.value)} />
           </FormField>
           <FormField

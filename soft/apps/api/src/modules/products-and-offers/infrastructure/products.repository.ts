@@ -27,7 +27,8 @@ function toProductRecord(product: Product): ProductRecord {
     description: product.description,
     category: product.category,
     lifecycleStatus: product.lifecycleStatus,
-    senderProfileId: product.senderProfileId,
+    outreachSenderProfileId: product.outreachSenderProfileId,
+    inquirySenderProfileId: product.inquirySenderProfileId,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };
@@ -90,7 +91,8 @@ export class ProductsRepository {
         ...(data.lifecycleStatus !== undefined
           ? { lifecycleStatus: data.lifecycleStatus }
           : {}),
-        senderProfileId: data.senderProfileId ?? null,
+        outreachSenderProfileId: data.outreachSenderProfileId ?? null,
+        inquirySenderProfileId: data.inquirySenderProfileId ?? null,
       },
     });
     return toProductRecord(product);
@@ -149,11 +151,17 @@ export class ProductsRepository {
     if (data.lifecycleStatus !== undefined) {
       update.lifecycleStatus = data.lifecycleStatus;
     }
-    if (data.senderProfileId !== undefined) {
-      update.senderProfile =
-        data.senderProfileId === null
+    if (data.outreachSenderProfileId !== undefined) {
+      update.outreachSenderProfile =
+        data.outreachSenderProfileId === null
           ? { disconnect: true }
-          : { connect: { id: data.senderProfileId } };
+          : { connect: { id: data.outreachSenderProfileId } };
+    }
+    if (data.inquirySenderProfileId !== undefined) {
+      update.inquirySenderProfile =
+        data.inquirySenderProfileId === null
+          ? { disconnect: true }
+          : { connect: { id: data.inquirySenderProfileId } };
     }
 
     const product = await this.client(tx).product.update({

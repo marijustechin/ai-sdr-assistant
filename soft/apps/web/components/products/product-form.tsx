@@ -245,19 +245,52 @@ export function ProductForm({
         <CardHeader>
           <CardTitle>Outreach sender profile</CardTitle>
           <CardDescription>
-            Optional. Used as the identity when drafting outreach for this
-            product. Drafting is blocked until an active profile is assigned.
+            Used for sales / buyer outreach. Optional — may be blank. Buyer
+            outreach never uses the inquiry sender profile.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <FormField
-            label="Sender profile"
-            htmlFor="senderProfileId"
-            error={errors.senderProfileId?.message}
+            label="Outreach sender profile"
+            htmlFor="outreachSenderProfileId"
+            error={errors.outreachSenderProfileId?.message}
             className="max-w-sm"
           >
             <Select
-              {...form.register("senderProfileId", {
+              {...form.register("outreachSenderProfileId", {
+                setValueAs: (value) => (value === "" ? undefined : value),
+              })}
+            >
+              <option value="">Not assigned</option>
+              {senderProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.label}
+                  {profile.status === "ACTIVE" ? "" : " (disabled)"}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Inquiry sender profile</CardTitle>
+          <CardDescription>
+            Used for market-research price inquiries / RFQs. Optional — may be
+            blank. Must be linked to an email account before it can be used;
+            RFQ creation never falls back to the outreach sender profile.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <FormField
+            label="Inquiry sender profile"
+            htmlFor="inquirySenderProfileId"
+            error={errors.inquirySenderProfileId?.message}
+            className="max-w-sm"
+          >
+            <Select
+              {...form.register("inquirySenderProfileId", {
                 setValueAs: (value) => (value === "" ? undefined : value),
               })}
             >

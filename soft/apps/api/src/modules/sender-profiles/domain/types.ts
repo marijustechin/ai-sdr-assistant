@@ -11,7 +11,8 @@ export interface SenderProfileRecord {
   id: string;
   label: string;
   senderName: string;
-  companyName: string;
+  senderTitle: string | null;
+  companyName: string | null;
   fromEmail: string;
   replyToEmail: string | null;
   signature: string | null;
@@ -24,7 +25,8 @@ export interface SenderProfileRecord {
 export interface CreateSenderProfileData {
   label: string;
   senderName: string;
-  companyName: string;
+  senderTitle?: string | null;
+  companyName?: string | null;
   fromEmail: string;
   replyToEmail?: string | null;
   signature?: string | null;
@@ -35,7 +37,8 @@ export interface CreateSenderProfileData {
 export interface UpdateSenderProfileData {
   label?: string;
   senderName?: string;
-  companyName?: string;
+  senderTitle?: string | null;
+  companyName?: string | null;
   fromEmail?: string;
   replyToEmail?: string | null;
   signature?: string | null;

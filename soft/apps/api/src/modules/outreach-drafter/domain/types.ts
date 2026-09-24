@@ -5,7 +5,7 @@ export type { OutreachPreparationStatus };
 /** Non-secret sender identity actually used for a draft (never credentials). */
 export interface SenderSnapshot {
   senderName: string;
-  companyName: string;
+  companyName: string | null;
   fromEmail: string;
   replyToEmail: string | null;
   signature: string | null;

@@ -15,11 +15,19 @@ const identity = {
 const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('sender profile contracts', () => {
-  it('accepts an identity-only profile and one referencing a mailbox', () => {
+  it('accepts a minimal profile (no company, title or mailbox) and one with extras', () => {
+    expect(
+      CreateSenderProfileSchema.safeParse({
+        label: 'Minimal',
+        senderName: 'Tomas Berg',
+        fromEmail: 'tomas@example.invalid',
+      }).success,
+    ).toBe(true);
     expect(CreateSenderProfileSchema.safeParse(identity).success).toBe(true);
     expect(
       CreateSenderProfileSchema.safeParse({
         ...identity,
+        senderTitle: 'Sourcing & Procurement',
         replyToEmail: 'sales@acme.invalid',
         signature: 'Jane Doe, Acme Timber',
         emailAccountId: ACCOUNT_ID,
@@ -51,13 +59,14 @@ describe('sender profile contracts', () => {
     ).toBe(true);
   });
 
-  it('exposes emailAccountId and rejects a response that would carry a password', () => {
+  it('exposes a nullable company/title and rejects a response that would carry a password', () => {
     expect(
       SenderProfileResponseSchema.safeParse({
         id: 'p1',
         label: 'x',
         senderName: 'x',
-        companyName: 'x',
+        senderTitle: null,
+        companyName: null,
         fromEmail: 'x@y.invalid',
         replyToEmail: null,
         signature: null,

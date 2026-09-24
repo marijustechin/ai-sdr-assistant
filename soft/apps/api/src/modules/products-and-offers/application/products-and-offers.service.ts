@@ -28,7 +28,8 @@ function toProductResponse(product: ProductRecord): ProductResponse {
     description: product.description,
     category: product.category,
     lifecycleStatus: product.lifecycleStatus,
-    senderProfileId: product.senderProfileId,
+    outreachSenderProfileId: product.outreachSenderProfileId,
+    inquirySenderProfileId: product.inquirySenderProfileId,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   };
@@ -50,7 +51,8 @@ export class ProductsAndOffersService {
   ) {}
 
   async createProduct(input: CreateProductData): Promise<ProductResponse> {
-    await this.assertSenderProfileAssignable(input.senderProfileId);
+    await this.assertSenderProfileAssignable(input.outreachSenderProfileId);
+    await this.assertSenderProfileAssignable(input.inquirySenderProfileId);
     return toProductResponse(await this.repository.createProduct(input));
   }
 
@@ -187,7 +189,8 @@ export class ProductsAndOffersService {
     if (!existing) {
       throw new NotFoundException({ error: 'product_not_found' });
     }
-    await this.assertSenderProfileAssignable(input.senderProfileId);
+    await this.assertSenderProfileAssignable(input.outreachSenderProfileId);
+    await this.assertSenderProfileAssignable(input.inquirySenderProfileId);
     const updated = await this.repository.updateProduct(id, input);
     return toProductResponse(updated);
   }
