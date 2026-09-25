@@ -15,7 +15,6 @@ import { LeadReviewForm } from "@/components/leads/lead-review-form";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { ContactList } from "@/components/leads/contact-list";
 import { OutreachDraftList } from "@entities/outreach-draft";
-import { PriceInquiryPanel } from "@features/manage-price-inquiry";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
 import { AlertIcon, ArrowLeftIcon } from "@/components/ui/icons";
@@ -23,10 +22,6 @@ import { ApiError } from "@shared/api/client";
 import { describeApiError } from "@shared/api/errors";
 import { listCompanyContacts } from "@/lib/api/contacts";
 import { listOutreachDrafts } from "@entities/outreach-draft/api";
-import { listPriceInquiryDrafts } from "@entities/price-inquiry/api";
-import { listQuoteCollection } from "@entities/quote-collection/api";
-import { listSenderProfiles } from "@entities/sender-profile/api";
-import { isUsableSenderProfile } from "@entities/price-inquiry";
 import { getLead } from "@/lib/api/leads";
 import { getProduct } from "@/lib/api/products";
 import { formatDateTime } from "@shared/lib/format";
@@ -37,8 +32,6 @@ import {
 } from "@/lib/leads/display";
 import type { ContactRead } from "@/lib/contacts/types";
 import type { OutreachDraftRead } from "@entities/outreach-draft";
-import type { PriceInquiryDraftRead } from "@entities/price-inquiry";
-import type { QuoteCollectionItemRead } from "@entities/quote-collection";
 import type { LeadRead } from "@/lib/leads/types";
 
 export const metadata: Metadata = {
@@ -74,9 +67,6 @@ export default async function LeadDetailPage({
   let contactsUnavailable = false;
   let drafts: OutreachDraftRead[] = [];
   let draftsUnavailable = false;
-  let rfqDrafts: PriceInquiryDraftRead[] = [];
-  let quoteCollection: QuoteCollectionItemRead[] = [];
-  let senderProfiles: Array<{ id: string; label: string }> = [];
   let configured = true;
   let loadError: string | null = null;
 
@@ -103,23 +93,6 @@ export default async function LeadDetailPage({
       drafts = await listOutreachDrafts(opportunityId, leadId);
     } catch {
       draftsUnavailable = true;
-    }
-    try {
-      rfqDrafts = await listPriceInquiryDrafts(opportunityId, leadId);
-    } catch {
-      rfqDrafts = [];
-    }
-    try {
-      quoteCollection = await listQuoteCollection(opportunityId, leadId);
-    } catch {
-      quoteCollection = [];
-    }
-    try {
-      senderProfiles = (await listSenderProfiles())
-        .filter(isUsableSenderProfile)
-        .map((profile) => ({ id: profile.id, label: profile.label }));
-    } catch {
-      senderProfiles = [];
     }
   }
 
@@ -372,21 +345,6 @@ export default async function LeadDetailPage({
             productId={product.id}
             drafts={drafts}
             unavailable={draftsUnavailable}
-          />
-
-          <PriceInquiryPanel
-            productId={product.id}
-            opportunityId={opportunityId}
-            leadId={leadId}
-            drafts={rfqDrafts}
-            collection={quoteCollection}
-            senderProfiles={senderProfiles}
-            defaultSenderProfileId={
-              product.inquirySenderProfileId &&
-              senderProfiles.some((p) => p.id === product.inquirySenderProfileId)
-                ? product.inquirySenderProfileId
-                : null
-            }
           />
         </div>
       ) : null}

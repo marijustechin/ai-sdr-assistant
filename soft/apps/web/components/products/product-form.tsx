@@ -245,8 +245,7 @@ export function ProductForm({
         <CardHeader>
           <CardTitle>Outreach sender profile</CardTitle>
           <CardDescription>
-            Used for sales / buyer outreach. Optional — may be blank. Buyer
-            outreach never uses the inquiry sender profile.
+            Used for sales / buyer outreach. Optional — may be blank.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -270,45 +269,6 @@ export function ProductForm({
               ))}
             </Select>
           </FormField>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Inquiry sender profile</CardTitle>
-          <CardDescription>
-            Used for market-research price inquiries / RFQs. Optional — may be
-            blank. Must be linked to an email account before it can be used;
-            RFQ creation never falls back to the outreach sender profile.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <FormField
-            label="Inquiry sender profile"
-            htmlFor="inquirySenderProfileId"
-            error={errors.inquirySenderProfileId?.message}
-            className="max-w-sm"
-          >
-            <Select
-              {...form.register("inquirySenderProfileId", {
-                setValueAs: (value) => (value === "" ? undefined : value),
-              })}
-            >
-              <option value="">Not assigned</option>
-              {senderProfiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.label}
-                  {profile.status === "ACTIVE" ? "" : " (disabled)"}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-          {senderProfiles.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No sender profiles yet. Create one under Settings → Sender
-              profiles.
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 

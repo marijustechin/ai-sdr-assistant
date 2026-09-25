@@ -14,6 +14,10 @@ export const ResearchRunStatusSchema = z.enum([
   'RUNNING',
   'PAUSED',
   'COMPLETED',
+  // DEPRECATED (2026-09-25): supplier price inquiry was decommissioned as a
+  // Market Research capability, so nothing produces this value any more. It is
+  // retained only so historical runs (e.g. the Lithuania benchmark run) still
+  // parse and render. Do not emit it for new work.
   'COMPLETED_WITH_PENDING_CLARIFICATIONS',
   'FAILED',
   'CANCELLED',

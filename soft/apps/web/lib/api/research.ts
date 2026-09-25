@@ -9,7 +9,6 @@ import type {
   ResearchRunDetail,
   ResearchRunSummary,
 } from "@/lib/research/types";
-import type { ResearchResultRead } from "@/lib/research/result";
 
 /**
  * Server-only reads for the research-results dashboard. The internal API key is
@@ -95,17 +94,6 @@ export async function listRunOfferings(
 ): Promise<OfferingRead[]> {
   return apiRequest<OfferingRead[]>(
     `/opportunities/${enc(opportunityId)}/research-runs/${enc(runId)}/offerings`,
-    { method: "GET" },
-  );
-}
-
-/** GET .../:runId/result — the publishable result (counts + clarifications). */
-export async function getResearchResult(
-  opportunityId: string,
-  runId: string,
-): Promise<ResearchResultRead> {
-  return apiRequest<ResearchResultRead>(
-    `/opportunities/${enc(opportunityId)}/research-runs/${enc(runId)}/result`,
     { method: "GET" },
   );
 }

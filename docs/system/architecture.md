@@ -2,7 +2,7 @@
 
 **Status:** Canonical, live. Reconciled with implemented reality through O-025
 (2026-09-25); the module status table uses the fixed vocabulary
-`implemented | implemented-subset | planned`.
+`implemented | implemented-subset | planned | retired`.
 **Last updated:** 2026-09-25 (O-026 documentation-state reconciliation).
 **Supersedes:** `docs/redesign/architecture.md` (historical proposal).
 **Companion:** `module-map.md`, `data-governance.md`, `research-context-contract.md`,
@@ -96,9 +96,9 @@ root `modules/` workspace**.
 | 16 | `sender-profiles` | Reusable sender identities (no credentials; optional mailbox reference) | implemented-subset |
 | 17 | `email-accounts` | Mailbox transport (SMTP + IMAP config, encrypted secrets) + bounded verification; no automated send/monitoring | implemented-subset |
 | 18 | `dashboard` | Read-only admin summary (aggregate counts; owns no tables) | implemented-subset |
-| 19 | `price-inquiry` | Price inquiry (RFQ) drafts (persisted, human review); no sending itself | implemented-subset |
-| 20 | `quote-collection` | Market-research supplier quote loop (human-gated send, bounded reply capture, quote extraction, DB-backed follow-up schedule) | implemented-subset |
-| 21 | `research-result` | Finalize/freeze a run result; compose the live result + per-inquiry clarification view (read-only) | implemented-subset |
+| 19 | `price-inquiry` | **(decommissioned 2026-09-25)** RFQ drafts — retained dormant for future sales outreach; unregistered, no longer a Market Research capability | implemented-subset |
+| 20 | `quote-collection` | **(decommissioned 2026-09-25)** supplier quote loop — retained dormant; generic send/reply, Message-ID, account-wide reply scan and follow-up code reusable for sales outreach | implemented-subset |
+| 21 | `research-result` | **retired 2026-09-25** — removed with the supplier-clarification decommission | retired |
 
 Modules marked `implemented-subset` exist as bounded slices behind the internal
 API key; their **execution**, scoring, sending, and orchestration remain planned
@@ -235,11 +235,12 @@ What actually runs today:
   harness** (`docs/system/research-harness/`). Research execution is
   agent/harness-driven, **not** a platform runner: there is no autonomous
   research engine inside the API.
-- **Quote follow-up scheduling exists** in the narrowest form: DB-backed
-  `quote_follow_ups` (owner `quote-collection`) plus a bounded, idempotent,
-  compare-and-swap worker. Its in-process trigger is env-gated
-  (`FOLLOW_UP_SCHEDULER_ENABLED`, default **off**), and it only *checks for
-  replies* to already human-approved sends — it never sends mail.
+- **Supplier price inquiry is decommissioned** (2026-09-25): its API modules
+  (`price-inquiry`, `quote-collection`, `research-result`) are unregistered or
+  removed, so no research flow sends supplier inquiries or schedules reply
+  checks. The generic mailbox/reply code and the DB-backed `quote_follow_ups`
+  schedule remain as **dormant, retained infrastructure** for future
+  sales-outreach reuse.
 - **There is no generic worker/job platform**: `soft/apps/worker`, BullMQ
   queues, `jobs`, `tasks`, `executions`, and `activities` are **planned**, not
   built. `control-plane` today is the `ResearchContextService` plus the

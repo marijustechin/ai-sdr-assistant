@@ -46,7 +46,7 @@ Deterministic checks need stable markers, not prose. These are required:
 - **`ops/done/*.md`** — a `**Task ID:** O-<nnn>` line.
 - **`docs/system/project-state.md`** — a `Last updated YYYY-MM-DD` field.
 - **`docs/system/architecture.md`** — the module table uses the fixed status
-  vocabulary `implemented | implemented-subset | planned`.
+  vocabulary `implemented | implemented-subset | planned | retired`.
 
 The checker `scripts/verify-docs.mjs` enforces only these markers and the
 contradictions they make checkable. It deliberately does **not** parse arbitrary

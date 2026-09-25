@@ -13,8 +13,9 @@ in `data-governance.md`.
 > (ResearchContextService + research-request orchestration), `opportunities`,
 > `products-and-offers`, `evidence`, `market-researcher`, `lead-discoverer`,
 > `contact-discovery`, `outreach-drafter`, `sender-profiles`, `email-accounts`,
-> `dashboard`, `price-inquiry`, `quote-collection`, and `research-result` (see
-> each section's **Status** line). `knowledge`, `research-records`,
+> `dashboard`, and `price-inquiry`/`quote-collection` (**now decommissioned as a
+> Market Research capability and retained dormant** — see their sections).
+> `research-result` is **retired**. `knowledge`, `research-records`,
 > `lead-evaluator`, `company-intelligence`, `approvals`, `jobs`, and
 > `inbox-intelligence` are intended but not implemented. The single current
 > capability snapshot is `project-state.md`; this file owns module
@@ -367,11 +368,12 @@ no new write path.
 
 ## 20. `price-inquiry`
 
-- **Status:** implemented subset (2026-09-22) — the first **price intelligence**
-  slice: a persisted, reviewable **price inquiry (RFQ) draft**
-  (`price_inquiry_drafts`). Guarded endpoints
-  `POST/GET /opportunities/:id/leads/:leadId/price-inquiry-drafts` and
-  `GET/PATCH .../price-inquiry-drafts/:id`.
+- **Status:** **DECOMMISSIONED as a Market Research capability (2026-09-25).**
+  The module and its controller are no longer registered in `AppModule`; its
+  source and `price_inquiry_drafts` table are retained **dormant** for possible
+  future sales-outreach reuse. No Market Research flow creates RFQ drafts.
+  Historical: implemented subset (2026-09-22) — the first price-intelligence
+  slice (persisted, reviewable RFQ drafts). The description below is historical.
 - **Responsibility:** own RFQ drafts. Generate a concise English price inquiry
   from the persisted product/specification and the selected recipient + sender
   identity. **Drafting executes no transport**; a draft is sent only by the
@@ -408,12 +410,13 @@ no new write path.
 
 ## 21. `quote-collection`
 
-- **Status:** implemented subset (2026-09-24) — the **Market Research supplier
-  quote collection** loop: approval-gated RFQ send, bounded reply capture,
-  correlation, and structured quote extraction. Guarded endpoints
-  `POST .../price-inquiry-drafts/:id/send` (`{confirm:true}`),
-  `POST .../price-inquiry-drafts/:id/check-replies`, and
-  `GET .../quote-collection`.
+- **Status:** **DECOMMISSIONED as a Market Research capability (2026-09-25).**
+  The module and its controller are no longer registered; the RFQ send / reply
+  scan / quote extraction / follow-up code and tables are retained **dormant** as
+  generic mailbox infrastructure reusable for future sales outreach. No Market
+  Research flow triggers it. Historical: implemented subset (2026-09-24) — the
+  market-research supplier quote-collection loop. The description below is
+  historical.
 - **Responsibility:** send a reviewed RFQ from its resolved **inquiry** sender,
   persist an immutable outbound snapshot, bounded-read the inbox for replies,
   correlate a reply to its RFQ, persist it safely, and extract structured terms.
@@ -462,28 +465,10 @@ no new write path.
 
 ## 22. `research-result`
 
-- **Status:** implemented subset (2026-09-25) — the **publishable research
-  result** and the separation of research completion from supplier-reply
-  arrival. Guarded endpoints `POST
-  /opportunities/:id/research-runs/:runId/finalize` (human action) and
-  `GET .../result`.
-- **Responsibility:** finalize a run to `COMPLETED` or
-  `COMPLETED_WITH_PENDING_CLARIFICATIONS` (never keep it RUNNING solely for
-  outstanding RFQs), freeze the immutable result snapshot (owner
-  `market-researcher`, `research_results`), and compose the live result view
-  (counts + per-inquiry clarification state) from the owning modules.
-- **Tables read/written (owner):** `research_results` (owner
-  `market-researcher`). Reads `research_runs`, `price_inquiry_drafts`,
-  `supplier_quotes`/`quote_follow_ups` (via `quote-collection`), `evidence`,
-  `research_offerings`, `opportunity_companies`.
-- **Outputs:** counts (evidence/sources, current sellers, potential buyers,
-  public price observations, pending clarifications, **replies received without a
-  usable price**, **usable quotes received**, no-response) + per-inquiry
-  `clarificationState` (`AWAITING_REPLY | REPLY_RECEIVED | QUOTE_RECEIVED |
-  NO_RESPONSE`) with the follow-up status/next-check.
-- **Failure:** unknown run → `404`; internal key required. No writes to another
-  module's tables (finalize goes through `market-researcher`; inquiry state is
-  read-only via `price-inquiry`/`quote-collection`).
-- **Boundary:** a no-response is a valid final outcome; later supplier replies
-  enrich the result (bump `lastEnrichedAt`); the frozen snapshot is never
-  rewritten; full Price Intelligence results UI is a separate later task.
+- **Status:** **RETIRED (2026-09-25).** The module was removed with the supplier
+  price-inquiry decommission: its `/result` and `/finalize` endpoints no longer
+  exist and its contracts are no longer exported. The `research_results` table and
+  the `COMPLETED_WITH_PENDING_CLARIFICATIONS` / `NO_RESPONSE` enum values are
+  retained only so historical runs (the Lithuania benchmark) still parse; nothing
+  produces them for new work. Research completion is now simply the run's
+  lifecycle status.

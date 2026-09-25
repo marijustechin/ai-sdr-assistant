@@ -40,21 +40,6 @@ export function describeApiError(error: unknown, fallback: string): string {
       if (error.message.includes("mailbox_credentials_missing")) {
         return "No password is stored for this mailbox. Save a password, then verify again.";
       }
-      if (error.message.includes("rfq_already_sent")) {
-        return "This price inquiry has already been sent.";
-      }
-      if (error.message.includes("rfq_not_sent")) {
-        return "Send the price inquiry before checking for replies.";
-      }
-      if (error.message.includes("rfq_not_ready_to_send")) {
-        return "This price inquiry is not ready to send.";
-      }
-      if (error.message.includes("rfq_inputs_stale")) {
-        return "An input changed since this draft was prepared (lead, recipient or sender). Review it before sending.";
-      }
-      if (error.message.includes("inquiry_sender_profile_required")) {
-        return "This product has no inquiry sender profile. Assign one before sending.";
-      }
       if (error.message.includes("sender_profile_disabled")) {
         return "The selected sender profile is disabled.";
       }

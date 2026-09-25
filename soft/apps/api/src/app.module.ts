@@ -14,9 +14,6 @@ import { OutreachDrafterModule } from './modules/outreach-drafter/outreach-draft
 import { SenderProfilesModule } from './modules/sender-profiles/sender-profiles.module.js';
 import { EmailAccountsModule } from './modules/email-accounts/email-accounts.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
-import { PriceInquiryModule } from './modules/price-inquiry/price-inquiry.module.js';
-import { QuoteCollectionModule } from './modules/quote-collection/quote-collection.module.js';
-import { ResearchResultModule } from './modules/research-result/research-result.module.js';
 
 @Module({
   imports: [
@@ -33,9 +30,6 @@ import { ResearchResultModule } from './modules/research-result/research-result.
     EmailAccountsModule,
     OutreachDrafterModule,
     DashboardModule,
-    PriceInquiryModule,
-    QuoteCollectionModule,
-    ResearchResultModule,
   ],
   controllers: [HealthController, ReadinessController],
 })

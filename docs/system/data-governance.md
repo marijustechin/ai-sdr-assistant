@@ -77,10 +77,10 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `sender_profiles` | Reusable, product-independent **sender identities** (label, sender name, optional **role/title**, optional **company/brand**, From/Reply-To, optional signature, status) + optional `email_account_id`; owns **no** transport credentials; usable without a company/brand, and generation must not depend on the stored signature | `sender-profiles` | impl |
 | `email_accounts` | Technical **mailbox connection** for a password-authenticated mailbox (account email, status, `provider`, SMTP + IMAP host/port/TLS/username, `credentialsShared`); passwords stored only as authenticated ciphertext (`EMAIL_SECRETS_KEY` server-side, never DB/Git); referenced by `sender_profiles.email_account_id` and `outreach_drafts.email_account_id` | `email-accounts` | impl |
 | `outreach_drafts` | Evidence-backed **initial** outreach drafts: recipient reference, subject/body, language, preparation status (`PREPARED \| BLOCKED`), rationale, context/evidence references, sender profile reference + non-secret identity snapshot, and precise missing fields; append-only/versioned + idempotent fingerprint; no send state | `outreach-drafter` | impl |
-| `price_inquiry_drafts` | Persisted, reviewable **price inquiry (RFQ) drafts**: references to opportunity/lead/company/product/contact/sender, exact recipient email + selection rationale, editable subject/body with the immutable generated original, grounded `specification_summary`, provenance, status `READY_FOR_HUMAN_REVIEW | SENT | REPLY_RECEIVED | QUOTE_EXTRACTED` | `price-inquiry` | impl |
-| `quote_outbound_messages` | Immutable snapshot of each outbound RFQ send attempt (sender/account refs, from/reply-to/recipient, subject/body as sent, preserved Message-ID, submission status + safe failure code); no credentials | `quote-collection` | impl |
-| `quote_inbound_messages` | Bounded supplier replies (provider Message-ID, In-Reply-To/References, from/to/subject, received time, plain-text body, idempotent by mailbox uid, processing status, match confidence, research/evidence links) | `quote-collection` | impl |
-| `supplier_quotes` | Structured commercial terms extracted from a supplier reply (price text/amount/currency/unit, MOQ, Incoterm, loading, lead time, validity, VAT, qualification) with per-field provenance and warnings; unknown fields stay null | `quote-collection` | impl |
+| `price_inquiry_drafts` **(orphaned 2026-09-25; no drops)** | Persisted, reviewable **price inquiry (RFQ) drafts**: references to opportunity/lead/company/product/contact/sender, exact recipient email + selection rationale, editable subject/body with the immutable generated original, grounded `specification_summary`, provenance, status `READY_FOR_HUMAN_REVIEW | SENT | REPLY_RECEIVED | QUOTE_EXTRACTED` | `price-inquiry` | impl |
+| `quote_outbound_messages` **(orphaned/dormant 2026-09-25; retained generic infra)** | Immutable snapshot of each outbound RFQ send attempt (sender/account refs, from/reply-to/recipient, subject/body as sent, preserved Message-ID, submission status + safe failure code); no credentials | `quote-collection` | impl |
+| `quote_inbound_messages` **(orphaned/dormant 2026-09-25; retained generic infra)** | Bounded supplier replies (provider Message-ID, In-Reply-To/References, from/to/subject, received time, plain-text body, idempotent by mailbox uid, processing status, match confidence, research/evidence links) | `quote-collection` | impl |
+| `supplier_quotes` **(orphaned 2026-09-25; no drops)** | Structured commercial terms extracted from a supplier reply (price text/amount/currency/unit, MOQ, Incoterm, loading, lead time, validity, VAT, qualification) with per-field provenance and warnings; unknown fields stay null | `quote-collection` | impl |
 | `outreach_draft_research` | Draft↔research join | `outreach-drafter` | plan |
 | `customer_profiles` | Versioned ideal-customer profiles | `knowledge` | plan |
 | `buyer_personas` | Versioned buyer personas | `knowledge` | plan |
@@ -90,6 +90,16 @@ Status: **impl** = implemented (T-004); **plan** = planned.
 | `opportunity_value_proposition` | Opportunity↔value-proposition association | `opportunities` | plan |
 | `inbox_items` | Ingested inbound messages (future) | `inbox-intelligence` | plan |
 | `job_logs` | Queue job bookkeeping | `jobs` | plan |
+
+> **Supplier price inquiry decommissioned (2026-09-25).** `price_inquiry_drafts`
+> is orphaned (owner module unregistered) and `supplier_quotes` is unused.
+> `quote_outbound_messages`, `quote_inbound_messages`, `quote_follow_ups` and
+> `research_results` remain as **dormant/retained infrastructure** (historical
+> rows preserved, no drops). A future human-approved migration may drop
+> `research_results`, `price_inquiry_drafts`, `quote_outbound_messages`,
+> `quote_inbound_messages`, `supplier_quotes` and `quote_follow_ups` after
+> export/archival, or re-home the generic outbound/inbound/follow-up tables under
+> a future sales-outreach owner. **Nothing is dropped in this pass.**
 
 The exact implemented columns and constraints are defined in
 `soft/packages/database/prisma/schema.prisma` and described in

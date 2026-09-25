@@ -76,12 +76,14 @@ authoritative capability snapshot; do not maintain a status list here. In short:
 - **Catalogue + research:** Catalogue + Research Context API, product-independent
   research-request flow with explicit cost/tool permissions, research-run
   persistence (sources/evidence/claims/offerings), the read-only research results
-  dashboard, and run-result finalization with pending-quote follow-up scheduling.
+  dashboard, and the offerings table. **Supplier price inquiry is decommissioned
+  from Market Research** (2026-09-25); public absence of a price is recorded as
+  evidence, not an outreach trigger.
 - **Pipeline slices (bounded):** evidence-backed buyer shortlist with agent
   qualification, source-backed contacts, reusable sender profiles, email accounts
-  (SMTP/IMAP with encrypted secrets), outreach drafts, price-inquiry (RFQ)
-  drafts, and a human-gated supplier quote-collection loop. **No sending of
-  buyer outreach** and no commercial commitments.
+  (SMTP/IMAP with encrypted secrets), and outreach drafts. **No sending of buyer
+  outreach** and no commercial commitments. The generic mailbox/reply/follow-up
+  infrastructure is retained dormant for future sales outreach.
 - **Admin UI:** Next.js product/research/leads/settings/dashboard surfaces.
 
 **Not implemented:** a worker/jobs platform (`soft/apps/worker`, BullMQ),

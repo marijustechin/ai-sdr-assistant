@@ -12,6 +12,55 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-25 — Supplier price inquiry decommissioned from Market Research
+
+The Lithuania benchmark showed that supplier replies reliably turn into **sales
+conversations** rather than useful research clarification. Supplier price inquiry
+is therefore decommissioned as a Market Research capability: the platform no
+longer depends on it and no longer initiates it automatically. This is a
+deliberate product simplification, not a rollback.
+
+- **Public absence of a price is itself market evidence.** A researched offering
+  with no public price stays a recorded finding (`priceText` absent;
+  `offeringUncertainty` → "Price not recorded") — it is **not** a trigger to
+  email the supplier. Absence is captured as evidence, never converted into
+  outreach.
+- **Removed from Market Research.** Unregistered from the API: the `price-inquiry`
+  and `quote-collection` controllers (RFQ draft / send / check-replies /
+  follow-ups) and the whole `research-result` module (`/result`, `/finalize`).
+  Removed concepts: `ResearchClarificationState`, pending/replies/quotes/
+  no-response counts, `ResearchResult*`/`FinalizeResearchResultSchema` contracts,
+  the run-page result summary, the lead-page RFQ panel, the product "Inquiry
+  sender profile" selector, and the web price-inquiry/quote-collection entities
+  and features.
+- **Retained and dormant (generic infrastructure, reusable for sales outreach).**
+  `email-accounts` stays registered (SMTP/IMAP config + encrypted secrets). The
+  `price-inquiry` / `quote-collection` **source and tables** are retained but
+  unregistered: outbound Message-ID tracking, account-wide reply scanning,
+  inbound matching/parsing, supplier-quote extraction, and the DB-backed
+  follow-up worker (env-gated, default off) remain building blocks.
+- **Historical records preserved.** No table is dropped and no row deleted in
+  this task. `ResearchRunStatus.COMPLETED_WITH_PENDING_CLARIFICATIONS` and
+  `PriceInquiryStatus.NO_RESPONSE` are retained only so historical runs (the
+  Lithuania benchmark) still parse and render; nothing produces them for new work.
+- **Buyer outreach unaffected.** Leads, contacts, sender profiles, email accounts
+  and outreach drafts are unchanged.
+
+Reason: the capability's output was sales conversations, not research
+clarification, so it does not belong in Market Research. Keeping the generic
+mailbox/reply infrastructure decoupled from a Market Research trigger preserves
+the option to reuse it for approval-gated buyer outreach without carrying the
+supplier-inquiry product surface.
+
+**Migration recommendation (not executed here).** After human approval and a
+data export/archive, a future additive migration may drop the now-unused
+`research_results`, `price_inquiry_drafts`, `quote_outbound_messages`,
+`quote_inbound_messages`, `supplier_quotes`, and `quote_follow_ups` tables (or
+re-home the generic outbound/inbound/follow-up tables under a future
+sales-outreach owner). Do not drop them until the history is exported.
+
+---
+
 ## 2026-09-25 — One source of truth per status statement; enforceable finalization
 
 Documentation drift had accumulated: `ops/current.md` still described a

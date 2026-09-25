@@ -148,3 +148,33 @@ export type SendPriceInquiryResponse = z.infer<
   typeof SendPriceInquiryResponseSchema
 >;
 export type CheckRepliesResponse = z.infer<typeof CheckRepliesResponseSchema>;
+
+/**
+ * Retained generic reply-check follow-up infrastructure (reusable for future
+ * sales outreach). The DB row is the source of truth; a worker only *checks for
+ * replies* and never sends mail.
+ */
+export const QuoteFollowUpStatusSchema = z.enum([
+  'SCHEDULED',
+  'COMPLETED',
+  'EXPIRED',
+]);
+
+/** Manual trigger for due follow-up checks (bounded). */
+export const RunDueFollowUpsSchema = z.strictObject({
+  limit: z.number().int().min(1).max(50).optional(),
+});
+
+export const RunDueFollowUpsResponseSchema = z.strictObject({
+  claimed: z.number().int().nonnegative(),
+  matched: z.number().int().nonnegative(),
+  noReply: z.number().int().nonnegative(),
+  expired: z.number().int().nonnegative(),
+  errors: z.number().int().nonnegative(),
+});
+
+export type QuoteFollowUpStatus = z.infer<typeof QuoteFollowUpStatusSchema>;
+export type RunDueFollowUpsInput = z.infer<typeof RunDueFollowUpsSchema>;
+export type RunDueFollowUpsResponse = z.infer<
+  typeof RunDueFollowUpsResponseSchema
+>;

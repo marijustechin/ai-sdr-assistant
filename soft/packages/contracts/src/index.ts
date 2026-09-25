@@ -11,4 +11,3 @@ export * from './email-accounts.js';
 export * from './dashboard.js';
 export * from './price-inquiries.js';
 export * from './quote-collection.js';
-export * from './research-result.js';
