@@ -1,4 +1,8 @@
-import type { OutreachDraftRead, OutreachPreparationStatus } from "./types";
+import type {
+  OutreachDecisionStatus,
+  OutreachDraftRead,
+  OutreachPreparationStatus,
+} from "./types";
 
 type BadgeTone = "neutral" | "info" | "success" | "warning" | "danger" | "outline";
 
@@ -12,6 +16,27 @@ export const OUTREACH_STATUS_TONE: Record<OutreachPreparationStatus, BadgeTone> 
     PREPARED: "success",
     BLOCKED: "warning",
   };
+
+export const OUTREACH_DECISION_LABEL: Record<OutreachDecisionStatus, string> = {
+  ELIGIBLE: "Eligible for outreach",
+  DO_NOT_CONTACT: "Do not contact",
+  EXISTING_RELATIONSHIP: "Existing relationship",
+  NOT_RELEVANT: "Not relevant",
+  ALREADY_CONTACTED: "Already contacted",
+};
+
+export const OUTREACH_DECISION_TONE: Record<OutreachDecisionStatus, BadgeTone> = {
+  ELIGIBLE: "success",
+  DO_NOT_CONTACT: "danger",
+  EXISTING_RELATIONSHIP: "warning",
+  NOT_RELEVANT: "neutral",
+  ALREADY_CONTACTED: "outline",
+};
+
+/** Decision states that exclude the company from outreach. */
+export function isExcludingDecision(status: OutreachDecisionStatus): boolean {
+  return status !== "ELIGIBLE";
+}
 
 const LANGUAGE_NAMES: Record<string, string> = {
   en: "English",

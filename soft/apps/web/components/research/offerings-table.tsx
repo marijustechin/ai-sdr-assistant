@@ -40,9 +40,11 @@ function CellText({
  * turns back into cards.
  */
 export function OfferingsTable({
+  opportunityId,
   groups,
   initialExpandedId = null,
 }: {
+  opportunityId: string;
   groups: OfferingTableGroup[];
   /** Initial open row id — used for deep links and server-render tests. */
   initialExpandedId?: string | null;
@@ -206,6 +208,7 @@ export function OfferingsTable({
                     >
                       <td colSpan={COLUMN_COUNT} className="px-3 py-4">
                         <OfferingDetail
+                          opportunityId={opportunityId}
                           offering={row.offering}
                           claimReview={row.review}
                           linkedClaimEvidence={row.linkedClaimEvidence}

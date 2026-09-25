@@ -89,6 +89,16 @@ function DraftBlock({
               {draft.body}
             </pre>
           </details>
+          {draft.htmlBody ? (
+            <details className="group">
+              <summary className="cursor-pointer rounded text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+                View HTML body
+              </summary>
+              <pre className="mt-2 whitespace-pre-wrap rounded border border-border p-3 font-mono text-xs text-muted-foreground">
+                {draft.htmlBody}
+              </pre>
+            </details>
+          ) : null}
         </div>
       )}
 

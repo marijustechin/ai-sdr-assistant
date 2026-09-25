@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { languageLabel, summarizeDrafts } from "./display";
+import {
+  isExcludingDecision,
+  languageLabel,
+  OUTREACH_DECISION_LABEL,
+  summarizeDrafts,
+} from "./display";
 import type { OutreachDraftRead } from "./types";
 
 function draft(overrides: Partial<OutreachDraftRead> = {}): OutreachDraftRead {
@@ -14,6 +19,7 @@ function draft(overrides: Partial<OutreachDraftRead> = {}): OutreachDraftRead {
     preparationStatus: "PREPARED",
     subject: "A quick question",
     body: "Hello,",
+    htmlBody: "<p>Hello,</p>",
     rationale: "Prepared from context.",
     recipientRationale: "General company email.",
     missingFields: [],
@@ -49,5 +55,17 @@ describe("outreach draft display helpers", () => {
         draft({ id: "c", preparationStatus: "BLOCKED", inputsStale: true }),
       ]),
     ).toEqual({ total: 3, prepared: 1, blocked: 2, stale: 1 });
+  });
+
+  it("labels every outreach decision and treats all but ELIGIBLE as excluding", () => {
+    expect(OUTREACH_DECISION_LABEL.DO_NOT_CONTACT).toBe("Do not contact");
+    expect(OUTREACH_DECISION_LABEL.EXISTING_RELATIONSHIP).toBe(
+      "Existing relationship",
+    );
+    expect(isExcludingDecision("ELIGIBLE")).toBe(false);
+    expect(isExcludingDecision("DO_NOT_CONTACT")).toBe(true);
+    expect(isExcludingDecision("EXISTING_RELATIONSHIP")).toBe(true);
+    expect(isExcludingDecision("NOT_RELEVANT")).toBe(true);
+    expect(isExcludingDecision("ALREADY_CONTACTED")).toBe(true);
   });
 });

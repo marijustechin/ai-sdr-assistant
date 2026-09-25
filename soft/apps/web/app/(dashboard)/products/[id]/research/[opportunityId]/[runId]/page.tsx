@@ -172,6 +172,7 @@ export default async function ResearchRunPage({
           <RunSummary summary={summary} />
 
           <OfferingsView
+            opportunityId={opportunityId}
             offerings={offerings}
             claims={claims}
             evidence={evidence}

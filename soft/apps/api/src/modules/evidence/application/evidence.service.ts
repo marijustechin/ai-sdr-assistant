@@ -247,4 +247,21 @@ export class EvidenceService {
     await this.runs.assertRun(opportunityId, runId);
     return this.repository.listOfferingsForRun(runId);
   }
+
+  /**
+   * Reads one offering, asserting it belongs to the opportunity's runs (so a
+   * company-scoped decision cannot be entered against another opportunity's
+   * offering).
+   */
+  async getOffering(
+    opportunityId: string,
+    offeringId: string,
+  ): Promise<OfferingRecord> {
+    const offering = await this.repository.findOffering(offeringId);
+    if (!offering) {
+      throw new NotFoundException({ error: 'offering_not_found' });
+    }
+    await this.runs.assertRun(opportunityId, offering.researchRunId);
+    return offering;
+  }
 }

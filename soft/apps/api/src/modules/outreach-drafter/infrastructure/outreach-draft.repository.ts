@@ -43,6 +43,7 @@ export class OutreachDraftRepository {
         preparationStatus: data.preparationStatus,
         subject: data.subject ?? null,
         body: data.body ?? null,
+        htmlBody: data.htmlBody ?? null,
         rationale: data.rationale,
         recipientRationale: data.recipientRationale,
         missingFields: data.missingFields,

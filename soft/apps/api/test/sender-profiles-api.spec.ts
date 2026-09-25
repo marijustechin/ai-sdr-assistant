@@ -103,6 +103,109 @@ describe('Sender profiles API (integration)', () => {
     expect((titled.json() as Json).senderTitle).toBe('Sourcing & Procurement');
   });
 
+  it('stores structured phone and website and clears them explicitly', async () => {
+    const created = await api('POST', '/sender-profiles', {
+      ...identity,
+      senderTitle: 'Sourcing & Procurement',
+      phone: '+370 600 00000',
+      website: 'https://acme.invalid',
+    });
+    expect(created.statusCode).toBe(201);
+    const profile = created.json() as Json;
+    expect(profile.phone).toBe('+370 600 00000');
+    expect(profile.website).toBe('https://acme.invalid');
+    expect(profile.senderTitle).toBe('Sourcing & Procurement');
+
+    const cleared = await api(
+      'PATCH',
+      `/sender-profiles/${profile.id as string}`,
+      { phone: null, website: null },
+    );
+    expect((cleared.json() as Json).phone).toBeNull();
+    expect((cleared.json() as Json).website).toBeNull();
+  });
+
+  it('requires a number before enabling WhatsApp and falls back to the main phone', async () => {
+    // Enabled with neither number → rejected.
+    const invalidCreate = await api('POST', '/sender-profiles', {
+      ...identity,
+      whatsappEnabled: true,
+    });
+    expect(invalidCreate.statusCode).toBe(400);
+    expect((invalidCreate.json() as Json).error).toBe('whatsapp_phone_required');
+
+    // Enabled with the main phone only → valid, dedicated number stays null.
+    const withMain = await api('POST', '/sender-profiles', {
+      ...identity,
+      phone: '+370 600 00000',
+      whatsappEnabled: true,
+    });
+    expect(withMain.statusCode).toBe(201);
+    const mainProfile = withMain.json() as Json;
+    expect(mainProfile.whatsappEnabled).toBe(true);
+    expect(mainProfile.whatsappPhone).toBeNull();
+
+    // Enabled with a dedicated number only → valid.
+    const withDedicated = await api('POST', '/sender-profiles', {
+      ...identity,
+      label: 'Dedicated',
+      whatsappEnabled: true,
+      whatsappPhone: '+370 600 00001',
+    });
+    expect(withDedicated.statusCode).toBe(201);
+    expect((withDedicated.json() as Json).whatsappPhone).toBe('+370 600 00001');
+
+    // A partial update that enables WhatsApp is validated against the stored phone.
+    const enableWithStoredPhone = await api(
+      'PATCH',
+      `/sender-profiles/${mainProfile.id as string}`,
+      { whatsappEnabled: true, whatsappPhone: null },
+    );
+    expect(enableWithStoredPhone.statusCode).toBe(200);
+    expect((enableWithStoredPhone.json() as Json).whatsappEnabled).toBe(true);
+
+    const noPhoneProfile = (
+      await api('POST', '/sender-profiles', {
+        label: 'No phone',
+        senderName: 'Tomas Berg',
+        fromEmail: 'tomas@example.invalid',
+      })
+    ).json() as Json;
+    const invalidUpdate = await api(
+      'PATCH',
+      `/sender-profiles/${noPhoneProfile.id as string}`,
+      { whatsappEnabled: true },
+    );
+    expect(invalidUpdate.statusCode).toBe(400);
+    expect((invalidUpdate.json() as Json).error).toBe('whatsapp_phone_required');
+  });
+
+  it('stores optional logo branding and defaults it off', async () => {
+    const created = (
+      await api('POST', '/sender-profiles', {
+        ...identity,
+        logoUrl: 'https://acme.invalid/logo.png',
+        includeLogoInSignature: true,
+      })
+    ).json() as Json;
+    expect(created.logoUrl).toBe('https://acme.invalid/logo.png');
+    expect(created.includeLogoInSignature).toBe(true);
+
+    const plain = (
+      await api('POST', '/sender-profiles', { ...identity, label: 'Plain' })
+    ).json() as Json;
+    expect(plain.includeLogoInSignature).toBe(false);
+    expect(plain.logoUrl).toBeNull();
+
+    const cleared = await api(
+      'PATCH',
+      `/sender-profiles/${created.id as string}`,
+      { logoUrl: null, includeLogoInSignature: false },
+    );
+    expect((cleared.json() as Json).logoUrl).toBeNull();
+    expect((cleared.json() as Json).includeLogoInSignature).toBe(false);
+  });
+
   it('references a mailbox connection and rejects an unknown one', async () => {
     const account = (
       await api('POST', '/email-accounts', {

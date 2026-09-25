@@ -15,6 +15,7 @@ import {
   type OfferingClaimReview,
 } from "@/lib/research/offerings";
 import { UNKNOWN_CELL } from "@/lib/research/offerings-table";
+import { OutreachDecisionControl } from "@features/manage-outreach-decision";
 import { formatDateTime } from "@shared/lib/format";
 import type { EvidenceRead, OfferingRead } from "@/lib/research/types";
 
@@ -42,10 +43,12 @@ function recordedAmount(offering: OfferingRead): string | null {
  * evidence, uncertainty and observed metadata. It never infers a value.
  */
 export function OfferingDetail({
+  opportunityId,
   offering,
   claimReview,
   linkedClaimEvidence,
 }: {
+  opportunityId: string;
   offering: OfferingRead;
   claimReview: OfferingClaimReview;
   linkedClaimEvidence: EvidenceRead[];
@@ -214,6 +217,11 @@ export function OfferingDetail({
         Inquiry / clarification: not linked to this offering (the data model does
         not connect offerings to supplier price inquiries yet).
       </p>
+
+      <OutreachDecisionControl
+        opportunityId={opportunityId}
+        scope={{ kind: "offering", offeringId: offering.id }}
+      />
     </div>
   );
 }

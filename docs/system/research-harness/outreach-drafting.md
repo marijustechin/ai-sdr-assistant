@@ -17,6 +17,9 @@ of deliverability.
 
 Draft only for a lead that is:
 
+- **not** excluded from outreach by a **human decision** for this
+  opportunity+company scope (`DO_NOT_CONTACT`, `EXISTING_RELATIONSHIP`,
+  `NOT_RELEVANT`, `ALREADY_CONTACTED`; `ELIGIBLE`/none means no exclusion), and
 - **not** human-`REJECTED`, and
 - **not** resting on superseded evidence (its supporting finding is `CURRENT`,
   and its agent qualification is not stale), and

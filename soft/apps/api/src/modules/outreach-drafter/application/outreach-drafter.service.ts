@@ -1,23 +1,30 @@
 import { createHash } from 'node:crypto';
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { PrepareOutreachDraftInput } from '@ai-sdr/contracts';
+import type {
+  PrepareOutreachDraftInput,
+  SetOutreachDecisionInput,
+} from '@ai-sdr/contracts';
 import type { ResearchContext } from '@ai-sdr/contracts';
 import { ContactDiscoveryService } from '../../contact-discovery/application/contact-discovery.service.js';
 import { ResearchContextService } from '../../control-plane/application/research-context.service.js';
+import { EvidenceService } from '../../evidence/application/evidence.service.js';
 import { LeadDiscovererService } from '../../lead-discoverer/application/lead-discoverer.service.js';
 import type { LeadRecord } from '../../lead-discoverer/domain/types.js';
 import { ProductsAndOffersService } from '../../products-and-offers/application/products-and-offers.service.js';
 import { SenderProfilesService } from '../../sender-profiles/application/sender-profiles.service.js';
 import type { SenderProfileRecord } from '../../sender-profiles/domain/types.js';
 import { buildDraftContent } from '../domain/content.js';
+import { isExcludingOutreachDecision } from '../domain/decisions.js';
 import { selectLanguage } from '../domain/language.js';
 import type {
   CreateDraftData,
+  OutreachDecisionRecord,
   OutreachDraftRecord,
   SenderSnapshot,
 } from '../domain/types.js';
@@ -25,6 +32,7 @@ import {
   OutreachDraftRepository,
   type OutreachDraftRow,
 } from '../infrastructure/outreach-draft.repository.js';
+import { OutreachDecisionRepository } from '../infrastructure/outreach-decision.repository.js';
 
 interface SenderResolution {
   assignmentId: string | null;
@@ -42,8 +50,12 @@ export class OutreachDrafterService {
   constructor(
     @Inject(OutreachDraftRepository)
     private readonly repository: OutreachDraftRepository,
+    @Inject(OutreachDecisionRepository)
+    private readonly decisions: OutreachDecisionRepository,
     @Inject(LeadDiscovererService)
     private readonly leads: LeadDiscovererService,
+    @Inject(EvidenceService)
+    private readonly evidence: EvidenceService,
     @Inject(ContactDiscoveryService)
     private readonly contacts: ContactDiscoveryService,
     @Inject(ResearchContextService)
@@ -60,6 +72,16 @@ export class OutreachDrafterService {
     input: PrepareOutreachDraftInput,
   ): Promise<OutreachDraftRecord> {
     const lead = await this.leads.getLead(opportunityId, leadId);
+
+    // Human exclusion overrides agent qualification and the operator review:
+    // an excluded company cannot be drafted for this scope.
+    const decision = await this.decisions.find(opportunityId, lead.companyId);
+    if (decision && isExcludingOutreachDecision(decision.decision)) {
+      throw new ConflictException({
+        error: 'lead_excluded_from_outreach',
+        decision: decision.decision,
+      });
+    }
 
     if (lead.reviewStatus === 'REJECTED') {
       throw new ConflictException({ error: 'lead_rejected_by_operator' });
@@ -112,15 +134,22 @@ export class OutreachDrafterService {
     const senderSnapshot: SenderSnapshot | null = activeProfile
       ? {
           senderName: activeProfile.senderName,
+          senderTitle: activeProfile.senderTitle,
           companyName: activeProfile.companyName,
           fromEmail: activeProfile.fromEmail,
           replyToEmail: activeProfile.replyToEmail,
-          signature: activeProfile.signature,
+          phone: activeProfile.phone,
+          website: activeProfile.website,
+          whatsappEnabled: activeProfile.whatsappEnabled,
+          whatsappPhone: activeProfile.whatsappPhone,
+          includeLogoInSignature: activeProfile.includeLogoInSignature,
+          logoUrl: activeProfile.logoUrl,
         }
       : null;
 
     let subject: string | undefined;
     let body: string | undefined;
+    let htmlBody: string | undefined;
     let preparationStatus: 'PREPARED' | 'BLOCKED' = 'BLOCKED';
     let rationale: string;
 
@@ -137,13 +166,19 @@ export class OutreachDrafterService {
         observedActivityText: lead.observedActivityText,
         offerSummary,
         senderName: activeProfile.senderName,
+        senderTitle: activeProfile.senderTitle,
         senderCompany: activeProfile.companyName,
-        ...(activeProfile.signature
-          ? { signature: activeProfile.signature }
-          : {}),
+        senderPhone: activeProfile.phone,
+        senderWebsite: activeProfile.website,
+        senderEmail: activeProfile.fromEmail,
+        whatsappEnabled: activeProfile.whatsappEnabled,
+        whatsappPhone: activeProfile.whatsappPhone,
+        includeLogoInSignature: activeProfile.includeLogoInSignature,
+        logoUrl: activeProfile.logoUrl,
       });
       subject = content.subject;
       body = content.body;
+      htmlBody = content.htmlBody;
       preparationStatus = 'PREPARED';
       rationale =
         `Prepared from opportunity context v${context.contextVersion} (offer: ${context.offer.name}) ` +
@@ -163,6 +198,7 @@ export class OutreachDrafterService {
       language: chosen.language,
       subject: subject ?? null,
       body: body ?? null,
+      htmlBody: htmlBody ?? null,
       missingFields,
       contextVersion: context?.contextVersion ?? null,
       evidenceId: lead.evidenceId,
@@ -170,15 +206,19 @@ export class OutreachDrafterService {
       senderProfileId: activeProfile?.id ?? null,
       // Identity material only (never the password) participates in versioning.
       senderName: activeProfile?.senderName ?? null,
+      senderTitle: activeProfile?.senderTitle ?? null,
       senderCompany: activeProfile?.companyName ?? null,
       fromEmail: activeProfile?.fromEmail ?? null,
       replyToEmail: activeProfile?.replyToEmail ?? null,
-      signature: activeProfile?.signature ?? null,
+      phone: activeProfile?.phone ?? null,
+      website: activeProfile?.website ?? null,
+      whatsappEnabled: activeProfile?.whatsappEnabled ?? false,
+      whatsappPhone: activeProfile?.whatsappPhone ?? null,
     });
 
     const existing = await this.repository.findByFingerprint(fingerprint);
     if (existing) {
-      return this.toRecord(existing, lead, sender);
+      return this.toRecord(existing, lead, sender, decision);
     }
 
     const data: CreateDraftData = {
@@ -191,6 +231,7 @@ export class OutreachDrafterService {
       preparationStatus,
       ...(subject !== undefined ? { subject } : {}),
       ...(body !== undefined ? { body } : {}),
+      ...(htmlBody !== undefined ? { htmlBody } : {}),
       rationale,
       recipientRationale,
       missingFields,
@@ -206,7 +247,12 @@ export class OutreachDrafterService {
       version: await this.repository.nextVersion(opportunityId, leadId),
       fingerprint,
     };
-    return this.toRecord(await this.repository.createDraft(data), lead, sender);
+    return this.toRecord(
+      await this.repository.createDraft(data),
+      lead,
+      sender,
+      decision,
+    );
   }
 
   async listDrafts(
@@ -215,8 +261,9 @@ export class OutreachDrafterService {
   ): Promise<OutreachDraftRecord[]> {
     const lead = await this.leads.getLead(opportunityId, leadId);
     const sender = await this.senderContextFor(opportunityId);
+    const decision = await this.decisions.find(opportunityId, lead.companyId);
     const rows = await this.repository.listDrafts(opportunityId, leadId);
-    return rows.map((row) => this.toRecord(row, lead, sender));
+    return rows.map((row) => this.toRecord(row, lead, sender, decision));
   }
 
   /**
@@ -247,7 +294,90 @@ export class OutreachDrafterService {
     if (!row) {
       throw new NotFoundException({ error: 'outreach_draft_not_found' });
     }
-    return this.toRecord(row, lead, sender);
+    const decision = await this.decisions.find(opportunityId, lead.companyId);
+    return this.toRecord(row, lead, sender, decision);
+  }
+
+  /**
+   * The human outreach decision for one (opportunity, company) scope, or null
+   * when none has been recorded (treated as eligible). This is the single
+   * authoritative source; a lead is never required.
+   */
+  async getDecisionForCompany(
+    opportunityId: string,
+    companyId: string,
+  ): Promise<OutreachDecisionRecord | null> {
+    return this.decisions.find(opportunityId, companyId);
+  }
+
+  /**
+   * Records a human outreach decision for one (opportunity, company) scope.
+   * Human provenance is persisted (`HUMAN` + `decidedAt`); it never changes
+   * research evidence or the agent qualification.
+   */
+  async setDecisionForCompany(
+    opportunityId: string,
+    companyId: string,
+    input: SetOutreachDecisionInput,
+  ): Promise<OutreachDecisionRecord> {
+    return this.decisions.upsert(opportunityId, companyId, {
+      decision: input.decision,
+      ...(input.note !== undefined ? { note: input.note } : {}),
+    });
+  }
+
+  /**
+   * Reads the decision for a research offering's company (opportunity+company
+   * scoped, lead-independent). Returns null when the offering has no company or
+   * none is recorded yet. Read-only — never creates a company.
+   */
+  async getDecisionForOffering(
+    opportunityId: string,
+    offeringId: string,
+  ): Promise<OutreachDecisionRecord | null> {
+    const companyId = await this.resolveOfferingCompanyId(
+      opportunityId,
+      offeringId,
+      false,
+    );
+    return companyId ? this.decisions.find(opportunityId, companyId) : null;
+  }
+
+  /**
+   * Records a human decision for a research offering's company. Must work even
+   * when no lead/company exists yet, so a minimal company identity is resolved
+   * or created (idempotent, human-initiated) and the decision is stored against
+   * the same (opportunity, company) key the drafting gate reads.
+   */
+  async setDecisionForOffering(
+    opportunityId: string,
+    offeringId: string,
+    input: SetOutreachDecisionInput,
+  ): Promise<OutreachDecisionRecord> {
+    const companyId = await this.resolveOfferingCompanyId(
+      opportunityId,
+      offeringId,
+      true,
+    );
+    if (!companyId) {
+      throw new BadRequestException({ error: 'offering_company_missing' });
+    }
+    return this.setDecisionForCompany(opportunityId, companyId, input);
+  }
+
+  private async resolveOfferingCompanyId(
+    opportunityId: string,
+    offeringId: string,
+    create: boolean,
+  ): Promise<string | null> {
+    const offering = await this.evidence.getOffering(opportunityId, offeringId);
+    const name = offering.companyText?.trim();
+    if (!name) return null;
+    const country = offering.companyLocationText;
+    const company = create
+      ? await this.leads.ensureCompanyByName(name, country)
+      : await this.leads.resolveCompanyByName(name, country);
+    return company?.id ?? null;
   }
 
   private async resolveSender(
@@ -279,6 +409,7 @@ export class OutreachDrafterService {
     row: OutreachDraftRow,
     lead: LeadRecord,
     sender: SenderResolution,
+    decision: OutreachDecisionRecord | null,
   ): OutreachDraftRecord {
     const staleReasons: string[] = [];
     if (lead.agentQualificationStale || lead.needsReview) {
@@ -288,6 +419,11 @@ export class OutreachDrafterService {
     }
     if (lead.reviewStatus === 'REJECTED') {
       staleReasons.push('Lead was rejected by the operator.');
+    }
+    if (decision && isExcludingOutreachDecision(decision.decision)) {
+      staleReasons.push(
+        `Excluded from outreach by a human decision (${decision.decision}).`,
+      );
     }
     if (
       row.contactId &&
@@ -309,10 +445,17 @@ export class OutreachDrafterService {
       } else if (
         snapshot &&
         (snapshot.senderName !== sender.profile.senderName ||
+          snapshot.senderTitle !== sender.profile.senderTitle ||
           snapshot.companyName !== sender.profile.companyName ||
           snapshot.fromEmail !== sender.profile.fromEmail ||
           snapshot.replyToEmail !== sender.profile.replyToEmail ||
-          snapshot.signature !== sender.profile.signature)
+          snapshot.phone !== sender.profile.phone ||
+          snapshot.website !== sender.profile.website ||
+          snapshot.whatsappEnabled !== sender.profile.whatsappEnabled ||
+          snapshot.whatsappPhone !== sender.profile.whatsappPhone ||
+          snapshot.includeLogoInSignature !==
+            sender.profile.includeLogoInSignature ||
+          snapshot.logoUrl !== sender.profile.logoUrl)
       ) {
         staleReasons.push(
           'The sender identity changed since this draft was prepared.',
@@ -338,6 +481,7 @@ export class OutreachDrafterService {
       preparationStatus: row.preparationStatus,
       subject: row.subject,
       body: row.body,
+      htmlBody: row.htmlBody,
       rationale: row.rationale,
       recipientRationale: row.recipientRationale,
       missingFields: row.missingFields ?? [],

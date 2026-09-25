@@ -420,4 +420,12 @@ export class EvidenceRepository {
     });
     return offerings.map(toOfferingRecord);
   }
+
+  async findOffering(offeringId: string): Promise<OfferingRecord | null> {
+    const offering = await this.prisma.db.researchOffering.findUnique({
+      where: { id: offeringId },
+      include: { evidence: { include: { sourceReference: true } } },
+    });
+    return offering ? toOfferingRecord(offering) : null;
+  }
 }

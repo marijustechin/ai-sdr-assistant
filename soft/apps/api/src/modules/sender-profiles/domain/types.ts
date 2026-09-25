@@ -15,6 +15,12 @@ export interface SenderProfileRecord {
   companyName: string | null;
   fromEmail: string;
   replyToEmail: string | null;
+  phone: string | null;
+  website: string | null;
+  whatsappEnabled: boolean;
+  whatsappPhone: string | null;
+  logoUrl: string | null;
+  includeLogoInSignature: boolean;
   signature: string | null;
   status: SenderProfileStatus;
   emailAccountId: string | null;
@@ -29,6 +35,12 @@ export interface CreateSenderProfileData {
   companyName?: string | null;
   fromEmail: string;
   replyToEmail?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  whatsappEnabled?: boolean;
+  whatsappPhone?: string | null;
+  logoUrl?: string | null;
+  includeLogoInSignature?: boolean;
   signature?: string | null;
   status?: SenderProfileStatus;
   emailAccountId?: string | null;
@@ -41,6 +53,12 @@ export interface UpdateSenderProfileData {
   companyName?: string | null;
   fromEmail?: string;
   replyToEmail?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  whatsappEnabled?: boolean;
+  whatsappPhone?: string | null;
+  logoUrl?: string | null;
+  includeLogoInSignature?: boolean;
   signature?: string | null;
   status?: SenderProfileStatus;
   /** `null` clears the mailbox-connection reference. */

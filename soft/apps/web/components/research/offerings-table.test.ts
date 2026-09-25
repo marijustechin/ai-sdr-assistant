@@ -1,6 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+
+// The expanded row renders the outreach-decision control, which reads the router;
+// a no-op router keeps the static render test independent of the Next runtime.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    refresh: () => {},
+    push: () => {},
+    replace: () => {},
+    prefetch: () => {},
+  }),
+}));
+
 import { OfferingsTable } from "./offerings-table";
 import {
   buildOfferingTableGroups,
@@ -90,7 +102,11 @@ function render(offerings: OfferingRead[], initialExpandedId: string | null = nu
     new Map(),
   );
   return renderToStaticMarkup(
-    createElement(OfferingsTable, { groups, initialExpandedId }),
+    createElement(OfferingsTable, {
+      opportunityId: "opp-1",
+      groups,
+      initialExpandedId,
+    }),
   );
 }
 

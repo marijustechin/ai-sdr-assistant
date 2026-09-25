@@ -90,10 +90,10 @@ root `modules/` workspace**.
 | 10 | `company-intelligence` | Deep company research → sourced company profiles | planned |
 | 11 | `contact-discovery` | `contacts` + `contact_sources` (source-backed); live discovery/verification (planned) | implemented-subset |
 | 12 | `inbox-intelligence` | Inbox ingestion + reply analysis (reserved, post-MVP) | planned |
-| 13 | `outreach-drafter` | Evidence-backed initial outreach drafts (no send path) | implemented-subset |
+| 13 | `outreach-drafter` | Evidence-backed initial outreach drafts + human outreach exclusion decisions (no send path) | implemented-subset |
 | 14 | `approvals` | Approval workflow engine + mutation application | planned |
 | 15 | `jobs` | BullMQ queue/worker wiring + job lifecycle | planned |
-| 16 | `sender-profiles` | Reusable sender identities (no credentials; optional mailbox reference) | implemented-subset |
+| 16 | `sender-profiles` | Reusable sender identities (no credentials; optional mailbox reference) + structured closing fields (phone/website/WhatsApp; optional HTML-signature logo; signature deprecated) | implemented-subset |
 | 17 | `email-accounts` | Mailbox transport (SMTP + IMAP config, encrypted secrets) + bounded verification; no automated send/monitoring | implemented-subset |
 | 18 | `dashboard` | Read-only admin summary (aggregate counts; owns no tables) | implemented-subset |
 | 19 | `price-inquiry` | **(decommissioned 2026-09-25)** RFQ drafts — retained dormant for future sales outreach; unregistered, no longer a Market Research capability | implemented-subset |

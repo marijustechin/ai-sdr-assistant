@@ -17,6 +17,10 @@ export default defineConfig({
       "@entities": fileURLToPath(new URL("./entities", import.meta.url)),
       "@features": fileURLToPath(new URL("./features", import.meta.url)),
       "@widgets": fileURLToPath(new URL("./widgets", import.meta.url)),
+      // Next resolves `server-only` specially; alias it to a no-op for vitest.
+      "server-only": fileURLToPath(
+        new URL("./test-stubs/server-only.ts", import.meta.url),
+      ),
     },
   },
   test: {

@@ -15,6 +15,12 @@ export interface SenderProfileRead {
   companyName: string | null;
   fromEmail: string;
   replyToEmail: string | null;
+  phone: string | null;
+  website: string | null;
+  whatsappEnabled: boolean;
+  whatsappPhone: string | null;
+  logoUrl: string | null;
+  includeLogoInSignature: boolean;
   signature: string | null;
   status: SenderProfileStatus;
   emailAccountId: string | null;

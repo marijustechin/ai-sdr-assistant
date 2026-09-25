@@ -26,7 +26,13 @@ type LeadWithRelations = Prisma.OpportunityCompanyGetPayload<{
   include: typeof LEAD_INCLUDE;
 }>;
 
-function toCompanyRecord(company: LeadWithRelations['company']): CompanyRecord {
+function toCompanyRecord(company: {
+  id: string;
+  name: string;
+  normalizedName: string;
+  website: string | null;
+  country: string | null;
+}): CompanyRecord {
   return {
     id: company.id,
     name: company.name,
@@ -195,6 +201,54 @@ export class LeadRepository {
       where: { id: companyId },
     });
     return company ? toCompanyRecord(company) : null;
+  }
+
+  /**
+   * Resolves a company by its deterministic identity (normalized name +
+   * country), with a unique-name fallback so a research-offering company can be
+   * matched to a company created with a different country spelling. Read-only.
+   */
+  async findCompanyByName(
+    name: string,
+    country?: string | null,
+  ): Promise<CompanyRecord | null> {
+    const identityKey = companyIdentityKey(name, country ?? null);
+    const exact = await this.prisma.db.company.findUnique({
+      where: { identityKey },
+    });
+    if (exact) return toCompanyRecord(exact);
+    const matches = await this.prisma.db.company.findMany({
+      where: { normalizedName: normalizeCompanyName(name) },
+    });
+    return matches.length === 1 ? toCompanyRecord(matches[0]!) : null;
+  }
+
+  /**
+   * Gets or creates a minimal company identity for a name (idempotent by
+   * identity key). Used only when a **human** records an outreach decision from
+   * research results; the display name is first-seen and stable.
+   */
+  async ensureCompany(data: {
+    name: string;
+    country?: string | null;
+    website?: string | null;
+  }): Promise<CompanyRecord> {
+    const existing = await this.findCompanyByName(data.name, data.country);
+    if (existing) return existing;
+    const normalizedName = normalizeCompanyName(data.name);
+    const identityKey = companyIdentityKey(data.name, data.country ?? null);
+    const company = await this.prisma.db.company.upsert({
+      where: { identityKey },
+      create: {
+        name: data.name,
+        normalizedName,
+        website: data.website ?? null,
+        country: data.country ?? null,
+        identityKey,
+      },
+      update: {},
+    });
+    return toCompanyRecord(company);
   }
 
   async listLeads(opportunityId: string): Promise<LeadRecord[]> {

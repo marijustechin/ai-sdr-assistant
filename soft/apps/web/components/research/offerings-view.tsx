@@ -45,6 +45,7 @@ function FilterChip({
 }
 
 export function OfferingsView({
+  opportunityId,
   offerings,
   claims,
   evidence,
@@ -52,6 +53,7 @@ export function OfferingsView({
   claimFilters,
   basePath,
 }: {
+  opportunityId: string;
   offerings: OfferingRead[];
   /** All claims (current + history) so a corrected link can be flagged. */
   claims: ClaimRead[];
@@ -196,7 +198,10 @@ export function OfferingsView({
                 No offerings match the active filters.
               </p>
             ) : (
-              <OfferingsTable groups={tableGroups} />
+              <OfferingsTable
+                opportunityId={opportunityId}
+                groups={tableGroups}
+              />
             )}
           </>
         )}

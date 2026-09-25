@@ -111,6 +111,34 @@ export class LeadDiscovererService {
     return company;
   }
 
+  /**
+   * Resolves a company by name (deterministic identity) without creating one.
+   * Used to read an outreach decision made from research results.
+   */
+  async resolveCompanyByName(
+    name: string,
+    country?: string | null,
+  ): Promise<CompanyRecord | null> {
+    return this.repository.findCompanyByName(name, country ?? null);
+  }
+
+  /**
+   * Gets or creates a minimal company identity by name. Only invoked when a
+   * **human** records an outreach decision from research results (which must
+   * work even when no lead/company exists yet); it is idempotent.
+   */
+  async ensureCompanyByName(
+    name: string,
+    country?: string | null,
+    website?: string | null,
+  ): Promise<CompanyRecord> {
+    return this.repository.ensureCompany({
+      name,
+      country: country ?? null,
+      website: website ?? null,
+    });
+  }
+
   async getLead(opportunityId: string, leadId: string): Promise<LeadRecord> {
     const lead = await this.repository.findLead(opportunityId, leadId);
     if (!lead) {

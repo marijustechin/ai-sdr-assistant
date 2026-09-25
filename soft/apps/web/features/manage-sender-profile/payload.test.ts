@@ -14,6 +14,12 @@ function state(
     companyName: "PremiumTimberHub",
     fromEmail: "sales@premiumtimberhub.eu",
     replyToEmail: "",
+    phone: "",
+    website: "",
+    whatsappEnabled: false,
+    whatsappPhone: "",
+    logoUrl: "",
+    includeLogoInSignature: false,
     signature: "",
     status: "ACTIVE",
     emailAccountId: "",
@@ -28,6 +34,8 @@ describe("buildSenderProfilePayload", () => {
       senderName: "Albert Scout",
       companyName: "PremiumTimberHub",
       fromEmail: "sales@premiumtimberhub.eu",
+      whatsappEnabled: false,
+      includeLogoInSignature: false,
     });
   });
 
@@ -63,6 +71,8 @@ describe("buildSenderProfilePayload", () => {
       label: "Sales PremiumTimberHub",
       senderName: "Albert Scout",
       fromEmail: "sales@premiumtimberhub.eu",
+      whatsappEnabled: false,
+      includeLogoInSignature: false,
     });
     expect(payload).not.toHaveProperty("companyName");
     expect(payload).not.toHaveProperty("senderTitle");
@@ -83,5 +93,72 @@ describe("buildSenderProfilePayload", () => {
     );
     expect(payload.companyName).toBeNull();
     expect(payload.senderTitle).toBeNull();
+  });
+
+  it("includes structured phone and website when provided", () => {
+    const payload = buildSenderProfilePayload(
+      state({ phone: "+370 600 00000", website: "https://acme.invalid" }),
+      "create",
+    );
+    expect(payload.phone).toBe("+370 600 00000");
+    expect(payload.website).toBe("https://acme.invalid");
+  });
+
+  it("omits phone/website on create and clears them explicitly on edit", () => {
+    const created = buildSenderProfilePayload(state(), "create");
+    expect(created).not.toHaveProperty("phone");
+    expect(created).not.toHaveProperty("website");
+
+    const edited = buildSenderProfilePayload(state(), "edit");
+    expect(edited.phone).toBeNull();
+    expect(edited.website).toBeNull();
+  });
+
+  it("includes the WhatsApp flag, omitting a blank dedicated number (main-phone fallback)", () => {
+    const payload = buildSenderProfilePayload(
+      state({ phone: "+370 600 00000", whatsappEnabled: true }),
+      "create",
+    );
+    expect(payload.whatsappEnabled).toBe(true);
+    expect(payload).not.toHaveProperty("whatsappPhone");
+  });
+
+  it("includes a dedicated WhatsApp number when provided", () => {
+    const payload = buildSenderProfilePayload(
+      state({ whatsappEnabled: true, whatsappPhone: "+370 600 00001" }),
+      "create",
+    );
+    expect(payload.whatsappEnabled).toBe(true);
+    expect(payload.whatsappPhone).toBe("+370 600 00001");
+  });
+
+  it("defaults WhatsApp off and clears the dedicated number on edit", () => {
+    const created = buildSenderProfilePayload(state(), "create");
+    expect(created.whatsappEnabled).toBe(false);
+
+    const edited = buildSenderProfilePayload(state(), "edit");
+    expect(edited.whatsappEnabled).toBe(false);
+    expect(edited.whatsappPhone).toBeNull();
+  });
+
+  it("defaults logo off and omits the URL on create", () => {
+    const payload = buildSenderProfilePayload(state(), "create");
+    expect(payload.includeLogoInSignature).toBe(false);
+    expect(payload).not.toHaveProperty("logoUrl");
+  });
+
+  it("includes the logo URL only when provided, and clears it on edit", () => {
+    const payload = buildSenderProfilePayload(
+      state({
+        includeLogoInSignature: true,
+        logoUrl: "https://acme.invalid/logo.png",
+      }),
+      "create",
+    );
+    expect(payload.includeLogoInSignature).toBe(true);
+    expect(payload.logoUrl).toBe("https://acme.invalid/logo.png");
+
+    const edited = buildSenderProfilePayload(state(), "edit");
+    expect(edited.logoUrl).toBeNull();
   });
 });

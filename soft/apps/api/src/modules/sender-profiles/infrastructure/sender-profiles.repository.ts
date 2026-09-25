@@ -18,6 +18,12 @@ export function toSenderProfileRecord(
     companyName: profile.companyName,
     fromEmail: profile.fromEmail,
     replyToEmail: profile.replyToEmail,
+    phone: profile.phone,
+    website: profile.website,
+    whatsappEnabled: profile.whatsappEnabled,
+    whatsappPhone: profile.whatsappPhone,
+    logoUrl: profile.logoUrl,
+    includeLogoInSignature: profile.includeLogoInSignature,
     signature: profile.signature,
     status: profile.status,
     emailAccountId: profile.emailAccountId,
@@ -45,6 +51,12 @@ export class SenderProfilesRepository {
         companyName: data.companyName ?? null,
         fromEmail: data.fromEmail,
         replyToEmail: data.replyToEmail ?? null,
+        phone: data.phone ?? null,
+        website: data.website ?? null,
+        whatsappEnabled: data.whatsappEnabled ?? false,
+        whatsappPhone: data.whatsappPhone ?? null,
+        logoUrl: data.logoUrl ?? null,
+        includeLogoInSignature: data.includeLogoInSignature ?? false,
         signature: data.signature ?? null,
         ...(data.status !== undefined ? { status: data.status } : {}),
         emailAccountId: data.emailAccountId ?? null,
@@ -78,6 +90,18 @@ export class SenderProfilesRepository {
     if (data.companyName !== undefined) update.companyName = data.companyName;
     if (data.fromEmail !== undefined) update.fromEmail = data.fromEmail;
     if (data.replyToEmail !== undefined) update.replyToEmail = data.replyToEmail;
+    if (data.phone !== undefined) update.phone = data.phone;
+    if (data.website !== undefined) update.website = data.website;
+    if (data.whatsappEnabled !== undefined) {
+      update.whatsappEnabled = data.whatsappEnabled;
+    }
+    if (data.whatsappPhone !== undefined) {
+      update.whatsappPhone = data.whatsappPhone;
+    }
+    if (data.logoUrl !== undefined) update.logoUrl = data.logoUrl;
+    if (data.includeLogoInSignature !== undefined) {
+      update.includeLogoInSignature = data.includeLogoInSignature;
+    }
     if (data.signature !== undefined) update.signature = data.signature;
     if (data.status !== undefined) update.status = data.status;
     if (data.emailAccountId !== undefined) {

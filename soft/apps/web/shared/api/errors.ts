@@ -40,6 +40,12 @@ export function describeApiError(error: unknown, fallback: string): string {
       if (error.message.includes("mailbox_credentials_missing")) {
         return "No password is stored for this mailbox. Save a password, then verify again.";
       }
+      if (error.message.includes("lead_excluded_from_outreach")) {
+        return "This company is excluded from outreach by a human decision for this scope.";
+      }
+      if (error.message.includes("whatsapp_phone_required")) {
+        return "Set a main phone or a WhatsApp number before enabling WhatsApp.";
+      }
       if (error.message.includes("sender_profile_disabled")) {
         return "The selected sender profile is disabled.";
       }

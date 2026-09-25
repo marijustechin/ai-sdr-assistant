@@ -1,14 +1,47 @@
-import type { OutreachPreparationStatus } from '@ai-sdr/contracts';
+import type {
+  OutreachDecisionSource,
+  OutreachDecisionStatus,
+  OutreachPreparationStatus,
+} from '@ai-sdr/contracts';
 
-export type { OutreachPreparationStatus };
+export type { OutreachDecisionSource, OutreachDecisionStatus, OutreachPreparationStatus };
 
 /** Non-secret sender identity actually used for a draft (never credentials). */
 export interface SenderSnapshot {
   senderName: string;
+  /** Canonical role/title, passed through verbatim (never translated). */
+  senderTitle: string | null;
   companyName: string | null;
   fromEmail: string;
   replyToEmail: string | null;
-  signature: string | null;
+  phone: string | null;
+  website: string | null;
+  whatsappEnabled: boolean;
+  whatsappPhone: string | null;
+  includeLogoInSignature: boolean;
+  logoUrl: string | null;
+}
+
+/**
+ * Human outreach decision for one (opportunity, company) scope. Kept separate
+ * from research evidence and the agent qualification; a human exclusion
+ * overrides both.
+ */
+export interface OutreachDecisionRecord {
+  id: string;
+  opportunityId: string;
+  companyId: string;
+  decision: OutreachDecisionStatus;
+  note: string | null;
+  decidedByKind: OutreachDecisionSource;
+  decidedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SetOutreachDecisionData {
+  decision: OutreachDecisionStatus;
+  note?: string | null;
 }
 
 export interface OutreachDraftRecord {
@@ -22,6 +55,8 @@ export interface OutreachDraftRecord {
   preparationStatus: OutreachPreparationStatus;
   subject: string | null;
   body: string | null;
+  /** Generated HTML body (text body + HTML signature); never trusted HTML. */
+  htmlBody: string | null;
   rationale: string;
   recipientRationale: string;
   missingFields: string[];
@@ -50,6 +85,7 @@ export interface CreateDraftData {
   preparationStatus: OutreachPreparationStatus;
   subject?: string;
   body?: string;
+  htmlBody?: string;
   rationale: string;
   recipientRationale: string;
   missingFields: string[];

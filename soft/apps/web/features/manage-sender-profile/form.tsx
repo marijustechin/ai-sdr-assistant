@@ -35,6 +35,12 @@ interface FormState {
   companyName: string;
   fromEmail: string;
   replyToEmail: string;
+  phone: string;
+  website: string;
+  whatsappEnabled: boolean;
+  whatsappPhone: string;
+  logoUrl: string;
+  includeLogoInSignature: boolean;
   signature: string;
   status: SenderProfileStatus;
   emailAccountId: string;
@@ -48,6 +54,12 @@ function initialState(profile?: SenderProfileRead): FormState {
     companyName: profile?.companyName ?? "",
     fromEmail: profile?.fromEmail ?? "",
     replyToEmail: profile?.replyToEmail ?? "",
+    phone: profile?.phone ?? "",
+    website: profile?.website ?? "",
+    whatsappEnabled: profile?.whatsappEnabled ?? false,
+    whatsappPhone: profile?.whatsappPhone ?? "",
+    logoUrl: profile?.logoUrl ?? "",
+    includeLogoInSignature: profile?.includeLogoInSignature ?? false,
     signature: profile?.signature ?? "",
     status: profile?.status ?? "ACTIVE",
     emailAccountId: profile?.emailAccountId ?? "",
@@ -144,7 +156,7 @@ export function SenderProfileForm({
             label="Company / brand name (optional)"
             htmlFor="companyName"
             error={fieldError("companyName")}
-            hint="Used for the RFQ closing only when set; a company is never invented."
+            hint="Shown in the generated outreach closing when set; a company is never invented."
           >
             <Input value={state.companyName} onChange={(e) => set("companyName", e.target.value)} autoComplete="off" />
           </FormField>
@@ -156,9 +168,73 @@ export function SenderProfileForm({
               <Input type="email" value={state.replyToEmail} onChange={(e) => set("replyToEmail", e.target.value)} autoComplete="off" />
             </FormField>
           </div>
-          <FormField label="Signature (optional; not used in generated RFQs)" htmlFor="signature" error={fieldError("signature")}>
-            <Textarea rows={3} value={state.signature} onChange={(e) => set("signature", e.target.value)} />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <FormField label="Phone (optional)" htmlFor="phone" error={fieldError("phone")}>
+              <Input value={state.phone} onChange={(e) => set("phone", e.target.value)} autoComplete="off" />
+              <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={state.whatsappEnabled}
+                  onChange={(e) => set("whatsappEnabled", e.target.checked)}
+                />
+                Available on WhatsApp (display only — not a sending permission)
+              </label>
+            </FormField>
+            <FormField
+              label="Website (optional)"
+              htmlFor="website"
+              error={fieldError("website")}
+              hint="Shown in the generated closing only when set; never invented."
+            >
+              <Input value={state.website} onChange={(e) => set("website", e.target.value)} autoComplete="off" />
+            </FormField>
+          </div>
+          {state.whatsappEnabled ? (
+            <FormField
+              label="WhatsApp number (optional)"
+              htmlFor="whatsappPhone"
+              error={fieldError("whatsappPhone")}
+              hint="Leave blank to use the main phone. A number is required if no main phone is set."
+            >
+              <Input value={state.whatsappPhone} onChange={(e) => set("whatsappPhone", e.target.value)} autoComplete="off" />
+            </FormField>
+          ) : null}
+          <FormField
+            label="Logo URL (optional)"
+            htmlFor="logoUrl"
+            error={fieldError("logoUrl")}
+            hint="Shown in the HTML signature only when enabled below; never invented."
+          >
+            <Input value={state.logoUrl} onChange={(e) => set("logoUrl", e.target.value)} autoComplete="off" />
+            <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={state.includeLogoInSignature}
+                onChange={(e) =>
+                  set("includeLogoInSignature", e.target.checked)
+                }
+              />
+              Include logo in HTML signature (plain-text email never shows it)
+            </label>
           </FormField>
+          <details className="rounded-lg border border-border p-3">
+            <summary className="cursor-pointer text-sm text-muted-foreground">
+              Advanced / custom override
+            </summary>
+            <p className="mt-2 text-xs text-muted-foreground">
+              The generated outreach closing is composed from the structured
+              fields above (name, role, company, phone, website). It does not read
+              this free-text signature.
+            </p>
+            <FormField
+              label="Custom signature (legacy — not used in generated outreach)"
+              htmlFor="signature"
+              error={fieldError("signature")}
+              className="mt-3"
+            >
+              <Textarea rows={3} value={state.signature} onChange={(e) => set("signature", e.target.value)} />
+            </FormField>
+          </details>
           <FormField
             label="Mailbox connection (optional)"
             htmlFor="emailAccountId"

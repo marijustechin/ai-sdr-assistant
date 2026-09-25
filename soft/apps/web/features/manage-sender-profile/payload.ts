@@ -11,6 +11,12 @@ export interface SenderProfileFormState {
   companyName: string;
   fromEmail: string;
   replyToEmail: string;
+  phone: string;
+  website: string;
+  whatsappEnabled: boolean;
+  whatsappPhone: string;
+  logoUrl: string;
+  includeLogoInSignature: boolean;
   signature: string;
   status: SenderProfileStatus;
   emailAccountId: string;
@@ -47,6 +53,33 @@ export function buildSenderProfilePayload(
   }
   if (state.replyToEmail.trim().length > 0) {
     values.replyToEmail = state.replyToEmail;
+  }
+  if (state.phone.trim().length > 0) {
+    values.phone = state.phone;
+  } else if (mode === "edit") {
+    values.phone = null;
+  }
+  if (state.website.trim().length > 0) {
+    values.website = state.website;
+  } else if (mode === "edit") {
+    values.website = null;
+  }
+  // WhatsApp is a display flag; a blank dedicated number falls back to the main
+  // phone. Included on create so the flag is explicit; on edit a blank dedicated
+  // number is cleared.
+  values.whatsappEnabled = state.whatsappEnabled;
+  if (state.whatsappEnabled && state.whatsappPhone.trim().length > 0) {
+    values.whatsappPhone = state.whatsappPhone;
+  } else if (mode === "edit") {
+    values.whatsappPhone = null;
+  }
+  // Logo branding: the flag is explicit; a blank URL clears the reference on
+  // edit and is omitted on create (generation then omits the image).
+  values.includeLogoInSignature = state.includeLogoInSignature;
+  if (state.logoUrl.trim().length > 0) {
+    values.logoUrl = state.logoUrl;
+  } else if (mode === "edit") {
+    values.logoUrl = null;
   }
   if (state.signature.trim().length > 0) {
     values.signature = state.signature;

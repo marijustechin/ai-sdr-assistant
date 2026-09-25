@@ -12,6 +12,113 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-25 — Optional logo branding for generated HTML signatures
+
+The generated outreach signature stays a clean professional **text/HTML**
+signature built from structured sender fields. Optional branding is added:
+
+- `sender_profiles.logoUrl` (optional) and `includeLogoInSignature` (default
+  `false`).
+- A dedicated **HTML body** is generated (`outreach_drafts.html_body`) alongside
+  the plain-text body. The plain-text body **never** contains the logo or image
+  markup; the HTML signature may include a **small** (120px) logo only when
+  `includeLogoInSignature` is enabled **and** a `logoUrl` is configured. A logo
+  URL is never invented, and a missing/broken image never makes the signature
+  unusable — name, role/title, company, phone/WhatsApp, website and email remain
+  real text, and the image carries `alt` text.
+- The signature also lists the sender **email** (`from_email`), matching the
+  preferred style: `Best regards,` / name / role / company / phone · WhatsApp /
+  website / email. The closing phrase follows the message language; structured
+  identity values and the canonical role/title stay verbatim.
+- No marketing banner field is added. The deprecated free-text `signature`
+  remains a compatibility override only and is never the generation path.
+- **No SMTP sending and no Sent-folder persistence** are added.
+- **Migration (additive):** `20260925170000_sender_profile_logo_and_draft_html`
+  (`sender_profiles.logo_url`, `sender_profiles.include_logo_in_signature`,
+  `outreach_drafts.html_body`). No data altered.
+
+Reason: a modest, opt-in logo makes cold outreach look legitimate without
+embedding contact details in an image or turning the signature into a banner.
+
+---
+
+## 2026-09-25 — WhatsApp contact metadata on sender profiles
+
+`sender_profiles` gains `whatsappEnabled` (default `false`) and an optional
+`whatsappPhone`. This is **display metadata only** for the generated outreach
+closing — it is **not** a permission to send messages through WhatsApp (no
+transport, no send path is added).
+
+- **Number resolution.** A dedicated `whatsappPhone` wins; otherwise the main
+  `phone` is used; otherwise there is no WhatsApp number. Nothing is invented.
+- **Validation.** Enabling WhatsApp without a resolvable number (no dedicated
+  number and no main phone) is rejected (`400 whatsapp_phone_required`). On a
+  partial update the check runs against the merged/stored state, so `PATCH
+  { whatsappEnabled: true }` succeeds only when a number already exists.
+- **Closing composition.** When enabled, the phone line in the generated closing
+  is annotated `(WhatsApp)`: the main phone becomes `{phone} (WhatsApp)`, or a
+  distinct dedicated number is added as `{whatsappPhone} (WhatsApp)` alongside
+  the main phone. When disabled, no WhatsApp marker appears.
+- **UI.** A compact “Available on WhatsApp” checkbox sits under the Phone field;
+  the separate WhatsApp-number input appears only when the checkbox is on.
+- **Migration (additive):** `20260925160000_sender_profile_whatsapp`
+  (`whatsapp_enabled` boolean not null default false, `whatsapp_phone`
+  varchar(64)). No data altered.
+
+Reason: outreach identity should be able to advertise a contact channel that
+real prospects use, without implying or implementing an unapproved WhatsApp
+sending capability.
+
+---
+
+## 2026-09-25 — Human outreach exclusion layer + structured sender identity
+
+Two additions to keep Market Research factual while preparing real buyer outreach.
+
+- **Human outreach decision (new `outreach_decisions`, owner `outreach-drafter`).**
+  Scoped to **one opportunity + company** (the lead scope) — deliberately **not**
+  a global company blacklist. States: `ELIGIBLE`, `DO_NOT_CONTACT`,
+  `EXISTING_RELATIONSHIP`, `NOT_RELEVANT`, `ALREADY_CONTACTED`, with an optional
+  human note. Provenance is explicit and human-made (`decidedByKind = HUMAN`,
+  `decidedAt`, `updatedAt`).
+- **Precedence.** Any state other than `ELIGIBLE` excludes the company from
+  outreach for that scope and **overrides** the agent qualification and the
+  operator review: `prepareDraft` returns `409 lead_excluded_from_outreach`
+  (with the decision) and an already-prepared draft is flagged stale. `ELIGIBLE`
+  records that no exclusion applies; it does **not** bypass the normal
+  qualification gate. The decision never deletes or hides companies from Market
+  Research results and never touches research evidence.
+- **Interface is opportunity+company, not lead-dependent.** The canonical routes
+  are `GET/PUT /opportunities/:id/companies/:companyId/outreach-decision`; a
+  convenience pair under
+  `GET/PUT /opportunities/:id/research-offerings/:offeringId/outreach-decision`
+  resolves the offering's company (creating a minimal company identity only on a
+  human save) so a decision can be recorded **directly from the Companies and
+  offerings research row, before any lead exists**. There is one authoritative
+  record per `(opportunity, company)`; a lead detail reuses it and never creates
+  a second decision source. The UI control is compact, inside the expanded
+  offering/lead detail — not a new table column.
+- **Structured sender identity.** `sender_profiles` gains `phone` and `website`.
+  The generated outreach closing is composed **only** from structured fields
+  (name, canonical role/title, company, phone, website) plus a closing phrase
+  generated from the **message language**. The free-text `signature` is
+  **deprecated**: it is not read by generation, is retained for compatibility,
+  and is hidden under an advanced override in the UI. Sender name/company/phone/
+  website are never invented or translated; a canonical role/title is emitted
+  **verbatim** and is never machine-translated (translating free-text titles can
+  change seniority or meaning).
+- **Out of scope:** no SMTP sending and no Sent-folder IMAP append.
+- **Migration (additive):** `20260925150000_outreach_decisions_and_sender_contact_fields`
+  — new `outreach_decisions` table + `OutreachDecisionStatus`/`OutreachDecisionSource`
+  enums; `sender_profiles.phone`/`website`. No data altered.
+
+Reason: research coverage must not be narrowed by outreach concerns, but a human
+must be able to stop a company from being contacted for a specific product
+relationship; and a generated message must derive its identity from structured,
+auditable fields rather than an opaque free-text blob.
+
+---
+
 ## 2026-09-25 — Supplier price inquiry decommissioned from Market Research
 
 The Lithuania benchmark showed that supplier replies reliably turn into **sales

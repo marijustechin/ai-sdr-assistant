@@ -15,13 +15,17 @@ import { LeadReviewForm } from "@/components/leads/lead-review-form";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { ContactList } from "@/components/leads/contact-list";
 import { OutreachDraftList } from "@entities/outreach-draft";
+import { OutreachDecisionControl } from "@features/manage-outreach-decision";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
 import { AlertIcon, ArrowLeftIcon } from "@/components/ui/icons";
 import { ApiError } from "@shared/api/client";
 import { describeApiError } from "@shared/api/errors";
 import { listCompanyContacts } from "@/lib/api/contacts";
-import { listOutreachDrafts } from "@entities/outreach-draft/api";
+import {
+  getOutreachDecisionForCompany,
+  listOutreachDrafts,
+} from "@entities/outreach-draft/api";
 import { getLead } from "@/lib/api/leads";
 import { getProduct } from "@/lib/api/products";
 import { formatDateTime } from "@shared/lib/format";
@@ -31,7 +35,11 @@ import {
   agentQualificationLabel,
 } from "@/lib/leads/display";
 import type { ContactRead } from "@/lib/contacts/types";
-import type { OutreachDraftRead } from "@entities/outreach-draft";
+import {
+  isExcludingDecision,
+  type OutreachDecisionRead,
+  type OutreachDraftRead,
+} from "@entities/outreach-draft";
 import type { LeadRead } from "@/lib/leads/types";
 
 export const metadata: Metadata = {
@@ -67,6 +75,7 @@ export default async function LeadDetailPage({
   let contactsUnavailable = false;
   let drafts: OutreachDraftRead[] = [];
   let draftsUnavailable = false;
+  let outreachDecision: OutreachDecisionRead | null = null;
   let configured = true;
   let loadError: string | null = null;
 
@@ -93,6 +102,14 @@ export default async function LeadDetailPage({
       drafts = await listOutreachDrafts(opportunityId, leadId);
     } catch {
       draftsUnavailable = true;
+    }
+    try {
+      outreachDecision = await getOutreachDecisionForCompany(
+        opportunityId,
+        lead.company.id,
+      );
+    } catch {
+      outreachDecision = null;
     }
   }
 
@@ -136,6 +153,10 @@ export default async function LeadDetailPage({
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <LeadStatusBadge status={lead.reviewStatus} />
             {lead.needsReview ? <Badge tone="warning">Needs review</Badge> : null}
+            {outreachDecision &&
+            isExcludingDecision(outreachDecision.decision) ? (
+              <Badge tone="warning">Excluded from outreach</Badge>
+            ) : null}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -339,6 +360,16 @@ export default async function LeadDetailPage({
             companyId={lead.company.id}
             contacts={contacts}
             unavailable={contactsUnavailable}
+          />
+
+          <OutreachDecisionControl
+            opportunityId={opportunityId}
+            scope={{
+              kind: "company",
+              companyId: lead.company.id,
+              productId: product.id,
+              initialDecision: outreachDecision,
+            }}
           />
 
           <OutreachDraftList

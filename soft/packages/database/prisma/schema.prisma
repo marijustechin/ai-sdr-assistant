@@ -127,6 +127,7 @@ model Opportunity {
   researchRuns  ResearchRun[]
   leads         OpportunityCompany[]
   outreachDrafts OutreachDraft[]
+  outreachDecisions OutreachDecision[]
   priceInquiryDrafts PriceInquiryDraft[]
 
   @@index([offerId])
@@ -422,6 +423,7 @@ model Company {
   leads OpportunityCompany[]
   contacts Contact[]
   outreachDrafts OutreachDraft[]
+  outreachDecisions OutreachDecision[]
   priceInquiryDrafts PriceInquiryDraft[]
 
   @@unique([identityKey])
@@ -517,6 +519,9 @@ model OutreachDraft {
   preparationStatus  OutreachPreparationStatus @default(BLOCKED) @map("preparation_status")
   subject            String?                   @db.VarChar(512)
   body               String?                   @db.Text
+  /// Generated HTML body (text body + HTML signature). Never rendered as
+  /// trusted HTML; stored for review/transport. Optional.
+  htmlBody           String?                   @map("html_body") @db.Text
   rationale          String                    @db.Text
   recipientRationale String                    @map("recipient_rationale") @db.Text
   missingFields      String[]                  @map("missing_fields")
@@ -558,6 +563,50 @@ model OutreachDraft {
 enum OutreachPreparationStatus {
   PREPARED
   BLOCKED
+}
+
+/// Human outreach eligibility decision for one opportunity's scope. Kept
+/// separate from research evidence and from the agent qualification, so Market
+/// Research stays factual while a human can prevent a company from being used
+/// for outreach. A human exclusion overrides agent qualification and outreach
+/// drafting; `ELIGIBLE` records that no exclusion applies (it does not bypass
+/// the normal qualification gate). Not a global blacklist: scoped to one
+/// opportunity (and therefore one product context).
+/// @owner outreach-drafter
+model OutreachDecision {
+  id            String                @id @default(uuid()) @db.Uuid
+  opportunityId String                @map("opportunity_id") @db.Uuid
+  companyId     String                @map("company_id") @db.Uuid
+  decision      OutreachDecisionStatus @default(ELIGIBLE)
+  /// Optional human note/reason for the decision.
+  note          String?               @db.Text
+  /// Provenance: every decision is human-made. Never written by the agent.
+  decidedByKind OutreachDecisionSource @default(HUMAN) @map("decided_by_kind")
+  decidedAt     DateTime              @default(now()) @map("decided_at") @db.Timestamptz(6)
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([opportunityId, companyId])
+  @@index([companyId])
+  @@map("outreach_decisions")
+}
+
+/// Provenance of an outreach decision. Every decision is human-made.
+enum OutreachDecisionSource {
+  HUMAN
+}
+
+/// Human outreach decision state. Any value other than `ELIGIBLE` excludes the
+/// company from outreach for the decision's scope and overrides the agent gate.
+enum OutreachDecisionStatus {
+  ELIGIBLE
+  DO_NOT_CONTACT
+  EXISTING_RELATIONSHIP
+  NOT_RELEVANT
+  ALREADY_CONTACTED
 }
 
 /// A persisted, reviewable **price inquiry / RFQ draft**. Generated from
@@ -855,6 +904,24 @@ model SenderProfile {
   companyName    String?             @map("company_name") @db.VarChar(255)
   fromEmail      String              @map("from_email") @db.VarChar(320)
   replyToEmail   String?             @map("reply_to_email") @db.VarChar(320)
+  /// Optional phone number shown in the generated closing (never invented).
+  phone          String?             @db.VarChar(64)
+  /// Optional website shown in the generated closing (never invented).
+  website        String?             @db.VarChar(2048)
+  /// Whether the sender is reachable on WhatsApp. Display metadata for the
+  /// generated closing only — never a permission to send messages.
+  whatsappEnabled Boolean            @default(false) @map("whatsapp_enabled")
+  /// Optional WhatsApp number. When blank and `whatsappEnabled` is true, the
+  /// main `phone` is used. Never invented.
+  whatsappPhone  String?             @map("whatsapp_phone") @db.VarChar(64)
+  /// Optional logo URL shown in the **HTML** signature only when explicitly
+  /// enabled. Never invented; a missing/broken image never breaks the signature.
+  logoUrl        String?             @map("logo_url") @db.VarChar(2048)
+  /// Whether the HTML signature includes the logo. Default off; the plain-text
+  /// signature never contains the logo.
+  includeLogoInSignature Boolean      @default(false) @map("include_logo_in_signature")
+  /// DEPRECATED free-text signature. Generated outreach no longer reads it;
+  /// retained for compatibility and hidden behind an advanced override in the UI.
   signature      String?             @db.Text
   status         SenderProfileStatus @default(ACTIVE)
   /// Optional mailbox connection. Never holds credentials itself.

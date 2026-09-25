@@ -239,15 +239,30 @@ Reserved, post-MVP; inert in MVP. Future owner of `inbox_items`.
 
 ## 13. `outreach-drafter`
 
-**Status:** implemented subset (O-021, 2026-09-18) — the **initial draft** only:
+**Status:** implemented subset (O-021, 2026-09-18; **human exclusion layer
+2026-09-25**) — the **initial draft** plus the **human outreach decision**.
 `POST/GET /opportunities/:id/leads/:leadId/outreach-drafts` persist a draft
 (`PREPARED | BLOCKED`) with recipient, subject/body, language, rationale and
-context/evidence references; append-only/versioned and idempotent. **No send
-path** and no transport integration. Approval-gated sending, follow-ups and
-reply handling remain planned.
+context/evidence references; append-only/versioned and idempotent.
+`GET/PUT /opportunities/:id/companies/:companyId/outreach-decision` read/set the
+human decision (`ELIGIBLE | DO_NOT_CONTACT | EXISTING_RELATIONSHIP | NOT_RELEVANT |
+ALREADY_CONTACTED`, optional note, human provenance); a convenience pair
+`GET/PUT /opportunities/:id/research-offerings/:offeringId/outreach-decision`
+resolves the offering's company so the decision can be recorded from research
+results before any lead exists. **No send path** and no transport integration.
+Approval-gated sending, follow-ups and reply handling remain planned.
 
-Evidence-based drafts with full traceability. Writes `outreach_drafts` (**owner**)
-and join tables. **Never sends**: a draft cannot be sent without human approval.
+Evidence-based drafts with full traceability. Writes `outreach_drafts` and
+`outreach_decisions` (**owner**). **Never sends**: a draft cannot be sent without
+human approval.
+
+**Human exclusion precedence (2026-09-25).** Any decision other than `ELIGIBLE`
+**overrides** the agent qualification and the operator review: `prepareDraft`
+rejects with `409 lead_excluded_from_outreach` (carrying the decision) and an
+already-prepared draft is flagged stale. `ELIGIBLE` records that no exclusion
+applies but does **not** bypass the normal qualification gate. The decision is
+opportunity+company scoped (not a global blacklist) and never deletes or hides a
+company from Market Research results or evidence.
 
 ## 14. `approvals`
 
@@ -288,11 +303,30 @@ table write. Table writes remain single-owner (`data-governance.md`).
 
 ## 17. `sender-profiles`
 
-- **Status:** implemented subset (O-021 extension, 2026-09-22) — reusable sender
-  **identities** (`sender_profiles`): label, sender/company, From/Reply-To,
-  signature, status, and an optional **`email_account_id`**. Guarded CRUD
-  (`POST/GET /sender-profiles`, `GET/PATCH /sender-profiles/:id`). Owns **no**
-  transport credentials.
+- **Status:** implemented subset (O-021 extension, 2026-09-22; structured contact
+  fields 2026-09-25) — reusable sender **identities** (`sender_profiles`): label,
+  sender name, optional role/title, optional company/brand, From/Reply-To,
+  optional **phone**/**website**, status, and an optional **`email_account_id`**.
+  Guarded CRUD (`POST/GET /sender-profiles`, `GET/PATCH /sender-profiles/:id`).
+  Owns **no** transport credentials.
+- **Closing rule (2026-09-25):** the generated outreach closing is composed from
+  the structured fields (name, canonical role/title, company, phone/WhatsApp,
+  website, email) and a closing phrase generated from the **message language**.
+  Name/company/phone/website/email are never invented or translated; a canonical
+  role/title is emitted **verbatim** and never machine-translated. The free-text
+  `signature` is **deprecated** (not read by generation; retained for
+  compatibility and hidden under an advanced override in the UI).
+- **WhatsApp metadata (2026-09-25):** `whatsappEnabled` (default false) +
+  optional `whatsappPhone`; the dedicated number falls back to the main `phone`
+  (both preserved when they differ), and enabling WhatsApp with neither number is
+  rejected (`400 whatsapp_phone_required`, checked against the merged state on
+  update). When enabled the closing annotates the phone line with `· WhatsApp`.
+  This is **display metadata only — never a permission to send via WhatsApp**.
+- **Logo branding (2026-09-25):** optional `logoUrl` + `includeLogoInSignature`
+  (default false). A small logo is included in the **HTML** signature only when
+  enabled and a URL is set; the plain-text body never contains it, a URL is never
+  invented, and the text contact details keep the signature usable if the image
+  fails. No marketing banner field.
 - **Responsibility:** own reusable, product-independent sender identities and
   reference the mailbox connection used to send on their behalf; serve the
   non-secret identity used by `outreach-drafter`.
