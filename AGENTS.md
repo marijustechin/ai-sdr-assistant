@@ -228,6 +228,13 @@ Every completed manager task must report:
 Manager tasks are archived to `ops/done/YYYY-MM-DD-slug.md`; the programmer
 archives to `soft/tasks/done/`.
 
+Closing a task also requires the finalization invariants in
+`docs/system/source-of-truth.md`: relevant canonical docs updated, `ops/current.md`
+no longer describing the task as active, `ops/backlog.md` status updated, a
+completion record written, and the recorded commit/push state matching git. A
+commit message alone does not close the lifecycle. The machine-checkable subset
+is enforced by `scripts/verify-docs.mjs` (run through `soft/scripts/verify.sh`).
+
 ---
 
 ## 9. Diagnostic and Process-Safety Rules (Harness)

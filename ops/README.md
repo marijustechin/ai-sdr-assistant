@@ -30,15 +30,26 @@ ops/
 
 ## Rules
 
-- **One active task** in `current.md` at a time.
+- **One active task** in `current.md` at a time, using the machine-readable
+  `**Task ID:**` / `**Status:**` markers; when idle, use the explicit idle form
+  from `task-template.md`.
 - Use `task-template.md` for every task.
 - Archive a completed task to `done/YYYY-MM-DD-slug.md`, then reset
-  `current.md` to the template.
+  `current.md` to the idle form (or start the next task).
+- **Finalization invariant:** a task is not finalized until its record is
+  complete, relevant `docs/system/**` docs are updated, `current.md` no longer
+  describes it as active, `backlog.md` moves it to `## Completed`, a completion
+  record exists, and the recorded commit/push state matches git. A commit
+  message alone does not close the lifecycle. Full rules:
+  `../docs/system/source-of-truth.md`; enforced by
+  `../scripts/verify-docs.mjs`.
 - A **blocked** task is not archived: leave it in `current.md` with the blocker
   recorded.
 - Do not auto-start the next task.
 - The manager loop never contains implementation instructions to itself; it
   delegates to `soft/tasks/current.md`.
+- Keep `backlog.md` status sections authoritative: each task ID appears under
+  exactly one of `Active`, `Completed`, `Blocked / deferred`.
 
 ## Relationship to `soft/tasks/`
 

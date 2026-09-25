@@ -12,6 +12,7 @@ wins; historical material never overrides it.
 |---|---|---|---|
 | root `AGENTS.md` | **Binding** | Manager operating contract (direction, coordination, decisions, intake, delegation, project state) | Implementation details |
 | `docs/system/` | **Canonical (live)** | System/business architecture, module map, data governance, research-context contract, decisions, project state | Application code, test mechanics |
+| `docs/system/source-of-truth.md` | **Canonical (live)** | One owner per status statement + finalization invariants + machine-readable markers | Restating capability status |
 | `docs/system/decisions.md` | **Canonical (live)** | Recorded consequential decisions + rationale | Superseded proposals |
 | `docs/system/research-toolchain.md` | **Canonical (live)** | Manager research toolchain: installed tools, auth, selection rules, limits | Live business state, provider secrets |
 | `docs/system/research-harness/` | **Canonical (live)** | Market researcher **operating harness**: entry point, lifecycle, evidence/price rules, coverage/stopping rules, persistence boundary, synthetic verification | Application code, live business state; implementing the `market-researcher` module |
@@ -59,12 +60,14 @@ The canonical, reconciled versions of every redesign topic live in
 ## Reading order
 
 1. root `AGENTS.md` — how work is governed.
-2. `docs/system/project-state.md` — what exists, what does not, what is blocked.
-3. `docs/system/architecture.md` — canonical architecture.
-4. `docs/system/module-map.md` — modules, boundaries, ownership.
-5. `docs/system/data-governance.md` — tables, owners, write rules.
-6. `docs/system/research-context-contract.md` — the cross-module contract.
-7. `docs/system/decisions.md` — recorded decisions.
-8. `docs/system/research-toolchain.md` — manager research toolchain operating context.
-9. `docs/system/research-harness/AGENTS.md` — market researcher operating harness (entry point).
-10. `soft/docs/` — implementation, testing, security, harness details.
+2. `docs/system/source-of-truth.md` — who owns each status statement and the
+   finalization invariants.
+3. `docs/system/project-state.md` — what exists, what does not, what is blocked.
+4. `docs/system/architecture.md` — canonical architecture.
+5. `docs/system/module-map.md` — modules, boundaries, ownership.
+6. `docs/system/data-governance.md` — tables, owners, write rules.
+7. `docs/system/research-context-contract.md` — the cross-module contract.
+8. `docs/system/decisions.md` — recorded decisions.
+9. `docs/system/research-toolchain.md` — manager research toolchain operating context.
+10. `docs/system/research-harness/AGENTS.md` — market researcher operating harness (entry point).
+11. `soft/docs/` — implementation, testing, security, harness details.

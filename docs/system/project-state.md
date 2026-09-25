@@ -1,6 +1,10 @@
 # Project State (Canonical)
 
-**Status:** Canonical, live snapshot. Last updated 2026-09-17 (**O-018
+**Status:** Canonical, live snapshot. Last updated 2026-09-25 (**O-026**
+reconciled this document and the `ops/` index with committed implementation —
+see `source-of-truth.md`; and **O-024/O-025 accepted** — admin dashboard
+metrics + branding, and research-result finalization with pending-quote
+follow-up scheduling). Earlier, **O-018
 accepted** — run Summary + Back-to-top cursor + verified numeric-price backfill;
 **O-017 accepted** — product-independent market research request flow, verified
 end to end with a real queued run, plus explicit cost/tool permissions; and

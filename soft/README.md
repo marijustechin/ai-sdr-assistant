@@ -18,13 +18,14 @@ input**.
 ```text
 soft/
 ├── AGENTS.md                  # binding operating contract for the coding agent
-├── apps/                      # runtimes (api = NestJS + Fastify host; web = planned UI, retained/deferred; worker future)
-├── packages/                  # shared packages (database, contracts, later testkit)
+├── apps/                      # runtimes: api (NestJS + Fastify host); web (Next.js admin UI); worker future
+├── packages/                  # shared packages: database (single Prisma owner), contracts (Zod); testkit later
 ├── docs/                      # self-contained architecture, security, testing, contracts, data model
 ├── harness/                   # task template + acceptance checklist
 ├── scripts/                   # verify.sh (fail-fast structural + available checks)
 ├── tasks/                     # backlog.md, current.md, done/
 ├── docker-compose.yml         # local PostgreSQL 17 (project-scoped service/volume/port)
+├── legacy/                    # HISTORICAL input (api-scaffold-2026-09-09) — never authoritative
 └── .env.example               # safe dev env template (DATABASE_URL, POSTGRES_*)
 ```
 
@@ -84,17 +85,23 @@ database package source, so it passes without a prior `pnpm build`.
 
 ## Status
 
-- Workspace + harness: **established** (bootstrap task archived).
-- API host: **established** — clean NestJS + Fastify host with tested
-  `GET /health` and `GET /ready` endpoints (Node 24 + pnpm 11).
-- Central database + core commercial domain: **established** — single Prisma
-  schema/migration chain in `packages/database` (`Product`, `Offer`,
-  `ProductFact`, `TargetMarket`, `Opportunity`, `OpportunityTargetMarket`,
-  `ResearchRun`, `ResearchRunTargetMarket`), local PostgreSQL 17 via Docker
-  Compose, and integration tests against an isolated `ai_sdr_test` database.
-- `apps/web`: **planned UI** (retained, implementation deferred).
-- Business modules (products-and-offers, opportunities, market-researcher, …),
-  research logic, external integrations: **not yet implemented** — planned.
+Capability status is owned by the canonical
+[`../docs/system/project-state.md`](../docs/system/project-state.md) — do not
+maintain an independent status list here. Orientation only:
+
+- Workspace + harness: **established**; single Node 24 + pnpm 11 monorepo.
+- `packages/database`: **implemented** — single Prisma schema/migration owner.
+- `packages/contracts`: **implemented** — shared Zod schemas/types.
+- `apps/api`: **implemented** — the only runtime host, with the bounded feature
+  modules under `apps/api/src/modules/` (see `../docs/system/module-map.md`).
+- `apps/web`: **implemented** — Next.js admin UI (products, research, leads,
+  settings, dashboard); talks to the API server-side only.
+- `apps/worker` and `jobs`: **not implemented** — planned; there is no generic
+  worker/scheduler platform. The market-research harness is executed by the
+  OpenCode agent today.
+
+Guidance: `../docs/system/architecture.md`, `../docs/system/module-map.md`,
+`../docs/system/source-of-truth.md`.
 
 ## Historical input (non-live)
 

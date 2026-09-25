@@ -9,13 +9,16 @@ defined by responsibility, inputs, outputs, tables read, tables written, emitted
 events, approval requirements, and failure behaviour. Table owners are defined
 in `data-governance.md`.
 
-> **Status note:** the first vertical slice is implemented — `products-and-offers`
-> (Product/Offer/ProductFact writes), `opportunities` (TargetMarket/Opportunity
-> + join + context-version increments), and a minimal `control-plane`
-> (`ResearchContextService` assembly with redaction). T-007 adds a minimal
-> `market-researcher` run envelope (+ `research_queries`) and the `evidence`
-> source/evidence/claim store. The remaining modules are intended but not
-> implemented; see `project-state.md`.
+> **Status note:** implemented subsets exist for `control-plane`
+> (ResearchContextService + research-request orchestration), `opportunities`,
+> `products-and-offers`, `evidence`, `market-researcher`, `lead-discoverer`,
+> `contact-discovery`, `outreach-drafter`, `sender-profiles`, `email-accounts`,
+> `dashboard`, `price-inquiry`, `quote-collection`, and `research-result` (see
+> each section's **Status** line). `knowledge`, `research-records`,
+> `lead-evaluator`, `company-intelligence`, `approvals`, `jobs`, and
+> `inbox-intelligence` are intended but not implemented. The single current
+> capability snapshot is `project-state.md`; this file owns module
+> **boundaries/ownership**, not the status list.
 
 **Service-to-service boundary:** every implemented business endpoint (the
 catalogue write routes and the research-context read) is gated by the

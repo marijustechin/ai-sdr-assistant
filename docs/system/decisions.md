@@ -12,6 +12,51 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-25 — One source of truth per status statement; enforceable finalization
+
+Documentation drift had accumulated: `ops/current.md` still described a
+committed task as active, `ops/backlog.md` listed a committed task as Active,
+`project-state.md`'s `Last updated` predated its own newest entries, and
+`architecture.md` still marked implemented modules as "not implemented" and
+`soft/README.md` still called the web app deferred.
+
+- **One owner per status statement.** Implemented/planned capability state is
+  owned by `docs/system/project-state.md`; module ownership/boundaries by
+  `docs/system/module-map.md`; architecture shape by
+  `docs/system/architecture.md`; decisions here; the active manager task by
+  `ops/current.md`; the manager index by `ops/backlog.md`; history by
+  `ops/done/`; implementation lifecycle by `soft/tasks/**`; READMEs are
+  orientation only. Everything else points to these rather than restating them.
+  Recorded in `docs/system/source-of-truth.md`.
+- **Machine-readable markers** replace prose-only status: `**Task ID:**` +
+  `**Status:**` in `ops/current.md` and archives, `## Active` / `## Completed`
+  sections in `ops/backlog.md`, `Last updated YYYY-MM-DD` in `project-state.md`,
+  and the status vocabulary `implemented | implemented-subset | planned` in the
+  `architecture.md` module table.
+- **Finalization invariant.** A manager task is not finalized until its record
+  is complete, the relevant `docs/system/**` docs are updated, `ops/current.md`
+  no longer describes it as active, `ops/backlog.md` moves it to `## Completed`,
+  a completion record exists, and the recorded commit/push state matches git. A
+  commit message alone does not close the lifecycle.
+- **Deterministic enforcement.** `scripts/verify-docs.mjs` (no AI, no arbitrary
+  prose parsing) checks these invariants and is wired into
+  `soft/scripts/verify.sh`.
+- **Off-cycle records.** O-024 and O-025 were executed/committed without a
+  contemporaneous manager archive; their `ops/done/` records are explicitly
+  labelled as reconstructed during this reconciliation rather than presented as
+  contemporaneous. Historical `soft/tasks/done/` records are unchanged.
+- **Architecture truth.** `architecture.md` now marks the actual present runtime:
+  the API/web persist and control; the OpenCode agent executes the research
+  harness; quote follow-up scheduling exists; there is **no** generic
+  worker/job platform or autonomous research execution.
+
+Reason: status duplicated across many documents drifts silently. A single owner
+per status, plus a small deterministic check, keeps `ops/`, the canonical docs,
+and the READMEs from contradicting committed reality without adding a
+task-management framework.
+
+---
+
 ## 2026-09-25 — Reply collection is account-wide; a reply is not a usable quote
 
 Corrections after the controlled live verification exposed two production

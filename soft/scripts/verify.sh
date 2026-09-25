@@ -5,7 +5,8 @@
 # Mandatory checks (failure => non-zero exit): required structure, correct
 # lockfile (pnpm-lock.yaml present, bun.lock absent), single Prisma schema owner,
 # expected business modules present, legacy scaffold archived, Node within the
-# range declared by package.json `engines.node` + pnpm 11, no committed secrets.
+# range declared by package.json `engines.node` + pnpm 11, no committed secrets,
+# and root documentation consistency (../scripts/verify-docs.mjs).
 #
 # Usage: bash scripts/verify.sh  (or: pnpm verify)
 
@@ -237,6 +238,26 @@ if grep -rInE '(secret|token|api[_-]?key|password)[[:space:]]*[:=][[:space:]]*["
   bad "literal-looking secret value detected in source files"
 else
   ok "no literal-looking secret values in source files"
+fi
+
+# --- 7. Documentation-state consistency (root) ------------------------------
+
+# Deterministic root-doc/state check (see docs/system/source-of-truth.md). It is
+# mandatory when present; historical roots without it are informational only.
+DOCCHECK="$ROOT/../scripts/verify-docs.mjs"
+if [[ -f "$DOCCHECK" ]]; then
+  if command -v node >/dev/null 2>&1; then
+    if DOC_OUT="$(node "$DOCCHECK" 2>&1)"; then
+      ok "documentation consistency check passed (scripts/verify-docs.mjs)"
+    else
+      bad "documentation consistency check failed (scripts/verify-docs.mjs)"
+      printf '%s\n' "$DOC_OUT"
+    fi
+  else
+    bad "documentation consistency check requires node, which is not installed"
+  fi
+else
+  info "documentation consistency check not present (../scripts/verify-docs.mjs)"
 fi
 
 # --- Summary -----------------------------------------------------------------

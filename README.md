@@ -28,7 +28,7 @@ ai-sdr-assistant/
 ├── legacy/                # historical, non-live input (never modified)
 └── soft/                  # software implementation workspace
     ├── AGENTS.md          # implementation operating contract
-    ├── apps/              # api (NestJS + Fastify); web (planned UI)
+    ├── apps/              # api (NestJS + Fastify) + web (Next.js admin UI; implemented)
     ├── packages/          # database (single Prisma owner); contracts (implemented)
     ├── docs/              # implementation, testing, security, harness docs
     ├── harness/  scripts/ # programmer task template + verify.sh
@@ -68,26 +68,37 @@ Docker Compose for the local database. See [`soft/README.md`](soft/README.md).
 
 ## Current state
 
-See [`docs/system/project-state.md`](docs/system/project-state.md). In short: a
-clean API host, liveness/readiness endpoints, PostgreSQL with Prisma migrations,
-the core commercial schema, shared contracts, the first vertical slice — the
-**Catalogue + Research Context API** — a minimal **research persistence** slice
-(run + queries + sources/evidence/claims, O-010/T-007), the admin product UI, and
-a **product-independent market research request flow** (O-017: configure/submit a
-request per product, researcher discovery + intake + one-time claim) are
-implemented. The remaining modules (`knowledge`, `research-records`, discovery,
-`approvals`, `jobs`), full `market-researcher` execution (there is no background
-worker, scheduler, or automatic execution), and the outreach UI are not.
+See [`docs/system/project-state.md`](docs/system/project-state.md) for the single
+authoritative capability snapshot; do not maintain a status list here. In short:
+
+- **Foundation:** clean API host, liveness/readiness endpoints, PostgreSQL with
+  Prisma migrations, the core commercial schema, and shared Zod contracts.
+- **Catalogue + research:** Catalogue + Research Context API, product-independent
+  research-request flow with explicit cost/tool permissions, research-run
+  persistence (sources/evidence/claims/offerings), the read-only research results
+  dashboard, and run-result finalization with pending-quote follow-up scheduling.
+- **Pipeline slices (bounded):** evidence-backed buyer shortlist with agent
+  qualification, source-backed contacts, reusable sender profiles, email accounts
+  (SMTP/IMAP with encrypted secrets), outreach drafts, price-inquiry (RFQ)
+  drafts, and a human-gated supplier quote-collection loop. **No sending of
+  buyer outreach** and no commercial commitments.
+- **Admin UI:** Next.js product/research/leads/settings/dashboard surfaces.
+
+**Not implemented:** a worker/jobs platform (`soft/apps/worker`, BullMQ),
+autonomous research execution inside the platform, `knowledge`,
+`research-records`, `lead-evaluator`, `company-intelligence`, `approvals`, and
+the frozen `research_contexts` snapshot. Today the **market-research harness is
+executed by the OpenCode agent**, not by a platform runner.
 
 The immediate priority is **research capability and coverage**; product
 onboarding is postponed. The manager research toolchain (Exa `websearch`,
 `webfetch`, the official Firecrawl MCP, and a Google Search-grounding Gemini MCP)
-is documented in [`docs/system/research-toolchain.md`](docs/system/research-toolchain.md).
-The market researcher's operating harness — lifecycle, evidence/price rules,
-coverage/stopping rules, and the persistence boundary — is in
-[`docs/system/research-harness/`](docs/system/research-harness/) (O-009; the
-minimum resumable-run persistence it mapped is implemented under O-010/T-007,
-which is awaiting human review).
+is documented in [`docs/system/research-toolchain.md`](docs/system/research-toolchain.md),
+and the researcher's operating contract in
+[`docs/system/research-harness/`](docs/system/research-harness/).
+
+Documentation/state responsibilities and the finalization invariants are defined
+in [`docs/system/source-of-truth.md`](docs/system/source-of-truth.md).
 
 The root repository exists and `main` tracks `origin/main`; baseline commit
 `0c6a10103519b9065654ad4ba8e51a6aa3d2058d` and the Catalogue + Research Context

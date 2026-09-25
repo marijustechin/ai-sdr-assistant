@@ -1,10 +1,18 @@
 # System Architecture (Canonical)
 
-**Status:** Canonical, live. Reconciled with implemented reality through T-004
-(2026-09-10).
+**Status:** Canonical, live. Reconciled with implemented reality through O-025
+(2026-09-25); the module status table uses the fixed vocabulary
+`implemented | implemented-subset | planned`.
+**Last updated:** 2026-09-25 (O-026 documentation-state reconciliation).
 **Supersedes:** `docs/redesign/architecture.md` (historical proposal).
 **Companion:** `module-map.md`, `data-governance.md`, `research-context-contract.md`,
-`decisions.md`, `project-state.md`; root `AGENTS.md`.
+`decisions.md`, `project-state.md`, `source-of-truth.md`; root `AGENTS.md`.
+
+> This file describes the **actual present architecture**. Capability
+> implemented/planned status is owned by `project-state.md`; module ownership by
+> `module-map.md`; this file explains the shape and the runtime, and marks
+> modules with the status vocabulary above so the automated consistency check
+> (`scripts/verify-docs.mjs`) can compare it with the code tree.
 
 ---
 
@@ -70,31 +78,32 @@ root `modules/` workspace**.
 
 | # | Module | Responsibility | Status |
 |---|---|---|---|
-| 1 | `control-plane` | Task routing, executions, activities, approval routing, `ResearchContextService` | **not implemented** |
-| 2 | `opportunities` | Opportunity + TargetMarket lifecycle; workspace read model | **not implemented** |
-| 3 | `products-and-offers` | Product catalog, sellable offers, typed facts | **not implemented** |
-| 4 | `knowledge` | Customer profiles, buyer personas, value propositions (versioned) | **not implemented** |
-| 5 | `evidence` | Source references + claims (FACT / INFERENCE / UNKNOWN) | **not implemented** |
-| 6 | `research-records` | Single write-owner of `research_records` + `research_findings` | **not implemented** |
-| 7 | `market-researcher` | Market research → findings + target-market suggestions + clarification requests | **not implemented** |
-| 8 | `lead-discoverer` | Company discovery + deduplication | **not implemented** |
-| 9 | `lead-evaluator` | Qualification/scoring → qualification records | **not implemented** |
-| 10 | `company-intelligence` | Deep company research → company profiles | **not implemented** |
-| 11 | `contact-discovery` | Contact discovery + email-pattern inference | **not implemented** |
-| 12 | `inbox-intelligence` | Inbox ingestion + reply analysis (reserved, post-MVP) | **not implemented** |
-| 13 | `outreach-drafter` | Evidence-based outreach drafts | **implemented (subset)** |
-| 14 | `approvals` | Approval workflow engine + mutation application | **not implemented** |
-| 15 | `jobs` | BullMQ queue/worker wiring + job lifecycle | **not implemented** |
-| 16 | `sender-profiles` | Reusable sender **identities** (no credentials; optional mailbox reference) | **implemented (subset)** |
-| 17 | `email-accounts` | Mailbox transport (SMTP + IMAP config, encrypted secrets; no sending/monitoring) | **implemented (subset)** |
-| 18 | `dashboard` | Read-only admin summary (aggregate counts; owns no tables) | **implemented (subset)** |
-| 19 | `price-inquiry` | Price inquiry (RFQ) drafts (persisted, human review; no sending) | **implemented (subset)** |
-| 20 | `quote-collection` | Market-research supplier quote loop (approval-gated send, bounded reply capture, quote extraction) | **implemented (subset)** |
+| 1 | `control-plane` | `ResearchContextService` assembly + redaction; research-request orchestration; task routing/executions/activities/approvals/`research_contexts` snapshots (planned) | implemented-subset |
+| 2 | `opportunities` | TargetMarket/Opportunity create + join + `contextVersion`; update/status/archive and suggestions (planned) | implemented-subset |
+| 3 | `products-and-offers` | Product/Offer/ProductFact writes, product list/read/update; CRUD/confirm/restrict and fact versioning (planned) | implemented-subset |
+| 4 | `knowledge` | Customer profiles, buyer personas, value propositions (versioned) | planned |
+| 5 | `evidence` | `source_references`, `evidence`, `claims`, `claim_evidence`, `research_offerings` + correction lifecycle | implemented-subset |
+| 6 | `research-records` | Single write-owner of `research_records` + `research_findings` | planned |
+| 7 | `market-researcher` | Run envelope + queries + queued-request claim; `research_results` snapshot; AI execution/suggestions/clarifications (planned) | implemented-subset |
+| 8 | `lead-discoverer` | `companies` + `opportunity_companies` (evidence-backed shortlist, agent qualification); discovery execution/scoring (planned) | implemented-subset |
+| 9 | `lead-evaluator` | Qualification/scoring → `qualification_records` | planned |
+| 10 | `company-intelligence` | Deep company research → sourced company profiles | planned |
+| 11 | `contact-discovery` | `contacts` + `contact_sources` (source-backed); live discovery/verification (planned) | implemented-subset |
+| 12 | `inbox-intelligence` | Inbox ingestion + reply analysis (reserved, post-MVP) | planned |
+| 13 | `outreach-drafter` | Evidence-backed initial outreach drafts (no send path) | implemented-subset |
+| 14 | `approvals` | Approval workflow engine + mutation application | planned |
+| 15 | `jobs` | BullMQ queue/worker wiring + job lifecycle | planned |
+| 16 | `sender-profiles` | Reusable sender identities (no credentials; optional mailbox reference) | implemented-subset |
+| 17 | `email-accounts` | Mailbox transport (SMTP + IMAP config, encrypted secrets) + bounded verification; no automated send/monitoring | implemented-subset |
+| 18 | `dashboard` | Read-only admin summary (aggregate counts; owns no tables) | implemented-subset |
+| 19 | `price-inquiry` | Price inquiry (RFQ) drafts (persisted, human review); no sending itself | implemented-subset |
+| 20 | `quote-collection` | Market-research supplier quote loop (human-gated send, bounded reply capture, quote extraction, DB-backed follow-up schedule) | implemented-subset |
+| 21 | `research-result` | Finalize/freeze a run result; compose the live result + per-inquiry clarification view (read-only) | implemented-subset |
 
-What **is** implemented today is the host + data foundation, not the modules:
-the API host, liveness/readiness endpoints, the central PostgreSQL database, the
-Prisma schema/migration, and the core commercial schema (see
-`project-state.md`).
+Modules marked `implemented-subset` exist as bounded slices behind the internal
+API key; their **execution**, scoring, sending, and orchestration remain planned
+where noted, and their exact capabilities are owned by `project-state.md` (do
+not restate status here). `planned` modules have no code yet.
 
 ### Cross-cutting service: `ResearchContextService`
 
@@ -167,9 +176,11 @@ Defined in `soft/packages/database/prisma/schema.prisma`:
   with `contextVersion`, status, and lifecycle timestamps.
 - **ResearchRunTargetMarket** — research scope join (compound-unique).
 
-Deferred (not in T-004): per-opportunity commercial terms
-(`opportunity_offers`), append-only fact versioning, research records/findings,
-sources/claims, and the `research_contexts` snapshot.
+Still deferred: per-opportunity commercial terms (`opportunity_offers`),
+append-only fact versioning, `research-records` records/findings, target-market
+suggestions, clarification requests, and the frozen `research_contexts`
+snapshot. (Research sources/evidence/claims/offerings and `research_results`
+are implemented — see `project-state.md`.)
 
 ---
 
@@ -192,14 +203,14 @@ ai-sdr-assistant/
     │   │       ├── config/         # env validation + loading
     │   │       ├── database/       # DatabaseModule (PrismaService provider)
     │   │       ├── health/         # health + readiness controllers
-    │   │       └── modules/        # bounded feature modules (planned)
-    │   └── web/                    # retained planned UI (implementation deferred)
+    │   │       └── modules/        # bounded feature modules (subsets implemented)
+    │   └── web/                    # Next.js 16 admin UI (implemented)
     ├── packages/
     │   ├── database/               # SINGLE Prisma schema + migration owner
     │   │   ├── prisma/schema.prisma + prisma/migrations/
     │   │   ├── prisma.config.ts
     │   │   └── src/{index.ts, prisma.service.ts, generated/}
-    │   └── contracts/              # planned: shared Zod schemas + types
+    │   └── contracts/              # shared Zod schemas + types (implemented)
     ├── docs/                       # implementation/testing/security/harness
     ├── harness/  scripts/          # programmer template + verify.sh
     └── tasks/                      # programmer task loop
@@ -210,6 +221,35 @@ The future worker is **`soft/apps/worker`**, not a root `workers/` directory.
 ---
 
 ## 7. Runtime Model
+
+### Present runtime (2026-09-25) — no orchestration platform
+
+What actually runs today:
+
+- **`soft/apps/api`** persists and controls: it is the only NestJS/Fastify host,
+  it owns every business table through the single Prisma owner, and it serves
+  both the internal REST API and the research **persistence** endpoints.
+- **`soft/apps/web`** is the Next.js admin UI; it talks to the API server-side
+  only and persists nothing itself.
+- **The OpenCode agent (manager environment) executes the market-research
+  harness** (`docs/system/research-harness/`). Research execution is
+  agent/harness-driven, **not** a platform runner: there is no autonomous
+  research engine inside the API.
+- **Quote follow-up scheduling exists** in the narrowest form: DB-backed
+  `quote_follow_ups` (owner `quote-collection`) plus a bounded, idempotent,
+  compare-and-swap worker. Its in-process trigger is env-gated
+  (`FOLLOW_UP_SCHEDULER_ENABLED`, default **off**), and it only *checks for
+  replies* to already human-approved sends — it never sends mail.
+- **There is no generic worker/job platform**: `soft/apps/worker`, BullMQ
+  queues, `jobs`, `tasks`, `executions`, and `activities` are **planned**, not
+  built. `control-plane` today is the `ResearchContextService` plus the
+  research-request orchestration, not a task router.
+
+The pipeline (research → discovery → qualification → contact discovery →
+drafting) is therefore **not** autonomous end-to-end; it is agent-driven through
+the API, and human approval remains mandatory before any sending.
+
+### Envisioned runtime
 
 Two processes are envisioned, one for the MVP:
 
