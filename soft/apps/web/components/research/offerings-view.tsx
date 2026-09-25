@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -8,17 +7,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { OfferingCard } from "./offering-card";
+import { OfferingsTable } from "./offerings-table";
 import { cn } from "@shared/lib/utils";
 import {
   filterOfferings,
-  groupOfferingsByMatch,
-  offeringClaimState,
   offeringFilterHref,
   offeringFilterOptions,
   MATCH_TYPE_LABEL,
   type OfferingFilters,
 } from "@/lib/research/offerings";
+import { buildOfferingTableGroups } from "@/lib/research/offerings-table";
 import type { ClaimFilters } from "@/lib/research/claims";
 import type { ClaimRead, EvidenceRead, OfferingRead } from "@/lib/research/types";
 
@@ -64,10 +62,14 @@ export function OfferingsView({
 }) {
   const options = offeringFilterOptions(offerings);
   const filtered = filterOfferings(offerings, filters);
-  const groups = groupOfferingsByMatch(filtered);
 
   const claimsById = new Map(claims.map((claim) => [claim.id, claim]));
   const evidenceById = new Map(evidence.map((item) => [item.id, item]));
+  const tableGroups = buildOfferingTableGroups(
+    filtered,
+    claimsById,
+    evidenceById,
+  );
 
   const preservedClaims = {
     type: claimFilters.type,
@@ -81,9 +83,10 @@ export function OfferingsView({
       <CardHeader>
         <CardTitle>Companies and offerings</CardTitle>
         <CardDescription>
-          Recorded suppliers and their product offerings, with provenance. Exact
+          One row per recorded supplier offering, with provenance. Exact
           matches, adjacent products and substitutes are kept separate; an
-          unrecorded field is shown as unknown, never guessed.
+          unrecorded field is shown as unknown, never guessed. Select a row for
+          the full specification, price wording, evidence and uncertainty.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -193,40 +196,7 @@ export function OfferingsView({
                 No offerings match the active filters.
               </p>
             ) : (
-              <div className="space-y-5">
-                {groups.map((group) => (
-                  <section key={group.matchType}>
-                    <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                      <Badge tone="outline">
-                        {MATCH_TYPE_LABEL[group.matchType]}
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        {group.offerings.length}
-                      </span>
-                    </h4>
-                    <ul className="space-y-3">
-                      {group.offerings.map((offering) => {
-                        const review = offeringClaimState(offering, claimsById);
-                        const claimEvidence = review.claim
-                          ? review.claim.evidence
-                              .map((link) => evidenceById.get(link.evidenceId))
-                              .filter(
-                                (item): item is EvidenceRead => item !== undefined,
-                              )
-                          : [];
-                        return (
-                          <OfferingCard
-                            key={offering.id}
-                            offering={offering}
-                            claimReview={review}
-                            linkedClaimEvidence={claimEvidence}
-                          />
-                        );
-                      })}
-                    </ul>
-                  </section>
-                ))}
-              </div>
+              <OfferingsTable groups={tableGroups} />
             )}
           </>
         )}
