@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { LeadReviewForm } from "@/components/leads/lead-review-form";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { ContactList } from "@/components/leads/contact-list";
-import { OutreachDraftList } from "@entities/outreach-draft";
+import { OutreachDraftReview } from "@features/manage-outreach-draft";
 import { OutreachDecisionControl } from "@features/manage-outreach-decision";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
@@ -372,8 +372,10 @@ export default async function LeadDetailPage({
             }}
           />
 
-          <OutreachDraftList
+          <OutreachDraftReview
             productId={product.id}
+            opportunityId={opportunityId}
+            leadId={lead.id}
             drafts={drafts}
             unavailable={draftsUnavailable}
           />

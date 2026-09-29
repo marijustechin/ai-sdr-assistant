@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   OutreachPreparationStatusSchema,
   PrepareOutreachDraftSchema,
+  ReviseOutreachDraftSchema,
 } from '../src/index.js';
 
 describe('outreach draft contracts', () => {
@@ -38,5 +39,37 @@ describe('outreach draft contracts', () => {
       'PREPARED',
       'BLOCKED',
     ]);
+  });
+
+  it('accepts a revision of the subject and/or canonical body only', () => {
+    expect(
+      ReviseOutreachDraftSchema.safeParse({ subject: 'New subject' }).success,
+    ).toBe(true);
+    expect(
+      ReviseOutreachDraftSchema.safeParse({ canonicalBody: 'New body.' }).success,
+    ).toBe(true);
+    expect(
+      ReviseOutreachDraftSchema.safeParse({
+        subject: 'New subject',
+        canonicalBody: 'New body.',
+      }).success,
+    ).toBe(true);
+    // An empty body-object revision is rejected.
+    expect(ReviseOutreachDraftSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('never accepts derived body/htmlBody as independent revision fields', () => {
+    expect(
+      ReviseOutreachDraftSchema.safeParse({
+        canonicalBody: 'Body.',
+        body: 'raw plain text',
+      }).success,
+    ).toBe(false);
+    expect(
+      ReviseOutreachDraftSchema.safeParse({
+        canonicalBody: 'Body.',
+        htmlBody: '<p>Body.</p>',
+      }).success,
+    ).toBe(false);
   });
 });

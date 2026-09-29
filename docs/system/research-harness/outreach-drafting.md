@@ -54,11 +54,30 @@ replaced/retracted finding) invalidates the prior agent qualification
 - Use **only supported** product/commercial claims. Omit unsupported optional
   detail. Never state prices, stock, certifications, delivery promises, a sender
   identity, or a prior relationship that is not supplied/evidenced.
-- Write a **concise** introduction with **exactly one clear question**.
+- **First-contact shape (2026-09-25):** a greeting; **one evidence-backed
+  personalization sentence** from the observed activity (deterministically
+  naturalized for a bounded set of English and **Lithuanian** patterns; a neutral
+  in-language, evidence-safe fallback is used otherwise — never a raw database
+  fragment); **one product proposition** (offer + category only when it adds
+  information not already in the offer wording; non-English scaffolds do not
+  surface the internal category label); **one restrained commercial-terms line**
+  ("competitive B2B terms — current pricing depends on quantity and
+  specification"); and **exactly one** low-friction CTA question. One canonical
+  body is the single editable source; plain-text `body` and `htmlBody` are
+  derived from it + the structured sender identity, and a human revision (via the
+  compact editor) creates a new append-only version.
+- **No concrete price by default.** Leave price, MOQ, dimensions, availability,
+  lead time, samples and origin for the recipient to ask about. No specification
+  dump; no MOQ/Incoterm/lead-time block; no superlatives or guarantees
+  ("cheapest"/"best"/"lowest"/"guaranteed"); no RFQ/procurement styling.
+- **Never invent** the recipient's interest, intent, purchasing responsibility,
+  prior relationship, or a certification that is not stored.
 - Personalize from the lead's **observed activity** without implying confirmed
   buying intent.
 - **Language** is derived from available context (the company's recorded
   country) — never hardcoded to a product/market — and the choice is recorded.
+  The closing phrase is localized; structured sender identity (incl. canonical
+  title) is emitted verbatim.
 
 ## 4. Missing information
 
@@ -72,12 +91,27 @@ to the product/settings screen, not as bare field names.
 
 ## 5. Persistence and idempotency
 
-- Persist **subject, body, language, recipient reference, preparation status,
-  rationale, and references** to the context/evidence used (context version,
-  evidence/claim/source ids).
+- Persist **subject, canonical body, body (plain text), htmlBody (HTML),
+  language, recipient reference, preparation status, rationale, and references**
+  to the context/evidence used (context version, evidence/claim/source ids). The
+  canonical body is the single human-editable source; the plain-text and HTML
+  bodies are deterministically derived from it plus the structured sender
+  identity, so they can never drift.
 - Drafts are **append-only and versioned**: a re-run with identical inputs is
-  **idempotent** (unique fingerprint → no duplicate); a material change creates
-  a **new version**, preserving the earlier draft (never a silent overwrite).
+  **idempotent** (unique fingerprint → no duplicate); a material change — or a
+  human revision (`PATCH .../outreach-drafts/:draftId`) — creates a **new
+  version**, preserving the earlier draft and its HTML (never a silent overwrite).
+- The exact approved send snapshot is `subject` + `body` + `htmlBody` +
+  `canonicalBody` + the sender identity snapshot + recipient + language +
+  provenance references. Transport later sends that snapshot verbatim — zero
+  content generation at send time.
+- **Batch review (2026-09-25).** Drafts are grouped into an `outreach_batches`
+  review unit for the opportunity scope and approved **as a whole** (one human
+  action); per-recipient approval is not required. Approval freezes the exact
+  version of every included draft. A human edit creates a new `PENDING` version
+  and returns an approved batch to `DRAFT` (re-approval). `regenerate` re-derives
+  only unapproved, non-customized drafts. `APPROVED → QUEUED → SENDING → SENT` is
+  reserved for a future controlled-pacing send worker; **no sending exists**.
 - Show missing-data and stale-input warnings clearly. No send action.
 
 ## 6. Autonomy vs. orchestration

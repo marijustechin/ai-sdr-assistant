@@ -264,6 +264,37 @@ applies but does **not** bypass the normal qualification gate. The decision is
 opportunity+company scoped (not a global blacklist) and never deletes or hides a
 company from Market Research results or evidence.
 
+**First-contact content policy (2026-09-25).** The generated message is a short,
+human B2B note with one evidence-backed personalization sentence (deterministically
+naturalized for a bounded set of English and **Lithuanian** patterns, or a neutral
+evidence-safe fallback in the message language when it cannot be rendered), one
+product proposition (offer + category only when it adds information; non-English
+scaffolds never surface the internal category label), one restrained
+commercial-terms line, and **exactly one** low-friction CTA question, plus a
+localized closing and the structured sender signature. It contains **no concrete
+price by default**, no specification dump, no MOQ/Incoterm/lead-time block, no
+multiple questions, no RFQ/procurement styling, and no superlatives/guarantees;
+it never invents the recipient's interest, intent, purchasing responsibility,
+relationship, or certifications. Official offer/product names are kept verbatim.
+A compact human editor exposes **only the subject and the canonical body**
+(signature read-only); saving regenerates the plain-text and HTML bodies as a new
+append-only version. Transport later sends the exact approved snapshot verbatim.
+
+**Batch review (2026-09-25).** `outreach_batches` (owner here) groups generated
+drafts for one opportunity scope (optional target market + sender profile +
+language). `POST /opportunities/:id/outreach-batches` generates drafts for every
+currently eligible lead (excluded/rejected/stale/no-recipient leads are skipped
+and counted); `GET` returns the summary (sender, scope, language, eligible /
+excluded / no-recipient / generated counts, representative previews) plus all
+drafts; `POST .../:batchId/approve` approves the whole batch in one action and
+freezes the exact version of every included draft; `POST .../:batchId/regenerate`
+re-derives **unapproved, non-customized** drafts (never overwriting an individual
+edit or an approved version). Approval is per immutable version: a human edit
+creates a new `PENDING` version and returns an approved batch to `DRAFT`.
+`OutreachBatchStatus` reserves `APPROVED → QUEUED → SENDING → SENT` (+
+`CANCELLED`) and `sendPolicy` for a future controlled-pacing send worker — **no
+sending exists**.
+
 ## 14. `approvals`
 
 The approval workflow engine: create requests, capture accept/reject, apply

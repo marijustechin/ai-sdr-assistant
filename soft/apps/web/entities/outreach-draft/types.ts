@@ -32,6 +32,8 @@ export interface OutreachDraftRead {
   preparationStatus: OutreachPreparationStatus;
   subject: string | null;
   body: string | null;
+  /** Human-editable canonical message body (without closing/signature). */
+  canonicalBody: string | null;
   /** Generated HTML body (text body + HTML signature); never trusted HTML. */
   htmlBody: string | null;
   rationale: string;
@@ -76,4 +78,10 @@ export interface OutreachDecisionActionResult {
   ok: boolean;
   message?: string;
   decision?: OutreachDecisionRead;
+}
+
+export interface OutreachDraftActionResult {
+  ok: boolean;
+  message?: string;
+  draft?: OutreachDraftRead;
 }

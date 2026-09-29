@@ -105,6 +105,7 @@ model TargetMarket {
 
   opportunities    OpportunityTargetMarket[]
   researchRunScopes ResearchRunTargetMarket[]
+  outreachBatches  OutreachBatch[]
 
   @@unique([country, segment])
   @@map("target_markets")
@@ -128,6 +129,7 @@ model Opportunity {
   leads         OpportunityCompany[]
   outreachDrafts OutreachDraft[]
   outreachDecisions OutreachDecision[]
+  outreachBatches OutreachBatch[]
   priceInquiryDrafts PriceInquiryDraft[]
 
   @@index([offerId])
@@ -519,6 +521,10 @@ model OutreachDraft {
   preparationStatus  OutreachPreparationStatus @default(BLOCKED) @map("preparation_status")
   subject            String?                   @db.VarChar(512)
   body               String?                   @db.Text
+  /// Human-editable canonical message body (message text without the closing/
+  /// signature). `body` and `html_body` are derived from it + the structured
+  /// sender identity, so they can never drift from the edited plain text.
+  canonicalBody      String?                   @map("canonical_body") @db.Text
   /// Generated HTML body (text body + HTML signature). Never rendered as
   /// trusted HTML; stored for review/transport. Optional.
   htmlBody           String?                   @map("html_body") @db.Text
@@ -536,6 +542,13 @@ model OutreachDraft {
   senderSnapshot     Json?                     @map("sender_snapshot")
   version            Int                       @default(1)
   fingerprint        String                    @db.VarChar(64)
+  /// Batch this version belongs to (review grouping). Null when unbatched.
+  batchId            String?                   @map("batch_id") @db.Uuid
+  /// True once a human revised this draft (exception editing). Regeneration
+  /// never silently overwrites a customized draft.
+  customized         Boolean                   @default(false)
+  approvalStatus     OutreachApprovalStatus    @default(PENDING) @map("approval_status")
+  approvedAt         DateTime?                 @map("approved_at") @db.Timestamptz(6)
   createdAt          DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   opportunity     Opportunity        @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
@@ -547,6 +560,7 @@ model OutreachDraft {
   sourceReference SourceReference?   @relation(fields: [sourceReferenceId], references: [id], onDelete: SetNull)
   senderProfile   SenderProfile?     @relation(fields: [senderProfileId], references: [id], onDelete: SetNull)
   emailAccount    EmailAccount?      @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
+  batch           OutreachBatch?     @relation(fields: [batchId], references: [id], onDelete: SetNull)
 
   @@unique([fingerprint])
   @@index([opportunityId])
@@ -555,6 +569,7 @@ model OutreachDraft {
   @@index([contactId])
   @@index([senderProfileId])
   @@index([emailAccountId])
+  @@index([batchId])
   @@map("outreach_drafts")
 }
 
@@ -607,6 +622,55 @@ enum OutreachDecisionStatus {
   EXISTING_RELATIONSHIP
   NOT_RELEVANT
   ALREADY_CONTACTED
+}
+
+/// Lifecycle of a batch/campaign review. Batch approval freezes the exact
+/// version of every included draft; later transport must send those frozen
+/// snapshots without regenerating content. QUEUED/SENDING/SENT are reserved for
+/// a future sending worker (no sending exists yet).
+enum OutreachBatchStatus {
+  DRAFT
+  APPROVED
+  QUEUED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+/// Approval state of one draft version. Approval is per immutable version: a
+/// later revision is a NEW row with `PENDING`, so it is not part of the approved
+/// batch until re-approved (deterministic re-approval rule).
+enum OutreachApprovalStatus {
+  PENDING
+  APPROVED
+}
+
+/// A batch/campaign of generated outreach drafts for one opportunity scope.
+/// One batch is reviewed and approved as a whole; per-recipient approval is not
+/// required. `sendPolicy` is reserved for a future controlled-pacing send worker
+/// and is not used yet.
+/// @owner outreach-drafter
+model OutreachBatch {
+  id              String                  @id @default(uuid()) @db.Uuid
+  opportunityId   String                  @map("opportunity_id") @db.Uuid
+  targetMarketId  String?                 @map("target_market_id") @db.Uuid
+  senderProfileId String?                 @map("sender_profile_id") @db.Uuid
+  language        String                  @db.VarChar(35)
+  status          OutreachBatchStatus     @default(DRAFT)
+  approvedByKind  OutreachDecisionSource  @default(HUMAN) @map("approved_by_kind")
+  approvedAt      DateTime?               @map("approved_at") @db.Timestamptz(6)
+  /// Reserved: future pacing / rate-limit config for the send worker.
+  sendPolicy      Json?                   @map("send_policy")
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  opportunity   Opportunity    @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  targetMarket  TargetMarket?  @relation(fields: [targetMarketId], references: [id], onDelete: SetNull)
+  senderProfile SenderProfile? @relation(fields: [senderProfileId], references: [id], onDelete: SetNull)
+  drafts        OutreachDraft[]
+
+  @@index([opportunityId])
+  @@map("outreach_batches")
 }
 
 /// A persisted, reviewable **price inquiry / RFQ draft**. Generated from
@@ -933,6 +997,7 @@ model SenderProfile {
   products       Product[]           @relation("ProductOutreachSender")
   productInquiries Product[]         @relation("ProductInquirySender")
   outreachDrafts OutreachDraft[]
+  outreachBatches OutreachBatch[]
   priceInquiryDrafts PriceInquiryDraft[]
   quoteOutboundMessages QuoteOutboundMessage[]
 

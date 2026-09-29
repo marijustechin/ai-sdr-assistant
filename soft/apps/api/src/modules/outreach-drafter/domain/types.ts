@@ -1,10 +1,18 @@
 import type {
+  OutreachApprovalStatus,
+  OutreachBatchStatus,
   OutreachDecisionSource,
   OutreachDecisionStatus,
   OutreachPreparationStatus,
 } from '@ai-sdr/contracts';
 
-export type { OutreachDecisionSource, OutreachDecisionStatus, OutreachPreparationStatus };
+export type {
+  OutreachApprovalStatus,
+  OutreachBatchStatus,
+  OutreachDecisionSource,
+  OutreachDecisionStatus,
+  OutreachPreparationStatus,
+};
 
 /** Non-secret sender identity actually used for a draft (never credentials). */
 export interface SenderSnapshot {
@@ -55,6 +63,8 @@ export interface OutreachDraftRecord {
   preparationStatus: OutreachPreparationStatus;
   subject: string | null;
   body: string | null;
+  /** Human-editable canonical message body (without closing/signature). */
+  canonicalBody: string | null;
   /** Generated HTML body (text body + HTML signature); never trusted HTML. */
   htmlBody: string | null;
   rationale: string;
@@ -69,6 +79,12 @@ export interface OutreachDraftRecord {
   emailAccountId: string | null;
   senderSnapshot: SenderSnapshot | null;
   version: number;
+  /** Batch this version belongs to (review grouping); null when unbatched. */
+  batchId: string | null;
+  /** True once a human revised this draft (exception editing). */
+  customized: boolean;
+  approvalStatus: OutreachApprovalStatus;
+  approvedAt: Date | null;
   createdAt: Date;
   /** True when a current input (lead qualification/review, recipient, sender) changed. */
   inputsStale: boolean;
@@ -85,6 +101,7 @@ export interface CreateDraftData {
   preparationStatus: OutreachPreparationStatus;
   subject?: string;
   body?: string;
+  canonicalBody?: string;
   htmlBody?: string;
   rationale: string;
   recipientRationale: string;
@@ -98,4 +115,53 @@ export interface CreateDraftData {
   senderSnapshot?: SenderSnapshot;
   version: number;
   fingerprint: string;
+  batchId?: string;
+  customized?: boolean;
+  approvalStatus?: OutreachApprovalStatus;
+}
+
+/** A whole-batch review unit for one opportunity scope. */
+export interface OutreachBatchRecord {
+  id: string;
+  opportunityId: string;
+  targetMarketId: string | null;
+  senderProfileId: string | null;
+  language: string;
+  status: OutreachBatchStatus;
+  approvedByKind: OutreachDecisionSource;
+  approvedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateBatchData {
+  opportunityId: string;
+  targetMarketId: string | null;
+  senderProfileId: string | null;
+  language: string;
+}
+
+/** Live classification counts for the batch review surface. */
+export interface OutreachBatchCounts {
+  eligibleLeads: number;
+  excludedByDecision: number;
+  withoutRecipient: number;
+  generatedDrafts: number;
+  approvedDrafts: number;
+  pendingDrafts: number;
+}
+
+export interface OutreachBatchPreview {
+  draftId: string;
+  leadId: string;
+  recipientEmail: string | null;
+  subject: string | null;
+  bodyExcerpt: string;
+}
+
+export interface OutreachBatchSummary {
+  batch: OutreachBatchRecord;
+  counts: OutreachBatchCounts;
+  drafts: OutreachDraftRecord[];
+  representative: OutreachBatchPreview[];
 }

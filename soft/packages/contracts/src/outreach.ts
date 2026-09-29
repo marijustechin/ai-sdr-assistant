@@ -32,6 +32,59 @@ export type PrepareOutreachDraftInput = z.infer<
 >;
 
 /**
+ * A human revision of a prepared draft. The canonical `canonicalBody` (message
+ * text WITHOUT the closing/signature) is the single editable source: the server
+ * deterministically regenerates the sendable plain-text `body` and the
+ * `htmlBody` from it plus the structured sender identity. A revision creates a
+ * new append-only draft version; the previous version is never rewritten.
+ */
+export const ReviseOutreachDraftSchema = z
+  .strictObject({
+    subject: z.string().trim().min(1).max(512).optional(),
+    canonicalBody: z.string().trim().min(1).max(20000).optional(),
+  })
+  .refine((value) => value.subject !== undefined || value.canonicalBody !== undefined, {
+    message: 'a revision must change the subject or the canonical body',
+  });
+
+export type ReviseOutreachDraftInput = z.infer<
+  typeof ReviseOutreachDraftSchema
+>;
+
+/**
+ * Batch/campaign review. A batch groups generated drafts for one opportunity
+ * scope; approval freezes the exact version of every included draft. The status
+ * vocabulary reserves QUEUED/SENDING/SENT for a future controlled-pacing send
+ * worker (none implemented here).
+ */
+export const OutreachBatchStatusSchema = z.enum([
+  'DRAFT',
+  'APPROVED',
+  'QUEUED',
+  'SENDING',
+  'SENT',
+  'CANCELLED',
+]);
+
+/** Approval state of one immutable draft version. */
+export const OutreachApprovalStatusSchema = z.enum(['PENDING', 'APPROVED']);
+
+/** Optional batch scope overrides; the opportunity is the primary scope. */
+export const CreateOutreachBatchSchema = z.strictObject({
+  language: z.string().trim().min(2).max(35).optional(),
+  targetMarketId: z.uuid().optional(),
+  senderProfileId: z.uuid().optional(),
+});
+
+export type OutreachBatchStatus = z.infer<typeof OutreachBatchStatusSchema>;
+export type OutreachApprovalStatus = z.infer<
+  typeof OutreachApprovalStatusSchema
+>;
+export type CreateOutreachBatchInput = z.infer<
+  typeof CreateOutreachBatchSchema
+>;
+
+/**
  * Human outreach eligibility decision, scoped to one opportunity + company.
  *
  * Kept separate from research evidence and from the agent qualification so

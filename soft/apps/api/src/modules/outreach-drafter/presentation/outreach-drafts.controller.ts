@@ -5,12 +5,15 @@ import {
   Inject,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import {
   PrepareOutreachDraftSchema,
+  ReviseOutreachDraftSchema,
   type PrepareOutreachDraftInput,
+  type ReviseOutreachDraftInput,
 } from '@ai-sdr/contracts';
 import { ZodValidationPipe } from '../../../common/zod-validation.pipe.js';
 import { InternalApiKeyGuard } from '../../../security/internal-api-key.guard.js';
@@ -49,5 +52,21 @@ export class OutreachDraftsController {
     @Param('draftId', new ParseUUIDPipe()) draftId: string,
   ) {
     return this.service.getDraft(opportunityId, leadId, draftId);
+  }
+
+  /**
+   * Human revision: edits the canonical body/subject and creates a new
+   * append-only version with a deterministically regenerated plain-text + HTML
+   * body. Never sends and never rewrites the previous version.
+   */
+  @Patch(':opportunityId/leads/:leadId/outreach-drafts/:draftId')
+  async reviseDraft(
+    @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
+    @Param('leadId', new ParseUUIDPipe()) leadId: string,
+    @Param('draftId', new ParseUUIDPipe()) draftId: string,
+    @Body(new ZodValidationPipe(ReviseOutreachDraftSchema))
+    body: ReviseOutreachDraftInput,
+  ) {
+    return this.service.reviseDraft(opportunityId, leadId, draftId, body);
   }
 }

@@ -90,7 +90,7 @@ root `modules/` workspace**.
 | 10 | `company-intelligence` | Deep company research → sourced company profiles | planned |
 | 11 | `contact-discovery` | `contacts` + `contact_sources` (source-backed); live discovery/verification (planned) | implemented-subset |
 | 12 | `inbox-intelligence` | Inbox ingestion + reply analysis (reserved, post-MVP) | planned |
-| 13 | `outreach-drafter` | Evidence-backed initial outreach drafts + human outreach exclusion decisions (no send path) | implemented-subset |
+| 13 | `outreach-drafter` | Evidence-backed initial outreach drafts + human outreach exclusion decisions + batch/campaign review and whole-batch approval (no send path) | implemented-subset |
 | 14 | `approvals` | Approval workflow engine + mutation application | planned |
 | 15 | `jobs` | BullMQ queue/worker wiring + job lifecycle | planned |
 | 16 | `sender-profiles` | Reusable sender identities (no credentials; optional mailbox reference) + structured closing fields (phone/website/WhatsApp; optional HTML-signature logo; signature deprecated) | implemented-subset |

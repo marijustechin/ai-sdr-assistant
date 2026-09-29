@@ -7,9 +7,11 @@ import { ProductsAndOffersModule } from '../products-and-offers/products-and-off
 import { SenderProfilesModule } from '../sender-profiles/sender-profiles.module.js';
 import { OutreachDraftRepository } from './infrastructure/outreach-draft.repository.js';
 import { OutreachDecisionRepository } from './infrastructure/outreach-decision.repository.js';
+import { OutreachBatchRepository } from './infrastructure/outreach-batch.repository.js';
 import { OutreachDrafterService } from './application/outreach-drafter.service.js';
 import { OutreachDraftsController } from './presentation/outreach-drafts.controller.js';
 import { OutreachDecisionsController } from './presentation/outreach-decisions.controller.js';
+import { OutreachBatchesController } from './presentation/outreach-batches.controller.js';
 
 @Module({
   imports: [
@@ -20,10 +22,15 @@ import { OutreachDecisionsController } from './presentation/outreach-decisions.c
     ProductsAndOffersModule,
     SenderProfilesModule,
   ],
-  controllers: [OutreachDraftsController, OutreachDecisionsController],
+  controllers: [
+    OutreachDraftsController,
+    OutreachDecisionsController,
+    OutreachBatchesController,
+  ],
   providers: [
     OutreachDraftRepository,
     OutreachDecisionRepository,
+    OutreachBatchRepository,
     OutreachDrafterService,
   ],
   exports: [OutreachDrafterService],

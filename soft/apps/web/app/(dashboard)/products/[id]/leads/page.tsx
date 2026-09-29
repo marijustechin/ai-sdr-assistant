@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import type { ProductResponse } from "@ai-sdr/contracts";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { LeadsList } from "@/components/leads/leads-list";
+import { OutreachBatchSection } from "@features/manage-outreach-batch";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
 import { ArrowLeftIcon } from "@/components/ui/icons";
@@ -93,11 +94,17 @@ export default async function ProductLeadsPage({
           <p>{loadError}</p>
         </IntegrationNotice>
       ) : product ? (
-        <LeadsList
-          productId={product.id}
-          opportunities={opportunities}
-          leadsByOpportunityId={leadsByOpportunityId}
-        />
+        <div className="space-y-4">
+          <OutreachBatchSection
+            productId={product.id}
+            opportunities={opportunities}
+          />
+          <LeadsList
+            productId={product.id}
+            opportunities={opportunities}
+            leadsByOpportunityId={leadsByOpportunityId}
+          />
+        </div>
       ) : null}
     </>
   );

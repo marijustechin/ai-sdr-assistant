@@ -43,6 +43,7 @@ export class OutreachDraftRepository {
         preparationStatus: data.preparationStatus,
         subject: data.subject ?? null,
         body: data.body ?? null,
+        canonicalBody: data.canonicalBody ?? null,
         htmlBody: data.htmlBody ?? null,
         rationale: data.rationale,
         recipientRationale: data.recipientRationale,
@@ -59,6 +60,11 @@ export class OutreachDraftRepository {
             : (data.senderSnapshot as unknown as Prisma.InputJsonValue),
         version: data.version,
         fingerprint: data.fingerprint,
+        batchId: data.batchId ?? null,
+        customized: data.customized ?? false,
+        ...(data.approvalStatus !== undefined
+          ? { approvalStatus: data.approvalStatus }
+          : {}),
       },
       include: DRAFT_INCLUDE,
     });

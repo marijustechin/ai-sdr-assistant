@@ -229,6 +229,20 @@ describe('Outreach drafts API (integration)', () => {
     expect(snapshot.senderName).toBe('Jane Doe');
     expect(snapshot.fromEmail).toBe('jane@acme.invalid');
     expect(snapshot).not.toHaveProperty('smtpPassword');
+
+    // The persisted snapshot is a complete, first-contact-suitable materialized
+    // message: subject + plain text + HTML + sender identity + recipient.
+    expect(typeof draft.subject).toBe('string');
+    expect((draft.subject as string).length).toBeGreaterThan(0);
+    expect(typeof draft.htmlBody).toBe('string');
+    expect(draft.htmlBody).toContain('Jane Doe');
+    // First contact: a natural, evidence-safe opener (the Lithuanian scaffold
+    // uses a neutral opener rather than injecting the raw stored observation),
+    // exactly one CTA, and no concrete price.
+    expect(draft.body).toContain('Radau jūsų įmonę');
+    expect(draft.body).not.toContain('Builds structures');
+    expect(((draft.body as string).split('?').length - 1)).toBe(1);
+    expect(draft.body).not.toMatch(/EUR|USD|GBP|€|\$|\bper\b\s*\d/i);
   });
 
   it('records the mailbox connection referenced by the assigned profile', async () => {
@@ -394,5 +408,57 @@ describe('Outreach drafts API (integration)', () => {
     ).json() as Json;
     expect(blocked.preparationStatus).toBe('BLOCKED');
     expect(blocked.missingFields as string[]).toContain('recipientEmail');
+  });
+
+  it('regenerates plain-text and HTML from an edited canonical body (never a stale HTML)', async () => {
+    const { opportunityId, leadId, companyId, productId } = await seedLead();
+    await qualify(opportunityId, leadId);
+    await addContact(companyId, {
+      contactType: 'GENERAL_COMPANY',
+      email: 'info@example.invalid',
+    });
+    const profile = await createProfile();
+    await assign(productId, profile.id as string);
+
+    const draft = (
+      await api('POST', draftsUrl(opportunityId, leadId), {})
+    ).json() as Json;
+    expect(draft.preparationStatus).toBe('PREPARED');
+    expect(typeof draft.canonicalBody).toBe('string');
+
+    const revised = await api(
+      'PATCH',
+      `${draftsUrl(opportunityId, leadId)}/${draft.id as string}`,
+      {
+        subject: 'Edited subject',
+        canonicalBody:
+          'Hello team,\n\nAn edited message body for review.\n\nWould this be relevant?',
+      },
+    );
+    expect(revised.statusCode).toBe(200);
+    const next = revised.json() as Json;
+    // A revision is a new append-only version, derived from the edited body.
+    expect(next.id).not.toBe(draft.id);
+    expect(next.version as number).toBeGreaterThan(draft.version as number);
+    expect(next.subject).toBe('Edited subject');
+    expect(next.canonicalBody).toContain('An edited message body for review.');
+    expect(next.body).toContain('An edited message body for review.');
+    // The plain-text body and the HTML body are both regenerated, and the HTML
+    // carries the new text (so it can never be the stale pre-edit HTML).
+    expect(next.htmlBody).toContain('An edited message body for review.');
+    expect(next.htmlBody).not.toBe(draft.htmlBody);
+    // The structured signature is (re)derived into both bodies.
+    expect(next.body).toContain('Jane Doe');
+    expect(next.htmlBody).toContain('Jane Doe');
+
+    // The original version is preserved unchanged.
+    const originalRead = (
+      await api(
+        'GET',
+        `${draftsUrl(opportunityId, leadId)}/${draft.id as string}`,
+      )
+    ).json() as Json;
+    expect(originalRead.body).toBe(draft.body);
+    expect(originalRead.htmlBody).toBe(draft.htmlBody);
   });
 });

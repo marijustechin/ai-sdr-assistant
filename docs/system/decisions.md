@@ -12,6 +12,123 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-25 — Batch/campaign outreach review (not per-recipient approval)
+
+The SDR workflow reviews and approves outreach **as a batch**, not recipient by
+recipient. A new `outreach_batches` (owner `outreach-drafter`) groups the
+generated drafts for one opportunity scope (optional target market + sender
+profile + language). Generating a batch produces drafts for every currently
+eligible lead and counts leads excluded by a human decision and leads without a
+usable recipient.
+
+- **Review surface** shows sender profile, product/opportunity, target
+  market/language, eligible count, excluded-by-decision count, no-usable-recipient
+  count, generated-draft count, representative previews, and opens any individual
+  draft. Individual editing remains an **optional exception**, never required for
+  every recipient.
+- **Approval freezes exact versions.** One human action approves the whole batch:
+  every included prepared, still-pending draft version is set `APPROVED` and the
+  batch becomes `APPROVED`. The frozen snapshot is the immutable row: subject,
+  canonical body, derived plain body, derived HTML body, recipient, sender
+  snapshot, language, provenance. Transport later must send those snapshots
+  without regenerating or modifying content.
+- **Deterministic re-approval rule.** Approval is per immutable version. A human
+  edit creates a **new** draft version with `approvalStatus = PENDING`; if its
+  batch was `APPROVED`, the batch returns to `DRAFT`. That draft must be
+  re-approved; approved versions are never overwritten or silently replaced.
+- **Batch-level regeneration.** `regenerate` re-derives drafts from the current
+  context/strategy for **unapproved** drafts while preserving each lead's
+  evidence-backed personalization; it never overwrites an individually customized
+  draft (`customized = true`) or an approved version.
+- **Future send state (designed, not implemented).** `OutreachBatchStatus`
+  reserves `APPROVED → QUEUED → SENDING → SENT` (+ `CANCELLED`), and `sendPolicy`
+  is a reserved JSON column for controlled pacing. The intended live policy is
+  configurable with a conservative default (≈ **one message every 3 minutes**)
+  plus per-sender/mailbox rate limits and pause/resume. Pacing is an
+  operational/deliverability safeguard, not a guarantee of avoiding spam
+  filtering. **No sending exists in this slice.**
+- **Migration (additive):** `20260925190000_outreach_batches` (new
+  `outreach_batches` + batch/approval columns on `outreach_drafts`).
+
+Reason: forcing an operator to open and approve every generated email defeats the
+automation-first intent; a batch review unit with whole-batch approval and frozen
+send snapshots keeps human control at the strategy level while enabling later
+gradual sending.
+
+---
+
+## 2026-09-25 — First-contact outreach message rules
+
+The first outreach message is a short, human B2B note whose purpose is to
+**generate qualified interest, not to deliver the full commercial offer**.
+`buildDraftContent` composes, per message language:
+
+- a greeting;
+- **one evidence-backed personalization sentence** from the lead's stored
+  observation (`observedActivityText`);
+- **one product proposition** (offer name + optional stored product category);
+- **one restrained commercial-terms line** ("We offer competitive B2B terms —
+  current pricing depends on quantity and specification");
+- **exactly one low-friction CTA question** ("Would this be relevant for your
+  product range?" or equivalent);
+- a localized closing phrase and the structured sender signature.
+
+Personalization is **deterministically naturalized** per message language for a
+**bounded** set of patterns: English (`sells …` → "you sell …"; `The company
+builds …` → "you build …"; `works with …` → "you work with …") and **Lithuanian**
+for the initial live market (`sells …` → "prekiaujate …", `offers …` →
+"siūlote …", `works with …` → "dirbate su …", `builds …` → "statote …",
+`manufactures …` → "gaminate …", plus `… is a/an …` → "esate …"). No unrestricted
+machine translation is performed; phrasing outside the supported patterns uses a
+**neutral evidence-safe fallback** in the message language (never the raw
+database fragment). The stored product category is an internal (often English)
+label: the English scaffold includes it **only when it adds information** beyond
+the offer wording, and **non-English scaffolds do not surface it** (no leaked
+English category label in Lithuanian prose). Official offer/product names are
+kept verbatim in every language. Personalization and proposition share one short
+paragraph; the terms and CTA share another.
+
+**Human review surface (2026-09-25).** A compact editor on the lead's outreach
+section lets a human edit **only the subject and the canonical body**; it shows
+the generated structured signature read-only and the current version +
+ready-for-review state. Saving calls the revision endpoint, which regenerates the
+plain-text and HTML bodies and appends a new version. `body`/`htmlBody` are never
+exposed as independently editable fields, and there is **no send action**.
+
+**Canonical body + derived send snapshot.** One **canonical body** (the message
+text without the closing/signature) is the single human-editable source. The
+sendable plain-text `body` and the `htmlBody` are **deterministically derived**
+from it plus the structured sender identity/branding (`composeOutreachBodies`),
+so editing the canonical body can never leave a stale HTML body paired with new
+plain text. A human revision (`PATCH …/outreach-drafts/:draftId`) creates a new
+append-only version; the previous version and its HTML are preserved. The exact
+approved send snapshot is `subject` + `body` (plain text) + `htmlBody` (HTML) +
+`canonicalBody` (editable source) + the sender identity snapshot + recipient +
+language + provenance/evidence references. Send-time transport performs **zero**
+content generation or rewriting.
+
+**Forbidden in the first contact:** a concrete price (a human may add one later
+to the editable draft), superlatives/guarantees ("cheapest", "best price",
+"lowest price", "guaranteed"), full specification dumps, MOQ/Incoterm/lead-time/
+validity blocks, multiple questions, RFQ/procurement styling, and any invented
+interest, intent, purchasing responsibility, prior relationship, or
+certification. Commercial topics (price, MOQ, dimensions, availability, lead
+time, samples, origin) are deliberately left for the recipient to ask about.
+
+The message is built **only** from persisted data: offer/product context, the
+lead + its stored evidence observation, contact, and the structured sender
+profile. The draft remains a **materialized persisted snapshot** (subject + plain
+text + HTML + sender identity + recipient + rationale/evidence references).
+Sending later must use the exact approved snapshot; transport must never
+regenerate or rewrite it. **No SMTP send and no Sent-folder persistence** are
+added.
+
+Reason: a first email should open a conversation and invite questions, not read
+like a price list or a procurement RFQ; over-claiming or dumping specifications
+reduces reply quality and risks inventing commitment.
+
+---
+
 ## 2026-09-25 — Optional logo branding for generated HTML signatures
 
 The generated outreach signature stays a clean professional **text/HTML**

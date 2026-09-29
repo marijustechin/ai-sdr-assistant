@@ -7,7 +7,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type {
+  CreateOutreachBatchInput,
   PrepareOutreachDraftInput,
+  ReviseOutreachDraftInput,
   SetOutreachDecisionInput,
 } from '@ai-sdr/contracts';
 import type { ResearchContext } from '@ai-sdr/contracts';
@@ -19,11 +21,19 @@ import type { LeadRecord } from '../../lead-discoverer/domain/types.js';
 import { ProductsAndOffersService } from '../../products-and-offers/application/products-and-offers.service.js';
 import { SenderProfilesService } from '../../sender-profiles/application/sender-profiles.service.js';
 import type { SenderProfileRecord } from '../../sender-profiles/domain/types.js';
-import { buildDraftContent } from '../domain/content.js';
+import {
+  buildDraftContent,
+  composeOutreachBodies,
+  type SenderIdentity,
+} from '../domain/content.js';
 import { isExcludingOutreachDecision } from '../domain/decisions.js';
 import { selectLanguage } from '../domain/language.js';
 import type {
   CreateDraftData,
+  OutreachBatchCounts,
+  OutreachBatchPreview,
+  OutreachBatchRecord,
+  OutreachBatchSummary,
   OutreachDecisionRecord,
   OutreachDraftRecord,
   SenderSnapshot,
@@ -33,6 +43,10 @@ import {
   type OutreachDraftRow,
 } from '../infrastructure/outreach-draft.repository.js';
 import { OutreachDecisionRepository } from '../infrastructure/outreach-decision.repository.js';
+import {
+  OutreachBatchRepository,
+  type BatchDraftRow,
+} from '../infrastructure/outreach-batch.repository.js';
 
 interface SenderResolution {
   assignmentId: string | null;
@@ -52,6 +66,8 @@ export class OutreachDrafterService {
     private readonly repository: OutreachDraftRepository,
     @Inject(OutreachDecisionRepository)
     private readonly decisions: OutreachDecisionRepository,
+    @Inject(OutreachBatchRepository)
+    private readonly batches: OutreachBatchRepository,
     @Inject(LeadDiscovererService)
     private readonly leads: LeadDiscovererService,
     @Inject(EvidenceService)
@@ -149,6 +165,7 @@ export class OutreachDrafterService {
 
     let subject: string | undefined;
     let body: string | undefined;
+    let canonicalBody: string | undefined;
     let htmlBody: string | undefined;
     let preparationStatus: 'PREPARED' | 'BLOCKED' = 'BLOCKED';
     let rationale: string;
@@ -165,6 +182,7 @@ export class OutreachDrafterService {
         companyName: lead.company.name,
         observedActivityText: lead.observedActivityText,
         offerSummary,
+        productCategory: context?.product.category ?? null,
         senderName: activeProfile.senderName,
         senderTitle: activeProfile.senderTitle,
         senderCompany: activeProfile.companyName,
@@ -177,6 +195,7 @@ export class OutreachDrafterService {
         logoUrl: activeProfile.logoUrl,
       });
       subject = content.subject;
+      canonicalBody = content.canonicalBody;
       body = content.body;
       htmlBody = content.htmlBody;
       preparationStatus = 'PREPARED';
@@ -198,6 +217,7 @@ export class OutreachDrafterService {
       language: chosen.language,
       subject: subject ?? null,
       body: body ?? null,
+      canonicalBody: canonicalBody ?? null,
       htmlBody: htmlBody ?? null,
       missingFields,
       contextVersion: context?.contextVersion ?? null,
@@ -230,6 +250,7 @@ export class OutreachDrafterService {
       language: chosen.language,
       preparationStatus,
       ...(subject !== undefined ? { subject } : {}),
+      ...(canonicalBody !== undefined ? { canonicalBody } : {}),
       ...(body !== undefined ? { body } : {}),
       ...(htmlBody !== undefined ? { htmlBody } : {}),
       rationale,
@@ -296,6 +317,350 @@ export class OutreachDrafterService {
     }
     const decision = await this.decisions.find(opportunityId, lead.companyId);
     return this.toRecord(row, lead, sender, decision);
+  }
+
+  /**
+   * Applies a human revision to a prepared draft. The canonical body (message
+   * text WITHOUT the closing/signature) is the single editable source; the
+   * sendable plain-text `body` and the `htmlBody` are deterministically
+   * regenerated from it plus the draft's stored structured sender identity, so a
+   * revision can never leave a stale HTML body paired with new plain text. A
+   * revision creates a NEW append-only version; the previous version is never
+   * rewritten, and no transport is involved.
+   */
+  async reviseDraft(
+    opportunityId: string,
+    leadId: string,
+    draftId: string,
+    input: ReviseOutreachDraftInput,
+  ): Promise<OutreachDraftRecord> {
+    const lead = await this.leads.getLead(opportunityId, leadId);
+    const sender = await this.senderContextFor(opportunityId);
+    const decision = await this.decisions.find(opportunityId, lead.companyId);
+    const row = await this.repository.findDraft(opportunityId, leadId, draftId);
+    if (!row) {
+      throw new NotFoundException({ error: 'outreach_draft_not_found' });
+    }
+    const snapshot = row.senderSnapshot as SenderSnapshot | null;
+    if (
+      row.preparationStatus !== 'PREPARED' ||
+      !snapshot ||
+      !row.canonicalBody
+    ) {
+      throw new ConflictException({ error: 'outreach_draft_not_editable' });
+    }
+
+    const subject = input.subject ?? row.subject ?? '';
+    const canonicalBody = input.canonicalBody ?? row.canonicalBody;
+    const identity: SenderIdentity = {
+      senderName: snapshot.senderName,
+      senderTitle: snapshot.senderTitle,
+      senderCompany: snapshot.companyName,
+      senderPhone: snapshot.phone,
+      senderWebsite: snapshot.website,
+      senderEmail: snapshot.fromEmail,
+      whatsappEnabled: snapshot.whatsappEnabled,
+      whatsappPhone: snapshot.whatsappPhone,
+      includeLogoInSignature: snapshot.includeLogoInSignature,
+      logoUrl: snapshot.logoUrl,
+    };
+    const { body, htmlBody } = composeOutreachBodies(
+      row.language,
+      canonicalBody,
+      identity,
+    );
+
+    const fingerprint = this.fingerprint({
+      opportunityId,
+      leadId,
+      contactId: row.contactId,
+      preparationStatus: 'PREPARED',
+      language: row.language,
+      subject,
+      canonicalBody,
+      body,
+      htmlBody,
+      contextVersion: row.contextVersion,
+      evidenceId: row.evidenceId,
+      claimId: row.claimId,
+      senderProfileId: row.senderProfileId,
+      revisionOf: row.id,
+      senderName: snapshot.senderName,
+      senderTitle: snapshot.senderTitle,
+      senderCompany: snapshot.companyName,
+      fromEmail: snapshot.fromEmail,
+      replyToEmail: snapshot.replyToEmail,
+      phone: snapshot.phone,
+      website: snapshot.website,
+      whatsappEnabled: snapshot.whatsappEnabled,
+      whatsappPhone: snapshot.whatsappPhone,
+      includeLogoInSignature: snapshot.includeLogoInSignature,
+      logoUrl: snapshot.logoUrl,
+    });
+
+    const existing = await this.repository.findByFingerprint(fingerprint);
+    if (existing) {
+      return this.toRecord(existing, lead, sender, decision);
+    }
+
+    const data: CreateDraftData = {
+      opportunityId,
+      leadId,
+      companyId: lead.companyId,
+      ...(row.contactId ? { contactId: row.contactId } : {}),
+      ...(row.recipientEmail ? { recipientEmail: row.recipientEmail } : {}),
+      language: row.language,
+      preparationStatus: 'PREPARED',
+      subject,
+      canonicalBody,
+      body,
+      htmlBody,
+      rationale: `${row.rationale} [human revision of v${row.version}]`,
+      recipientRationale: row.recipientRationale,
+      missingFields: [],
+      ...(row.contextVersion !== null
+        ? { contextVersion: row.contextVersion }
+        : {}),
+      ...(row.evidenceId ? { evidenceId: row.evidenceId } : {}),
+      ...(row.claimId ? { claimId: row.claimId } : {}),
+      ...(row.sourceReferenceId
+        ? { sourceReferenceId: row.sourceReferenceId }
+        : {}),
+      ...(row.senderProfileId ? { senderProfileId: row.senderProfileId } : {}),
+      ...(row.emailAccountId ? { emailAccountId: row.emailAccountId } : {}),
+      senderSnapshot: snapshot,
+      customized: true,
+      ...(row.batchId ? { batchId: row.batchId } : {}),
+      version: await this.repository.nextVersion(opportunityId, leadId),
+      fingerprint,
+    };
+    const created = await this.repository.createDraft(data);
+    // Deterministic re-approval rule: an edited draft is a new PENDING version.
+    // If its batch was already approved, the batch returns to review.
+    if (row.batchId) {
+      const batch = await this.batches.findBatch(row.batchId);
+      if (batch && batch.status !== 'DRAFT' && batch.status !== 'CANCELLED') {
+        await this.batches.setStatus(batch.id, 'DRAFT', null);
+      }
+    }
+    return this.toRecord(created, lead, sender, decision);
+  }
+
+  // --- Batch / campaign review ---------------------------------------------
+
+  async listBatches(opportunityId: string): Promise<OutreachBatchRecord[]> {
+    return this.batches.listBatches(opportunityId);
+  }
+
+  /**
+   * Creates a batch and generates drafts for every currently eligible lead in
+   * the opportunity scope (excluded/rejected/stale/unqualified and
+   * no-recipient leads are skipped and counted). No per-recipient approval is
+   * required; the batch is reviewed and approved as a whole.
+   */
+  async createBatch(
+    opportunityId: string,
+    input: CreateOutreachBatchInput,
+  ): Promise<OutreachBatchSummary> {
+    const leads = await this.leads.listLeads(opportunityId);
+    const sender = await this.senderContextFor(opportunityId);
+    const language =
+      input.language ??
+      selectLanguage(leads[0]?.company.country ?? null).language;
+    const batch = await this.batches.createBatch({
+      opportunityId,
+      targetMarketId: input.targetMarketId ?? null,
+      senderProfileId: input.senderProfileId ?? sender.assignmentId,
+      language,
+    });
+    await this.generateIntoBatch(opportunityId, batch.id, language, leads);
+    return this.composeBatchSummary(opportunityId, batch.id);
+  }
+
+  async getBatch(
+    opportunityId: string,
+    batchId: string,
+  ): Promise<OutreachBatchSummary> {
+    await this.requireBatch(opportunityId, batchId);
+    return this.composeBatchSummary(opportunityId, batchId);
+  }
+
+  /**
+   * Approves the whole batch in one action: freezes the exact version of every
+   * prepared, still-pending draft (approval is per immutable version). Later
+   * transport must send those frozen snapshots without regenerating content.
+   */
+  async approveBatch(
+    opportunityId: string,
+    batchId: string,
+  ): Promise<OutreachBatchSummary> {
+    const batch = await this.requireBatch(opportunityId, batchId);
+    const summary = await this.composeBatchSummary(opportunityId, batchId);
+    if (summary.counts.generatedDrafts === 0) {
+      throw new ConflictException({ error: 'batch_has_no_drafts' });
+    }
+    await this.batches.approvePendingDrafts(batch.id);
+    await this.batches.setStatus(batch.id, 'APPROVED', new Date());
+    return this.composeBatchSummary(opportunityId, batch.id);
+  }
+
+  /**
+   * Re-generates the batch's drafts from the current context/strategy while
+   * preserving each lead's evidence-backed personalization. Individually
+   * customized drafts and already-approved versions are never overwritten.
+   */
+  async regenerateBatch(
+    opportunityId: string,
+    batchId: string,
+  ): Promise<OutreachBatchSummary> {
+    const batch = await this.requireBatch(opportunityId, batchId);
+    const leads = await this.leads.listLeads(opportunityId);
+    const rows = await this.batches.listDraftRowsForBatch(batch.id);
+    const latestByLead = new Map<string, BatchDraftRow>();
+    for (const row of rows) {
+      if (!latestByLead.has(row.leadId)) latestByLead.set(row.leadId, row);
+    }
+    const ids: string[] = [];
+    for (const lead of leads) {
+      const existing = latestByLead.get(lead.id);
+      if (existing?.customized || existing?.approvalStatus === 'APPROVED') {
+        continue;
+      }
+      if (!(await this.isDraftable(opportunityId, lead))) continue;
+      const draft = await this.prepareDraft(opportunityId, lead.id, {
+        language: batch.language,
+      });
+      if (draft.preparationStatus === 'PREPARED') ids.push(draft.id);
+    }
+    await this.batches.attachDrafts(batch.id, ids);
+    if (batch.status !== 'DRAFT' && batch.status !== 'CANCELLED') {
+      await this.batches.setStatus(batch.id, 'DRAFT', null);
+    }
+    return this.composeBatchSummary(opportunityId, batch.id);
+  }
+
+  private async generateIntoBatch(
+    opportunityId: string,
+    batchId: string,
+    language: string,
+    leads: LeadRecord[],
+  ): Promise<void> {
+    const ids: string[] = [];
+    for (const lead of leads) {
+      if (!(await this.isDraftable(opportunityId, lead))) continue;
+      const draft = await this.prepareDraft(opportunityId, lead.id, {
+        language,
+      });
+      if (draft.preparationStatus === 'PREPARED') ids.push(draft.id);
+    }
+    await this.batches.attachDrafts(batchId, ids);
+  }
+
+  /**
+   * A lead is draftable when it is not human-excluded, not rejected/stale,
+   * agent-qualified or shortlisted, and has a usable published recipient.
+   */
+  private async isDraftable(
+    opportunityId: string,
+    lead: LeadRecord,
+  ): Promise<boolean> {
+    const decision = await this.decisions.find(opportunityId, lead.companyId);
+    if (decision && isExcludingOutreachDecision(decision.decision)) return false;
+    if (
+      lead.reviewStatus === 'REJECTED' ||
+      lead.agentQualificationStale ||
+      lead.needsReview
+    ) {
+      return false;
+    }
+    if (
+      lead.agentQualificationStatus !== 'QUALIFIED' &&
+      lead.reviewStatus !== 'SHORTLISTED'
+    ) {
+      return false;
+    }
+    const recipient = await this.contacts.selectRecipient(lead.companyId);
+    return Boolean(recipient.contact?.email);
+  }
+
+  private async requireBatch(
+    opportunityId: string,
+    batchId: string,
+  ): Promise<OutreachBatchRecord> {
+    const batch = await this.batches.findBatch(batchId);
+    if (!batch || batch.opportunityId !== opportunityId) {
+      throw new NotFoundException({ error: 'outreach_batch_not_found' });
+    }
+    return batch;
+  }
+
+  private async composeBatchSummary(
+    opportunityId: string,
+    batchId: string,
+  ): Promise<OutreachBatchSummary> {
+    const batch = await this.requireBatch(opportunityId, batchId);
+    const leads = await this.leads.listLeads(opportunityId);
+    const sender = await this.senderContextFor(opportunityId);
+
+    const counts: OutreachBatchCounts = {
+      eligibleLeads: 0,
+      excludedByDecision: 0,
+      withoutRecipient: 0,
+      generatedDrafts: 0,
+      approvedDrafts: 0,
+      pendingDrafts: 0,
+    };
+    for (const lead of leads) {
+      const decision = await this.decisions.find(opportunityId, lead.companyId);
+      if (decision && isExcludingOutreachDecision(decision.decision)) {
+        counts.excludedByDecision += 1;
+        continue;
+      }
+      if (
+        lead.reviewStatus === 'REJECTED' ||
+        lead.agentQualificationStale ||
+        lead.needsReview
+      ) {
+        continue;
+      }
+      if (
+        lead.agentQualificationStatus !== 'QUALIFIED' &&
+        lead.reviewStatus !== 'SHORTLISTED'
+      ) {
+        continue;
+      }
+      counts.eligibleLeads += 1;
+      const recipient = await this.contacts.selectRecipient(lead.companyId);
+      if (!recipient.contact?.email) counts.withoutRecipient += 1;
+    }
+
+    const rows = await this.batches.listDraftRowsForBatch(batchId);
+    const drafts: OutreachDraftRecord[] = [];
+    for (const row of rows) {
+      const lead = await this.leads.getLead(opportunityId, row.leadId);
+      const decision = await this.decisions.find(opportunityId, lead.companyId);
+      drafts.push(this.toRecord(row, lead, sender, decision));
+    }
+    const prepared = drafts.filter((d) => d.preparationStatus === 'PREPARED');
+    counts.generatedDrafts = prepared.length;
+    counts.approvedDrafts = prepared.filter(
+      (d) => d.approvalStatus === 'APPROVED',
+    ).length;
+    counts.pendingDrafts = prepared.filter(
+      (d) => d.approvalStatus === 'PENDING',
+    ).length;
+
+    const representative: OutreachBatchPreview[] = prepared
+      .slice(0, 3)
+      .map((draft) => ({
+        draftId: draft.id,
+        leadId: draft.leadId,
+        recipientEmail: draft.recipientEmail,
+        subject: draft.subject,
+        bodyExcerpt: (draft.body ?? '').slice(0, 160),
+      }));
+
+    return { batch, counts, drafts, representative };
   }
 
   /**
@@ -481,6 +846,7 @@ export class OutreachDrafterService {
       preparationStatus: row.preparationStatus,
       subject: row.subject,
       body: row.body,
+      canonicalBody: row.canonicalBody,
       htmlBody: row.htmlBody,
       rationale: row.rationale,
       recipientRationale: row.recipientRationale,
@@ -493,6 +859,10 @@ export class OutreachDrafterService {
       emailAccountId: row.emailAccountId,
       senderSnapshot: snapshot,
       version: row.version,
+      batchId: row.batchId,
+      customized: row.customized,
+      approvalStatus: row.approvalStatus,
+      approvedAt: row.approvedAt,
       createdAt: row.createdAt,
       inputsStale: staleReasons.length > 0,
       staleReasons,

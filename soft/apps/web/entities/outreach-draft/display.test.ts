@@ -19,6 +19,7 @@ function draft(overrides: Partial<OutreachDraftRead> = {}): OutreachDraftRead {
     preparationStatus: "PREPARED",
     subject: "A quick question",
     body: "Hello,",
+    canonicalBody: "Hello,",
     htmlBody: "<p>Hello,</p>",
     rationale: "Prepared from context.",
     recipientRationale: "General company email.",
