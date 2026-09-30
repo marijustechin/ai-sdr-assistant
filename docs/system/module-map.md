@@ -593,3 +593,24 @@ no new write path.
   FAILED`). SMTP success + append failure remains `SENT`; Sent-copy retry calls
   only IMAP APPEND. The Sent mailbox is discovered via IMAP special-use (`\Sent`).
 - **No autonomy:** nothing sends without an explicit human start action.
+
+## 24. `outreach-results`
+
+- **Status:** implemented subset (2026-09-30) — outreach results / campaign
+  summary for completed batches. Endpoints (guarded):
+  `GET .../outreach-batches/:batchId/results`,
+  `POST .../results/scan`,
+  `PATCH .../results/replies/:replyId`.
+- **Responsibility:** ingest inbound replies to sent outreach messages, correlate
+  them to the correct batch/draft/lead via `Message-ID` / `References` /
+  `In-Reply-To` (with a bounded sender+subject+time-window fallback), classify
+  them into a small fixed vocabulary, and expose a reviewable results summary.
+- **Tables read/written (owner):** `outreach_replies`. Reads the sent outbound via
+  `outreach-sender` and the batch via `outreach-drafter`; uses the
+  `email-accounts` inbound port to scan a mailbox (never sends).
+- **Classification (bounded, deterministic):** `INTERESTED`, `PRICE_REQUEST`,
+  `MORE_INFO`, `NOT_INTERESTED`, `WRONG_CONTACT`, `OUT_OF_OFFICE`, `OTHER`.
+  Positive commercial replies (`INTERESTED` / `PRICE_REQUEST` / `MORE_INFO`) set
+  `HANDOFF_TO_HUMAN`; the assistant never continues the conversation. A human may
+  override the classification (`classification_source = HUMAN`).
+- **No autonomy:** no follow-up is ever sent; handoff is a state for a human.

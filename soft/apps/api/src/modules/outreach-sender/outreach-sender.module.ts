@@ -24,5 +24,6 @@ import { OutreachSendController } from './presentation/outreach-send.controller.
     OutreachSenderService,
     OutreachSendScheduler,
   ],
+  exports: [OutreachSenderService],
 })
 export class OutreachSenderModule {}

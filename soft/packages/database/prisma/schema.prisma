@@ -664,6 +664,33 @@ enum OutreachTestDeliveryStatus {
   FAILED
 }
 
+/// Bounded classification of an inbound reply to a sent outreach message. A
+/// positive commercial reply sets a HANDOFF_TO_HUMAN state; the assistant never
+/// continues the sales conversation autonomously.
+enum OutreachReplyClassification {
+  INTERESTED
+  PRICE_REQUEST
+  MORE_INFO
+  NOT_INTERESTED
+  WRONG_CONTACT
+  OUT_OF_OFFICE
+  OTHER
+}
+
+/// Whether a reply classification was produced by the deterministic classifier
+/// or overridden by a human.
+enum OutreachReplySource {
+  AUTO
+  HUMAN
+}
+
+/// Handoff state of an outreach result. `HANDOFF_TO_HUMAN` means a human must
+/// take over the conversation; there is no automatic follow-up.
+enum OutreachHandoffState {
+  NO_HANDOFF
+  HANDOFF_TO_HUMAN
+}
+
 /// Approval state of one draft version. Approval is per immutable version: a
 /// later revision is a NEW row with `PENDING`, so it is not part of the approved
 /// batch until re-approved (deterministic re-approval rule).
@@ -706,6 +733,7 @@ model OutreachBatch {
   drafts        OutreachDraft[]
   outboundMessages OutreachOutboundMessage[]
   testDeliveries OutreachTestDelivery[]
+  replies        OutreachReply[]
 
   @@index([opportunityId])
   @@map("outreach_batches")
@@ -752,6 +780,7 @@ model OutreachOutboundMessage {
   updatedAt         DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   batch OutreachBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  replies OutreachReply[]
 
   @@index([status, nextEligibleAt])
   @@index([batchId])
@@ -806,6 +835,55 @@ model OutreachTestDelivery {
   @@index([batchId])
   @@index([draftId])
   @@map("outreach_test_deliveries")
+}
+
+/// One inbound reply correlated to a sent outreach message. The original inbound
+/// message content and provenance are preserved (mailbox uid, own Message-ID,
+/// In-Reply-To/References, from/to, subject, receivedAt, account, and the
+/// sanitized body text). The classification is deterministic/AI-assisted but
+/// reviewable, and may be overridden by a human. Positive commercial replies set
+/// `handoffState = HANDOFF_TO_HUMAN`; the assistant never sends a follow-up.
+/// @owner outreach-results
+model OutreachReply {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  batchId            String                      @map("batch_id") @db.Uuid
+  outboundMessageId  String?                     @map("outbound_message_id") @db.Uuid
+  opportunityId      String                      @map("opportunity_id") @db.Uuid
+  leadId             String?                     @map("lead_id") @db.Uuid
+  companyId          String?                     @map("company_id") @db.Uuid
+  draftId            String?                     @map("draft_id") @db.Uuid
+  emailAccountId     String                      @map("email_account_id") @db.Uuid
+  /// Bounded mailbox identity for idempotency (`uidValidity:uid`).
+  mailboxUid         String                      @map("mailbox_uid") @db.VarChar(128)
+  providerMessageId  String?                     @map("provider_message_id") @db.VarChar(512)
+  inReplyTo          String?                     @map("in_reply_to") @db.VarChar(512)
+  references         String[]                    @map("references")
+  fromEmail          String?                     @map("from_email") @db.VarChar(320)
+  toEmail            String?                     @map("to_email") @db.VarChar(320)
+  subject            String?                     @db.VarChar(512)
+  /// Sanitized original inbound body text (never rewritten).
+  bodyText           String                      @map("body_text") @db.Text
+  receivedAt         DateTime?                   @map("received_at") @db.Timestamptz(6)
+  classification     OutreachReplyClassification @default(OTHER) @map("classification")
+  classificationSource OutreachReplySource       @default(AUTO) @map("classification_source")
+  /// Auto basis or human override note; never model chain-of-thought.
+  classificationReason String?                   @map("classification_reason") @db.VarChar(2000)
+  handoffState       OutreachHandoffState        @default(NO_HANDOFF) @map("handoff_state")
+  /// Short excerpt shown in the results table.
+  excerpt            String?                     @db.VarChar(1000)
+  notes              String?                     @map("notes") @db.VarChar(2000)
+  createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  batch           OutreachBatch          @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  outboundMessage OutreachOutboundMessage? @relation(fields: [outboundMessageId], references: [id], onDelete: SetNull)
+  emailAccount    EmailAccount           @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([emailAccountId, mailboxUid])
+  @@index([batchId])
+  @@index([outboundMessageId])
+  @@index([classification])
+  @@map("outreach_replies")
 }
 
 /// A persisted, reviewable **price inquiry / RFQ draft**. Generated from
@@ -1181,6 +1259,7 @@ model EmailAccount {
   priceInquiryDrafts PriceInquiryDraft[]
   quoteOutboundMessages QuoteOutboundMessage[]
   quoteInboundMessages QuoteInboundMessage[]
+  outreachReplies OutreachReply[]
 
   @@map("email_accounts")
 }

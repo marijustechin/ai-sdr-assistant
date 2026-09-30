@@ -659,6 +659,15 @@ export class OutreachSenderService {
     };
   }
 
+  /**
+   * Read-only: the SENT outbound rows of a batch. Used by `outreach-results` to
+   * correlate inbound replies; the sender remains the single writer of this table.
+   */
+  async listSentOutbound(batchId: string): Promise<OutboundRecord[]> {
+    const rows = await this.outbound.listForBatch(batchId);
+    return rows.filter((row) => row.status === 'SENT');
+  }
+
   async getSendState(
     opportunityId: string,
     batchId: string,

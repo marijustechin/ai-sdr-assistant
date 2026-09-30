@@ -7,6 +7,7 @@ const TABLES = [
   'quote_inbound_messages',
   'quote_outbound_messages',
   'price_inquiry_drafts',
+  'outreach_replies',
   'outreach_test_deliveries',
   'outreach_outbound_messages',
   'outreach_batches',

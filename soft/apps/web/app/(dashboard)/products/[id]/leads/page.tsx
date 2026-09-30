@@ -6,6 +6,7 @@ import type { ProductResponse } from "@ai-sdr/contracts";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { LeadsList } from "@/components/leads/leads-list";
 import { OutreachBatchSection } from "@features/manage-outreach-batch";
+import { OutreachResultsSection } from "@features/manage-outreach-results";
 import { IntegrationNotice } from "@/components/products/integration-notice";
 import { ProductSectionNav } from "@/components/products/product-section-nav";
 import { ArrowLeftIcon } from "@/components/ui/icons";
@@ -96,6 +97,10 @@ export default async function ProductLeadsPage({
       ) : product ? (
         <div className="space-y-4">
           <OutreachBatchSection
+            productId={product.id}
+            opportunities={opportunities}
+          />
+          <OutreachResultsSection
             productId={product.id}
             opportunities={opportunities}
           />

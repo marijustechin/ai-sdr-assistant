@@ -265,6 +265,81 @@ export type SendOutreachTestPreviewResult = z.infer<
 >;
 
 /**
+ * Bounded classification of an inbound reply to sent outreach. Positive
+ * commercial replies (INTERESTED / PRICE_REQUEST / MORE_INFO) hand the lead off
+ * to a human; the assistant never continues the conversation autonomously.
+ */
+export const OutreachReplyClassificationSchema = z.enum([
+  'INTERESTED',
+  'PRICE_REQUEST',
+  'MORE_INFO',
+  'NOT_INTERESTED',
+  'WRONG_CONTACT',
+  'OUT_OF_OFFICE',
+  'OTHER',
+]);
+
+export const OutreachReplySourceSchema = z.enum(['AUTO', 'HUMAN']);
+export const OutreachHandoffStateSchema = z.enum([
+  'NO_HANDOFF',
+  'HANDOFF_TO_HUMAN',
+]);
+
+/** Classifications that count as a positive commercial reply (→ handoff). */
+export const OUTREACH_POSITIVE_CLASSIFICATIONS = [
+  'INTERESTED',
+  'PRICE_REQUEST',
+  'MORE_INFO',
+] as const;
+
+/** Classifications that count as a negative reply. */
+export const OUTREACH_NEGATIVE_CLASSIFICATIONS = ['NOT_INTERESTED'] as const;
+
+/** Bounded bounded inbox scan for replies to one batch. */
+export const ScanOutreachRepliesSchema = z.strictObject({
+  windowDays: z.number().int().min(1).max(30).optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+});
+
+export type ScanOutreachRepliesInput = z.infer<
+  typeof ScanOutreachRepliesSchema
+>;
+
+/** Human override of an auto classification (reviewable; never inferred). */
+export const ClassifyOutreachReplySchema = z.strictObject({
+  classification: OutreachReplyClassificationSchema,
+  note: z.string().trim().min(1).max(2000).optional(),
+});
+
+export type ClassifyOutreachReplyInput = z.infer<
+  typeof ClassifyOutreachReplySchema
+>;
+
+export type OutreachReplyClassification = z.infer<
+  typeof OutreachReplyClassificationSchema
+>;
+export type OutreachReplySource = z.infer<typeof OutreachReplySourceSchema>;
+export type OutreachHandoffState = z.infer<
+  typeof OutreachHandoffStateSchema
+>;
+
+export function isPositiveOutreachReply(
+  classification: OutreachReplyClassification,
+): boolean {
+  return (OUTREACH_POSITIVE_CLASSIFICATIONS as readonly string[]).includes(
+    classification,
+  );
+}
+
+export function isNegativeOutreachReply(
+  classification: OutreachReplyClassification,
+): boolean {
+  return (OUTREACH_NEGATIVE_CLASSIFICATIONS as readonly string[]).includes(
+    classification,
+  );
+}
+
+/**
  * Human outreach eligibility decision, scoped to one opportunity + company.
  *
  * Kept separate from research evidence and from the agent qualification so
