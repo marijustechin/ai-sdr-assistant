@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,8 +14,11 @@ import { getOutreachResults } from "@entities/outreach-result/api";
 import { getCompanyBrief } from "@entities/company-brief/api";
 import type { CompanyBriefViewRead } from "@entities/company-brief";
 import {
-  CompanyBriefPanel,
+  briefPagePath,
+  buildBriefSummary,
   prepareCompanyBriefAction,
+  refreshCompanyBriefAction,
+  requestCompanyBriefEnrichmentAction,
 } from "@features/manage-company-brief";
 import {
   OUTREACH_CLASSIFICATION_LABEL,
@@ -62,6 +66,70 @@ function Counters({ counts }: { counts: OutreachBatchResultsRead["counts"] }) {
  * Positive replies show an excerpt + a "Requires human follow-up" badge and can
  * be reclassified by a human. Nothing here sends a follow-up.
  */
+function BriefSummaryCell({
+  view,
+  opportunityId,
+  productId,
+}: {
+  view: CompanyBriefViewRead;
+  opportunityId: string;
+  productId: string;
+}) {
+  const summary = buildBriefSummary(view);
+  const companyId = view.brief.companyId;
+  return (
+    <div className="w-64 space-y-1">
+      <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+        <Badge tone={view.latest.status === "ENRICHED" ? "success" : "info"}>
+          {summary.status}
+        </Badge>
+        <span>v{summary.version}</span>
+        <span>· {summary.sourceCount} source(s)</span>
+        <span>· refreshed {formatDateTime(summary.lastRefreshedAt)}</span>
+      </div>
+      {summary.points.length > 0 ? (
+        <ul className="list-disc pl-4 text-xs text-muted-foreground">
+          {summary.points.map((point) => (
+            <li key={point}>{point}</li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <Link
+          href={briefPagePath(productId, view.brief.id)}
+          className="text-xs font-medium text-primary underline underline-offset-2 hover:underline"
+        >
+          Open full brief
+        </Link>
+        <form
+          action={refreshCompanyBriefAction.bind(
+            null,
+            opportunityId,
+            companyId,
+            productId,
+          )}
+        >
+          <Button type="submit" size="sm" variant="ghost" className="h-6 cursor-pointer px-1 text-xs">
+            Refresh
+          </Button>
+        </form>
+        <form
+          action={requestCompanyBriefEnrichmentAction.bind(
+            null,
+            opportunityId,
+            companyId,
+            productId,
+          )}
+        >
+          <Button type="submit" size="sm" variant="ghost" className="h-6 cursor-pointer px-1 text-xs">
+            Request enrichment
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export async function OutreachResultsSection({
   productId,
   opportunities,
@@ -243,18 +311,11 @@ export async function OutreachResultsSection({
                           <td className="py-2 pr-3">
                             {isPositiveClassification(row.outcome) ? (
                               briefs.get(row.companyId) ? (
-                                <details>
-                                  <summary className="cursor-pointer text-primary">
-                                    View company brief
-                                  </summary>
-                                  <div className="mt-2 w-96 max-w-full">
-                                    <CompanyBriefPanel
-                                      view={briefs.get(row.companyId)!}
-                                      opportunityId={opportunity.id}
-                                      productId={productId}
-                                    />
-                                  </div>
-                                </details>
+                                <BriefSummaryCell
+                                  view={briefs.get(row.companyId)!}
+                                  opportunityId={opportunity.id}
+                                  productId={productId}
+                                />
                               ) : (
                                 <form
                                   action={prepareCompanyBriefAction.bind(

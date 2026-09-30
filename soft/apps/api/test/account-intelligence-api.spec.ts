@@ -295,8 +295,24 @@ describe('Account intelligence / company brief (integration)', () => {
     expect(text.toLowerCase()).not.toContain('spruce');
   });
 
-  it('refuses to cross-link an unrelated company (no lead / decision for this opportunity)', async () => {
-    const a = await seedScope();
+  it('reads a brief by id with company/offer context (dedicated page navigation)', async () => {
+    const { opportunityId, runId, evidenceId } = await seedScope();
+    const { companyId } = await addLinkedLead(opportunityId, runId, evidenceId);
+    const prepared = (
+      await api('POST', `/opportunities/${opportunityId}/companies/${companyId}/brief`)
+    ).json() as Json;
+    const briefId = (prepared.brief as Json).id as string;
+
+    const res = await api('GET', `/company-briefs/${briefId}`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as Json;
+    expect(body.companyName).toBe('Wood Architects');
+    expect(body.offerName).toBe('Thermo Abachi');
+    expect((body.latest as Json).version).toBe(1);
+    expect((body.latest as Json).status).toBe('COMPILED');
+  });
+
+  it('refuses to cross-link an unrelated company (no lead / decision for this opportunity)', async () => {    const a = await seedScope();
     const { companyId } = await addLinkedLead(a.opportunityId, a.runId, a.evidenceId);
     const b = await seedScope(); // a different opportunity
 

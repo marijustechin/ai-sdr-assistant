@@ -79,6 +79,12 @@ export interface CompanyBriefViewRead {
   history: CompanyBriefSnapshotMetaRead[];
 }
 
+/** A brief fetched by id, with the company/offer context for the detail page. */
+export interface CompanyBriefDetailRead extends CompanyBriefViewRead {
+  companyName: string;
+  offerName: string | null;
+}
+
 export const BRIEF_FINDING_KIND_LABEL: Record<BriefFindingKind, string> = {
   KNOWN_FACT: "Known fact",
   RECENT_ENRICHMENT: "Recent enrichment",

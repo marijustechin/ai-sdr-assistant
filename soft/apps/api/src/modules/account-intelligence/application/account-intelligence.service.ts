@@ -79,9 +79,16 @@ export class AccountIntelligenceService {
     private readonly context: ResearchContextService,
   ) {}
 
-  /** Validates brief content, mapping schema violations to a 400 (never a 500). */
-  private validateContent(content: BriefContent): BriefContent {
+  private async companyName(companyId: string): Promise<string> {
     try {
+      return (await this.leads.getCompany(companyId)).name;
+    } catch {
+      return '(unknown company)';
+    }
+  }
+
+  /** Validates brief content, mapping schema violations to a 400 (never a 500). */
+  private validateContent(content: BriefContent): BriefContent {    try {
       return BriefContentSchema.parse(content);
     } catch (error) {
       throw new BadRequestException({
@@ -396,6 +403,31 @@ export class AccountIntelligenceService {
     if (!brief) throw new NotFoundException({ error: 'company_brief_not_found' });
     const snapshots = await this.repository.listSnapshots(brief.id);
     return this.toView(brief, snapshots);
+  }
+
+  /**
+   * Read a brief by id (dedicated brief page navigation), with the company and
+   * offer context needed for the page header. Read-only.
+   */
+  async getBriefById(briefId: string): Promise<
+    CompanyBriefView & { companyName: string; offerName: string | null }
+  > {
+    const brief = await this.repository.findBriefById(briefId);
+    if (!brief) throw new NotFoundException({ error: 'company_brief_not_found' });
+    const snapshots = await this.repository.listSnapshots(brief.id);
+    const view = this.toView(brief, snapshots);
+    let offerName: string | null = null;
+    try {
+      const context = await this.context.getResearchContext(brief.opportunityId);
+      offerName = context.offer.name;
+    } catch {
+      offerName = null;
+    }
+    return {
+      ...view,
+      companyName: await this.companyName(brief.companyId),
+      offerName,
+    };
   }
 
   /** Human action: mark the current snapshot as awaiting targeted enrichment. */

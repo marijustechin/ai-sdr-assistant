@@ -55,6 +55,12 @@ export class AccountIntelligenceController {
     return this.service.getBrief(opportunityId, companyId);
   }
 
+  /** Read a brief by id (dedicated brief page). */
+  @Get('company-briefs/:briefId')
+  async getById(@Param('briefId', new ParseUUIDPipe()) briefId: string) {
+    return this.service.getBriefById(briefId);
+  }
+
   @Post('opportunities/:opportunityId/companies/:companyId/brief/request-enrichment')
   async requestEnrichment(
     @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,

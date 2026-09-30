@@ -1,6 +1,6 @@
 ﻿import "server-only";
 import { apiRequest } from "@shared/api/client";
-import type { CompanyBriefViewRead } from "./types";
+import type { CompanyBriefDetailRead, CompanyBriefViewRead } from "./types";
 
 /** Server-only read for a company brief (account intelligence). */
 
@@ -14,6 +14,16 @@ export async function getCompanyBrief(
 ): Promise<CompanyBriefViewRead> {
   return apiRequest<CompanyBriefViewRead>(
     `/opportunities/${enc(opportunityId)}/companies/${enc(companyId)}/brief`,
+    { method: "GET" },
+  );
+}
+
+/** Read a brief by id (dedicated brief page). */
+export async function getCompanyBriefById(
+  briefId: string,
+): Promise<CompanyBriefDetailRead> {
+  return apiRequest<CompanyBriefDetailRead>(
+    `/company-briefs/${enc(briefId)}`,
     { method: "GET" },
   );
 }
