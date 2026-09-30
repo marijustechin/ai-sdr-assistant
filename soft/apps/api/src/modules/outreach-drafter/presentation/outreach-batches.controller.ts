@@ -10,7 +10,11 @@ import {
 } from '@nestjs/common';
 import {
   CreateOutreachBatchSchema,
+  OutreachMessageStrategySchema,
+  ReopenOutreachBatchSchema,
   type CreateOutreachBatchInput,
+  type OutreachMessageStrategy,
+  type ReopenOutreachBatchInput,
 } from '@ai-sdr/contracts';
 import { ZodValidationPipe } from '../../../common/zod-validation.pipe.js';
 import { InternalApiKeyGuard } from '../../../security/internal-api-key.guard.js';
@@ -68,5 +72,36 @@ export class OutreachBatchesController {
     @Param('batchId', new ParseUUIDPipe()) batchId: string,
   ) {
     return this.service.regenerateBatch(opportunityId, batchId);
+  }
+
+  /**
+   * Explicitly reopens an APPROVED (not-yet-started) batch for editing: the
+   * batch returns to DRAFT, approved versions are kept as immutable history, and
+   * a later apply-message creates new PENDING versions.
+   */
+  @Post(':opportunityId/outreach-batches/:batchId/reopen')
+  async reopen(
+    @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
+    @Param('batchId', new ParseUUIDPipe()) batchId: string,
+    @Body(new ZodValidationPipe(ReopenOutreachBatchSchema))
+    body: ReopenOutreachBatchInput,
+  ) {
+    return this.service.reopenBatchForEditing(opportunityId, batchId, body);
+  }
+
+  /**
+   * Applies a shared batch-level message strategy (subject / proposition /
+   * commercial terms / CTA) and regenerates the batch's non-customized current
+   * drafts as NEW pending versions. Previously approved versions are never
+   * mutated; an APPROVED batch must be reopened first.
+   */
+  @Post(':opportunityId/outreach-batches/:batchId/apply-message')
+  async applyMessage(
+    @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
+    @Param('batchId', new ParseUUIDPipe()) batchId: string,
+    @Body(new ZodValidationPipe(OutreachMessageStrategySchema))
+    body: OutreachMessageStrategy,
+  ) {
+    return this.service.applyBatchMessage(opportunityId, batchId, body);
   }
 }

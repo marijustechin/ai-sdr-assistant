@@ -40,13 +40,38 @@ Also required:
 
 ## 2. Agent qualification criteria (documented, product-fit, evidence-backed)
 
-`QUALIFIED` means **suitable for contact discovery for this specific product**,
-based on the lead's **CURRENT** supporting claim/evidence: an evidenced
-activity/role that plausibly **buys or uses the product** (e.g. builds, installs,
-specifies, distributes or retails **it**, or a product-adjacent use). It does
-**not** mean confirmed demand, purchasing intent, or an established customer.
-A **generic trade role alone is insufficient** — record the product-fit
-rationale in `agentQualificationReason`, naming the evidence relied on.
+For **buyer/reseller outreach**, `QUALIFIED` means **suitable for contact
+discovery for this specific product**, based on the lead's **CURRENT** supporting
+claim/evidence: an evidenced activity/role that plausibly **buys, resells or uses
+the product, or is directly product-adjacent**. Coverage is favoured over
+over-restrictive gating, and a candidate does **not** need to already sell
+Abachi/Ayous. Qualify when the stored evidence shows any of:
+
+- sells sauna cladding;
+- sells thermo/premium wood;
+- distributes or retails adjacent cladding/timber products;
+- builds or installs saunas;
+- manufactures sauna products;
+- specifies or uses relevant interior timber products;
+- other directly product-adjacent reseller/end-user activity (e.g. thermal
+  modification, wholesale timber, sauna/hot-tub component making).
+
+A **relevant range with "no Abachi found" is a positive reseller opportunity**,
+not a disqualifier. A **generic trade role with no product-adjacent activity** is
+still insufficient. Qualification does **not** assert confirmed demand, purchasing
+intent, or an established customer. Record the product-fit rationale in
+`agentQualificationReason`, naming the evidence relied on.
+
+**Hard exclusions (never overridden by the coverage rule).** Do not qualify or
+discover contacts for: a human `DO_NOT_CONTACT` / `EXISTING_RELATIONSHIP` /
+`NOT_RELEVANT` / `ALREADY_CONTACTED` outreach decision; a human `REJECTED` lead;
+a lead whose supporting claim is not `CURRENT` (stale/invalid evidence); or a
+clearly unrelated business.
+
+**No silent gaps.** Every lead candidate must carry an explicit assessment —
+`QUALIFIED`, `NEEDS_MORE_EVIDENCE`, or `DISQUALIFIED` — with a recorded reason.
+Leaving a plausible candidate at `NOT_ASSESSED` (which silently blocks contact
+discovery) is a coverage gap, not an acceptable outcome.
 
 Otherwise record `NEEDS_MORE_EVIDENCE` (insufficient, ambiguous, or a stale
 basis) or `DISQUALIFIED` (evidence contradicts eligibility, or the candidate is

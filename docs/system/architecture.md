@@ -99,6 +99,7 @@ root `modules/` workspace**.
 | 19 | `price-inquiry` | **(decommissioned 2026-09-25)** RFQ drafts — retained dormant for future sales outreach; unregistered, no longer a Market Research capability | implemented-subset |
 | 20 | `quote-collection` | **(decommissioned 2026-09-25)** supplier quote loop — retained dormant; generic send/reply, Message-ID, account-wide reply scan and follow-up code reusable for sales outreach | implemented-subset |
 | 21 | `research-result` | **retired 2026-09-25** — removed with the supplier-clarification decommission | retired |
+| 22 | `outreach-sender` | DB-backed approved-outreach send queue (pacing, one-SMTP-per-version idempotency, independent Sent-copy tracking; content-dumb) | implemented-subset |
 
 Modules marked `implemented-subset` exist as bounded slices behind the internal
 API key; their **execution**, scoring, sending, and orchestration remain planned

@@ -634,7 +634,34 @@ enum OutreachBatchStatus {
   QUEUED
   SENDING
   SENT
+  FAILED
   CANCELLED
+}
+
+/// Delivery state of one outbound message. SMTP submission and Sent-folder
+/// persistence are independent: `SENT` means SMTP succeeded; the Sent copy has
+/// its own `OutreachSentCopyStatus`.
+enum OutreachOutboundStatus {
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+/// Sentinel: the sent copy is pending, appended, or failed. A failed copy never
+/// downgrades a successful SMTP send.
+enum OutreachSentCopyStatus {
+  PENDING
+  APPENDED
+  FAILED
+}
+
+/// Delivery outcome of one **test** copy to an allowlisted test recipient. Test
+/// deliveries are tracked separately and never represent production state.
+enum OutreachTestDeliveryStatus {
+  SENT
+  FAILED
 }
 
 /// Approval state of one draft version. Approval is per immutable version: a
@@ -659,6 +686,15 @@ model OutreachBatch {
   status          OutreachBatchStatus     @default(DRAFT)
   approvedByKind  OutreachDecisionSource  @default(HUMAN) @map("approved_by_kind")
   approvedAt      DateTime?               @map("approved_at") @db.Timestamptz(6)
+  /// True while sending is paused by a human (batch stays SENDING).
+  paused          Boolean                 @default(false)
+  /// Per-batch pacing override (seconds between sends per sender mailbox).
+  pacingSeconds   Int?                    @map("pacing_seconds")
+  /// When the human explicitly started sending.
+  startedAt       DateTime?               @map("started_at") @db.Timestamptz(6)
+  /// Shared batch-level message overrides (subject/proposition/terms/CTA). The
+  /// evidence-backed personalization is never overridden by this.
+  messageStrategy Json?                   @map("message_strategy")
   /// Reserved: future pacing / rate-limit config for the send worker.
   sendPolicy      Json?                   @map("send_policy")
   createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -668,9 +704,108 @@ model OutreachBatch {
   targetMarket  TargetMarket?  @relation(fields: [targetMarketId], references: [id], onDelete: SetNull)
   senderProfile SenderProfile? @relation(fields: [senderProfileId], references: [id], onDelete: SetNull)
   drafts        OutreachDraft[]
+  outboundMessages OutreachOutboundMessage[]
+  testDeliveries OutreachTestDelivery[]
 
   @@index([opportunityId])
   @@map("outreach_batches")
+}
+
+/// One immutable outbound message for one approved draft version. The row is the
+/// DB-backed queue/pacing/idempotency source of truth: it freezes the exact
+/// approved snapshot and is SMTP-submitted at most once. The send layer never
+/// regenerates content. Sent-folder persistence is tracked separately.
+/// @owner outreach-sender
+model OutreachOutboundMessage {
+  id                String                  @id @default(uuid()) @db.Uuid
+  batchId           String                  @map("batch_id") @db.Uuid
+  draftId           String                  @unique @map("draft_id") @db.Uuid
+  opportunityId     String                  @map("opportunity_id") @db.Uuid
+  leadId            String                  @map("lead_id") @db.Uuid
+  companyId         String                  @map("company_id") @db.Uuid
+  emailAccountId    String?                 @map("email_account_id") @db.Uuid
+  senderProfileId   String?                 @map("sender_profile_id") @db.Uuid
+  recipientEmail    String                  @map("recipient_email") @db.VarChar(320)
+  fromName          String?                 @map("from_name") @db.VarChar(255)
+  fromEmail         String                  @map("from_email") @db.VarChar(320)
+  replyToEmail      String?                 @map("reply_to_email") @db.VarChar(320)
+  subject           String                  @db.VarChar(512)
+  textBody          String                  @map("text_body") @db.Text
+  htmlBody          String?                 @map("html_body") @db.Text
+  language          String                  @db.VarChar(35)
+  status            OutreachOutboundStatus  @default(QUEUED)
+  queuedAt          DateTime                @default(now()) @map("queued_at") @db.Timestamptz(6)
+  nextEligibleAt    DateTime                @map("next_eligible_at") @db.Timestamptz(6)
+  attemptCount      Int                     @default(0) @map("attempt_count")
+  lastAttemptAt     DateTime?               @map("last_attempt_at") @db.Timestamptz(6)
+  lockedUntil       DateTime?               @map("locked_until") @db.Timestamptz(6)
+  smtpSubmittedAt   DateTime?               @map("smtp_submitted_at") @db.Timestamptz(6)
+  /// The Message-ID we generated and require the server to use (verbatim).
+  messageId         String                  @unique @map("message_id") @db.VarChar(512)
+  providerMessageId String?                 @map("provider_message_id") @db.VarChar(512)
+  failureCode       String?                 @map("failure_code") @db.VarChar(64)
+  sentCopyStatus    OutreachSentCopyStatus  @default(PENDING) @map("sent_copy_status")
+  sentCopyAttempts  Int                     @default(0) @map("sent_copy_attempts")
+  sentCopyError     String?                 @map("sent_copy_error") @db.VarChar(120)
+  sentCopyAppendedAt DateTime?              @map("sent_copy_appended_at") @db.Timestamptz(6)
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  batch OutreachBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextEligibleAt])
+  @@index([batchId])
+  @@index([emailAccountId])
+  @@map("outreach_outbound_messages")
+}
+
+/// One **test** copy of a prepared outreach draft sent to an explicitly supplied,
+/// allowlisted test recipient for human visual verification. Test deliveries are
+/// tracked separately from `outreach_outbound_messages` and never advance
+/// production state: they do not set a draft/batch to SENT, do not consume
+/// pacing, and do not mark the real recipient as contacted. The frozen content
+/// (from/subject/bodies) is the draft's actual prepared content; only the
+/// transport recipient is overridden. `raw_message` keeps the exact serialized
+/// MIME so a Sent-copy retry never re-runs SMTP.
+/// @owner outreach-sender
+model OutreachTestDelivery {
+  id                String                      @id @default(uuid()) @db.Uuid
+  batchId           String                      @map("batch_id") @db.Uuid
+  draftId           String                      @map("draft_id") @db.Uuid
+  opportunityId     String                      @map("opportunity_id") @db.Uuid
+  leadId            String                      @map("lead_id") @db.Uuid
+  emailAccountId    String?                     @map("email_account_id") @db.Uuid
+  senderProfileId   String?                     @map("sender_profile_id") @db.Uuid
+  /// The real draft recipient (never contacted by a test).
+  originalRecipient String                      @map("original_recipient") @db.VarChar(320)
+  /// The explicitly supplied test recipient that actually received the copy.
+  testRecipient     String                      @map("test_recipient") @db.VarChar(320)
+  fromName          String?                     @map("from_name") @db.VarChar(255)
+  fromEmail         String                      @map("from_email") @db.VarChar(320)
+  replyToEmail      String?                     @map("reply_to_email") @db.VarChar(320)
+  subject           String                      @db.VarChar(512)
+  subjectPrefixed   Boolean                     @default(false) @map("subject_prefixed")
+  language          String                      @db.VarChar(35)
+  status            OutreachTestDeliveryStatus  @default(FAILED)
+  /// The Message-ID we generated for the test copy (unique per test).
+  messageId         String                      @unique @map("message_id") @db.VarChar(512)
+  providerMessageId String?                     @map("provider_message_id") @db.VarChar(512)
+  failureCode       String?                     @map("failure_code") @db.VarChar(64)
+  smtpSubmittedAt   DateTime?                   @map("smtp_submitted_at") @db.Timestamptz(6)
+  sentCopyStatus    OutreachSentCopyStatus      @default(PENDING) @map("sent_copy_status")
+  sentCopyAttempts  Int                         @default(0) @map("sent_copy_attempts")
+  sentCopyError     String?                     @map("sent_copy_error") @db.VarChar(120)
+  sentCopyAppendedAt DateTime?                  @map("sent_copy_appended_at") @db.Timestamptz(6)
+  /// The exact serialized MIME submitted (for Sent-copy retry only; never SMTP).
+  rawMessage        Bytes?                      @map("raw_message")
+  createdAt         DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  batch OutreachBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([draftId])
+  @@map("outreach_test_deliveries")
 }
 
 /// A persisted, reviewable **price inquiry / RFQ draft**. Generated from

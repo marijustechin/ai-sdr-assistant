@@ -12,6 +12,47 @@ and the reason. The agent must not silently override a recorded decision.
 
 ---
 
+## 2026-09-25 — Outreach batch sending: content-dumb, paced, DB-backed, Sent tracked
+
+Approving a batch and **starting sending** are separate human actions: approval
+freezes the versions; a human must explicitly start (or pause/resume). Nothing
+sends automatically merely because a batch was approved.
+
+- **Content-dumb send layer.** A new module `outreach-sender` (owner of
+  `outreach_outbound_messages`) sends only the exact immutable approved snapshot
+  (recipient, sender identity/account, subject, plain body, HTML body, language,
+  approved draft version). It never regenerates, rewrites, translates or
+  personalizes content; the MIME message is built once and the same serialized
+  bytes are SMTP-submitted and IMAP-appended.
+- **DB-backed lifecycle + pacing.** `APPROVED → QUEUED → SENDING → SENT`
+  (+ `FAILED`), with `paused`. Pacing is persisted (`next_eligible_at`), not an
+  in-memory timer: default **180 s per sender mailbox**, configurable per batch
+  (`pacingSeconds`). A restart resumes from the persisted queue; a CAS lease
+  (`locked_until`, `draft_id` unique) prevents duplicate SMTP submission across
+  retries, restarts and concurrent workers. The in-process trigger is env-gated
+  (`OUTREACH_SEND_SCHEDULER_ENABLED`, default **off**), with a manual `run-due`
+  path for controlled testing.
+- **SMTP success and Sent-folder state are independent.** After a successful
+  SMTP submit the row is `SENT` and the provider Message-ID is persisted
+  immediately; the Sent append then runs separately and is tracked as
+  `PENDING | APPENDED | FAILED`. **SMTP success + append failure = SENT** (never
+  resend); a Sent-copy retry calls **only** IMAP APPEND, never SMTP.
+- **Sent folder discovery.** The Sent mailbox is discovered via IMAP special-use
+  (`\Sent`) first, then a bounded set of common names — never a hard-coded
+  assumption.
+- **Idempotency.** DB uniqueness (`draft_id`, `message_id`) plus the per-version
+  approval state answer deterministically: was this draft SMTP-submitted, with
+  which Message-ID, and was its Sent copy appended.
+- **Pacing is operational safety, not a spam guarantee.**
+- **Migration (additive):** `20260925200000_outreach_send` +
+  `20260925210000_outreach_outbound_from_name`.
+
+Reason: approved content must be sent exactly as reviewed; pacing and restart
+safety must survive process lifecycles; and a Sent-copy problem must never cause
+a duplicate email.
+
+---
+
 ## 2026-09-25 — Batch/campaign outreach review (not per-recipient approval)
 
 The SDR workflow reviews and approves outreach **as a batch**, not recipient by
@@ -47,7 +88,89 @@ usable recipient.
   plus per-sender/mailbox rate limits and pause/resume. Pacing is an
   operational/deliverability safeguard, not a guarantee of avoiding spam
   filtering. **No sending exists in this slice.**
-- **Migration (additive):** `20260925190000_outreach_batches` (new
+- **Batch-level message editor (2026-09-25).** A shared `messageStrategy`
+(subject / proposition / commercial terms / CTA) is stored on the batch
+(`outreach_batches.message_strategy`). `POST .../:batchId/apply-message` stores
+it and regenerates **only unapproved, non-customized** drafts, preserving each
+lead's evidence-backed personalization (greeting/observation/signature are never
+overridden). The review surface shows how many drafts will be affected
+(`regeneratableDrafts`) and how many approved/customized drafts are untouched
+before applying; approved versions stay immutable and any change returns the batch
+to `DRAFT` (explicit re-approval). Per-recipient editing remains available as an
+exception ("Open draft"). Sending behavior is unchanged.
+
+**Reopening an approved batch (2026-09-29).** Because approved versions are
+immutable, an APPROVED batch's shared message can no longer be changed directly:
+`POST .../:batchId/apply-message` on an APPROVED batch now returns
+`batch_approved_reopen_first` instead of silently affecting 0 drafts. The operator
+uses `POST .../:batchId/reopen` on a batch that is APPROVED and has not entered
+QUEUED/SENDING/SENT: the batch returns to `DRAFT`, every previously approved
+version is kept untouched as history, and a subsequent apply-message creates NEW
+PENDING versions from the shared message (the old rows are never mutated).
+Individually customized drafts stay protected; the operator can opt in to
+`resetCustomized`, which creates a new non-customized PENDING version for them
+(the customized row is still retained). Re-approval freezes only the new current
+versions, and the send layer queues only the latest approved version per lead, so
+superseded approved versions are never sent. Reopening is refused for
+QUEUED/SENDING/SENT batches.
+
+**Buyer/reseller qualification favours coverage (2026-09-29).** Buyer outreach
+qualification is widened so an evidence-backed company is outreach-eligible when
+its stored evidence shows a plausible **buyer/reseller** fit: sells sauna
+cladding, sells thermo/premium wood, distributes/retails adjacent cladding or
+timber, builds/installs saunas, manufactures sauna products, specifies/uses
+relevant interior timber, or other directly product-adjacent activity. A company
+does **not** need to already sell Abachi/Ayous; a relevant range with "no Abachi
+found" is a **positive reseller opportunity**, not a disqualifier. Hard exclusions
+are preserved (human `DO_NOT_CONTACT`/`EXISTING_RELATIONSHIP`/`NOT_RELEVANT`/
+`ALREADY_CONTACTED`, human `REJECTED`, stale/non-`CURRENT` evidence, clearly
+unrelated business), and plausible candidates must no longer be left at
+`NOT_ASSESSED` — every candidate carries an explicit assessment with a reason.
+Rationale: in the Lithuania Thermo Abachi opportunity all 14 lead candidates were
+evidence-backed but only 3 were ever qualified (and those 3 by the decommissioned
+supplier price-inquiry flow, i.e. they were product-side sellers), while the 11
+prospective resellers/installers/builders were silently `NOT_ASSESSED` and so
+never reached contact discovery. See `research-harness/contact-discovery.md` §2.
+
+**Controlled send-test preview (2026-09-29).** A human can send a **test copy** of
+a batch's actual prepared drafts for visual verification before starting a real
+batch. Safety is structural: test copies go to **explicitly supplied allowlisted
+test recipients only** (fixed allowlist for the controlled verification:
+`m.smiginas@gmail.com`, `info@alfasis.eu`), never to the real draft recipient.
+The actual prepared content is preserved unchanged (sender/From identity,
+Reply-To, canonical subject, plain-text and HTML bodies, structured
+signature/logo, MIME construction); only the transport `To` is overridden and
+non-visible diagnostic headers (`X-AI-SDR-Test`,
+`X-AI-SDR-Original-Recipient`, `X-AI-SDR-Draft-Id`, `X-AI-SDR-Batch-Id`) are
+added. A subject prefix (e.g. `[TEST]`) is optional and **off by default** so the
+operator sees the real production message. Test copies are persisted as clearly
+flagged `outreach_test_deliveries` rows, entirely separate from the production
+`outreach_outbound_messages` queue: a test never sets a draft/batch to `SENT`,
+never creates/consumes a production outbound row, never changes
+`APPROVED/QUEUED/SENDING/SENT` state, never consumes the pacing schedule, never
+marks the real recipient contacted, and never changes an outreach decision. The
+same MIME + SMTP/IMAP path is used, and the test copy is appended to the sender
+mailbox Sent folder; a test Sent-copy failure is recorded and **never**
+re-submits SMTP. Migration `20260929112046_outreach_test_deliveries` (additive).
+The send scheduler stays env-gated off; the first live verification requires
+explicit human authorization.
+
+**Batch identity, funnel and archival (2026-09-25).** Multiple batches per
+opportunity are expected, so the UI identifies each batch by a **short stable id**
+(`#xxxxxxxx`), **creation time**, language/target market, sender profile, status,
+and opportunity/product (not by opportunity name alone). The review surface shows
+an explicit **funnel** — lead candidates, draftable (qualified), rejected/
+not-qualified/stale, excluded by human decision, without usable recipient,
+generated drafts — and makes clear that **Market Research findings are broader
+than outreach-ready leads** (research offerings/companies are not all lead
+candidates; only qualified leads with a usable published recipient become
+drafts). Obsolete/test batches can be **cancelled/archived** (`CANCELLED`):
+cancelling removes a batch from the active view (behind a "Show archived/
+cancelled" control) and is never deletable; a cancelled batch is never startable
+or sendable. Upstream counts the model cannot support (e.g. distinct research
+companies) are not fabricated — only known counts are shown.
+
+**Migration (additive):** `20260925190000_outreach_batches` (new
   `outreach_batches` + batch/approval columns on `outreach_drafts`).
 
 Reason: forcing an operator to open and approve every generated email defeats the
@@ -106,6 +229,17 @@ approved send snapshot is `subject` + `body` (plain text) + `htmlBody` (HTML) +
 `canonicalBody` (editable source) + the sender identity snapshot + recipient +
 language + provenance/evidence references. Send-time transport performs **zero**
 content generation or rewriting.
+
+**Subject and greeting (2026-09-25).** The subject is concise and restrained:
+English uses the offer (optionally plus a category that adds information, e.g.
+`Thermo Abachi cladding`); Lithuanian uses `Dėl {offer}{ localized-category}`
+(e.g. `Dėl Thermo Abachi dailylenčių`), via a **bounded curated** category map —
+official product names are never translated and an unknown category is omitted
+rather than a leaked English label. No attention-tactic words (quick/short/
+question) and no `?` in the subject. The **greeting never uses a company name as a
+recipient name**: without a known named contact it is `Hello,` / `Sveiki,`; a real
+named contact may be addressed (`Hello Jane Buyer,` / `Sveiki, Jonas Pirkėjas,`).
+A person's name or responsibility is never invented.
 
 **Forbidden in the first contact:** a concrete price (a human may add one later
 to the editable draft), superlatives/guarantees ("cheapest", "best price",

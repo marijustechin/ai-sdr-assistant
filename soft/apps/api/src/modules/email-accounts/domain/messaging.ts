@@ -30,6 +30,32 @@ export interface OutboundMailResult {
   providerMessageId: string | null;
 }
 
+/**
+ * A multipart outbound message built as raw MIME once, so the exact same
+ * serialized message can be SMTP-submitted and later IMAP-APPENDed to Sent.
+ */
+export interface OutboundMultipartSpec {
+  fromName: string | null;
+  fromEmail: string;
+  replyToEmail: string | null;
+  to: string;
+  subject: string;
+  text: string;
+  html: string | null;
+  /** The Message-ID we require the server to use verbatim. */
+  messageId: string;
+  date: Date;
+  /** Optional extra raw-MIME headers (e.g. test diagnostics); CR/LF stripped. */
+  headers?: Record<string, string>;
+}
+
+export interface OutboundMultipartResult {
+  messageId: string;
+  providerMessageId: string | null;
+  /** The exact serialized MIME message that was submitted. */
+  raw: Buffer;
+}
+
 /** Bounded reply-scan window (recent messages only). */
 export interface ReplyScanWindow {
   sinceDays: number;
@@ -63,6 +89,12 @@ export abstract class OutboundMailPort {
     accountId: string,
     spec: OutboundMailSpec,
   ): Promise<OutboundMailResult>;
+
+  /** Submits a raw multipart message and returns the exact serialized MIME. */
+  abstract sendMultipart(
+    accountId: string,
+    spec: OutboundMultipartSpec,
+  ): Promise<OutboundMultipartResult>;
 }
 
 export abstract class InboundMailPort {
@@ -70,4 +102,10 @@ export abstract class InboundMailPort {
     accountId: string,
     window: ReplyScanWindow,
   ): Promise<InboundMailCandidate[]>;
+
+  /**
+   * Appends an already-submitted raw MIME message to the mailbox's Sent folder,
+   * discovered via IMAP special-use (`\Sent`) rather than a fixed name.
+   */
+  abstract appendToSent(accountId: string, raw: Buffer): Promise<void>;
 }

@@ -3,6 +3,7 @@ import type {
   OutreachBatchStatus,
   OutreachDecisionSource,
   OutreachDecisionStatus,
+  OutreachMessageStrategy,
   OutreachPreparationStatus,
 } from '@ai-sdr/contracts';
 
@@ -11,6 +12,7 @@ export type {
   OutreachBatchStatus,
   OutreachDecisionSource,
   OutreachDecisionStatus,
+  OutreachMessageStrategy,
   OutreachPreparationStatus,
 };
 
@@ -83,6 +85,12 @@ export interface OutreachDraftRecord {
   batchId: string | null;
   /** True once a human revised this draft (exception editing). */
   customized: boolean;
+  /**
+   * True when a human outreach decision excludes this draft's company for this
+   * opportunity (DO_NOT_CONTACT / EXISTING_RELATIONSHIP / NOT_RELEVANT /
+   * ALREADY_CONTACTED). An excluded draft must never be queued for sending.
+   */
+  excludedFromOutreach: boolean;
   approvalStatus: OutreachApprovalStatus;
   approvedAt: Date | null;
   createdAt: Date;
@@ -130,6 +138,10 @@ export interface OutreachBatchRecord {
   status: OutreachBatchStatus;
   approvedByKind: OutreachDecisionSource;
   approvedAt: Date | null;
+  paused: boolean;
+  pacingSeconds: number | null;
+  startedAt: Date | null;
+  messageStrategy: OutreachMessageStrategy | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -139,16 +151,37 @@ export interface CreateBatchData {
   targetMarketId: string | null;
   senderProfileId: string | null;
   language: string;
+  pacingSeconds: number | null;
+}
+
+export interface UpdateBatchSendStateData {
+  status?: OutreachBatchStatus;
+  paused?: boolean;
+  startedAt?: Date;
+  pacingSeconds?: number;
+}
+
+export interface SetBatchMessageStrategyData {
+  messageStrategy: OutreachMessageStrategy | null;
 }
 
 /** Live classification counts for the batch review surface. */
 export interface OutreachBatchCounts {
+  /** All opportunity-scoped lead candidates considered for outreach. */
+  leadCandidates: number;
+  /** Draftable by qualification (before recipient/exclusion checks). */
   eligibleLeads: number;
+  /** Rejected, not-qualified, or resting on stale evidence. */
+  rejectedOrStale: number;
   excludedByDecision: number;
   withoutRecipient: number;
   generatedDrafts: number;
   approvedDrafts: number;
   pendingDrafts: number;
+  /** Latest per-lead drafts that are unapproved and not customized (apply target). */
+  regeneratableDrafts: number;
+  /** Latest per-lead drafts that were individually customized. */
+  customizedDrafts: number;
 }
 
 export interface OutreachBatchPreview {

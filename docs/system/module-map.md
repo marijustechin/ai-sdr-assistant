@@ -13,7 +13,7 @@ in `data-governance.md`.
 > (ResearchContextService + research-request orchestration), `opportunities`,
 > `products-and-offers`, `evidence`, `market-researcher`, `lead-discoverer`,
 > `contact-discovery`, `outreach-drafter`, `sender-profiles`, `email-accounts`,
-> `dashboard`, and `price-inquiry`/`quote-collection` (**now decommissioned as a
+> `dashboard`, `outreach-sender`, and `price-inquiry`/`quote-collection` (**now decommissioned as a
 > Market Research capability and retained dormant** — see their sections).
 > `research-result` is **retired**. `knowledge`, `research-records`,
 > `lead-evaluator`, `company-intelligence`, `approvals`, `jobs`, and
@@ -289,8 +289,20 @@ excluded / no-recipient / generated counts, representative previews) plus all
 drafts; `POST .../:batchId/approve` approves the whole batch in one action and
 freezes the exact version of every included draft; `POST .../:batchId/regenerate`
 re-derives **unapproved, non-customized** drafts (never overwriting an individual
-edit or an approved version). Approval is per immutable version: a human edit
+edit or an approved version). `POST .../:batchId/apply-message` applies a shared
+batch-level `messageStrategy` (subject / proposition / commercial terms / CTA,
+stored on `outreach_batches.message_strategy`) and regenerates the same eligible
+set, preserving each lead's evidence-backed personalization; the summary reports
+`regeneratableDrafts` / `customizedDrafts` so the operator sees the impact first.
+Approval is per immutable version: a human edit
 creates a new `PENDING` version and returns an approved batch to `DRAFT`.
+`POST .../:batchId/reopen` explicitly reopens an APPROVED not-yet-started batch
+for editing (refused once QUEUED/SENDING/SENT): the batch returns to `DRAFT`,
+approved versions are kept as immutable history, and a later apply-message creates
+new PENDING versions from the shared message. Applying to an APPROVED batch is
+refused (`batch_approved_reopen_first`) rather than silently affecting 0 drafts;
+customized drafts stay protected unless the operator opts into `resetCustomized`.
+Re-approval freezes only the new current versions.
 `OutreachBatchStatus` reserves `APPROVED → QUEUED → SENDING → SENT` (+
 `CANCELLED`) and `sendPolicy` for a future controlled-pacing send worker — **no
 sending exists**.
@@ -537,3 +549,47 @@ no new write path.
   retained only so historical runs (the Lithuania benchmark) still parse; nothing
   produces them for new work. Research completion is now simply the run's
   lifecycle status.
+
+## 23. `outreach-sender`
+
+- **Status:** implemented subset (2026-09-29) — the DB-backed send layer for
+  approved outreach batches, plus a controlled **send-test preview**. Endpoints
+  (guarded): `GET .../outreach-batches/:batchId/send-state`,
+  `POST .../start-sending`, `.../pause`, `.../resume`, `.../run-due`,
+  `.../retry-sent-copy`; and test preview `GET .../test-preview`,
+  `POST .../test-preview`, `.../test-preview/retry-sent-copy`.
+- **Responsibility:** send only the exact immutable approved draft snapshot
+  (recipient, sender identity/account, subject, plain body, HTML body, language,
+  approved version). It never regenerates content. It owns the paced queue,
+  one-SMTP-per-version idempotency, and independent Sent-folder tracking.
+- **Tables read/written (owner):** `outreach_outbound_messages` (production
+  queue) and `outreach_test_deliveries` (test copies, kept separate). Reuses (by
+  reference) `outreach_drafts`, `outreach_batches`, `email_accounts` via the
+  `email-accounts` transport ports, and `outreach-drafter`'s batch/draft services
+  (single-writer preserved: batch/draft writes go through `outreach-drafter`).
+- **Test preview (controlled verification):** a human-triggered copy of the
+  **actual prepared content** (From identity, Reply-To, subject, plain-text/HTML
+  bodies, signature/logo, same MIME construction) sent to **explicitly supplied
+  allowlisted test recipients only** (`OUTREACH_TEST_RECIPIENT_ALLOWLIST`, fixed
+  for this verification). Only the transport `To` is overridden; non-visible
+  diagnostic headers (`X-AI-SDR-Test`, `X-AI-SDR-Original-Recipient`,
+  `X-AI-SDR-Draft-Id`, `X-AI-SDR-Batch-Id`) are added and the real subject is
+  preserved unless an optional prefix is supplied. It never contacts the real
+  draft recipient and never advances production state (no draft/batch status
+  change, no production outbound row, no pacing, no outreach decision), and its
+  Sent copy is appended to the same mailbox Sent folder. A test Sent-copy failure
+  is recorded and never re-submits SMTP.
+- **Lifecycle:** `APPROVED → QUEUED → SENDING → SENT` (+ `FAILED`, `CANCELLED`),
+  with a human `paused` flag. Only an `APPROVED` batch may start; only the
+  **latest** approved version per lead is queued/sent, so reopening + re-approving
+  a batch never sends a superseded approved version alongside the new one.
+- **Pacing:** persisted `next_eligible_at` per outbound; default 180 s per sender
+  mailbox; per-batch `pacingSeconds` override. CAS lease (`locked_until`) plus
+  `draft_id`/`message_id` uniqueness prevent duplicate sends across retries,
+  restarts and concurrent workers. In-process trigger env-gated
+  (`OUTREACH_SEND_SCHEDULER_ENABLED`, default off); manual `run-due` for testing.
+- **SMTP vs Sent:** SMTP success sets `SENT` and persists the provider Message-ID
+  immediately; the Sent copy is tracked separately (`PENDING | APPENDED |
+  FAILED`). SMTP success + append failure remains `SENT`; Sent-copy retry calls
+  only IMAP APPEND. The Sent mailbox is discovered via IMAP special-use (`\Sent`).
+- **No autonomy:** nothing sends without an explicit human start action.

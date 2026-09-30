@@ -3,6 +3,9 @@ import { Prisma, PrismaService } from '@ai-sdr/database';
 import type {
   CreateBatchData,
   OutreachBatchRecord,
+  OutreachMessageStrategy,
+  SetBatchMessageStrategyData,
+  UpdateBatchSendStateData,
 } from '../domain/types.js';
 
 const DRAFT_INCLUDE = {
@@ -27,6 +30,11 @@ function toBatchRecord(batch: OutreachBatch): OutreachBatchRecord {
     status: batch.status,
     approvedByKind: batch.approvedByKind,
     approvedAt: batch.approvedAt,
+    paused: batch.paused,
+    pacingSeconds: batch.pacingSeconds,
+    startedAt: batch.startedAt,
+    messageStrategy:
+      (batch.messageStrategy as OutreachMessageStrategy | null) ?? null,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
   };
@@ -50,6 +58,41 @@ export class OutreachBatchRepository {
         targetMarketId: data.targetMarketId,
         senderProfileId: data.senderProfileId,
         language: data.language,
+        pacingSeconds: data.pacingSeconds ?? null,
+      },
+    });
+    return toBatchRecord(batch);
+  }
+
+  async setMessageStrategy(
+    id: string,
+    data: SetBatchMessageStrategyData,
+  ): Promise<OutreachBatchRecord> {
+    const batch = await this.prisma.db.outreachBatch.update({
+      where: { id },
+      data: {
+        messageStrategy:
+          data.messageStrategy === null
+            ? Prisma.DbNull
+            : (data.messageStrategy as unknown as Prisma.InputJsonValue),
+      },
+    });
+    return toBatchRecord(batch);
+  }
+
+  async updateSendState(
+    id: string,
+    data: UpdateBatchSendStateData,
+  ): Promise<OutreachBatchRecord> {
+    const batch = await this.prisma.db.outreachBatch.update({
+      where: { id },
+      data: {
+        ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(data.paused !== undefined ? { paused: data.paused } : {}),
+        ...(data.startedAt !== undefined ? { startedAt: data.startedAt } : {}),
+        ...(data.pacingSeconds !== undefined
+          ? { pacingSeconds: data.pacingSeconds }
+          : {}),
       },
     });
     return toBatchRecord(batch);

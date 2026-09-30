@@ -1,6 +1,8 @@
 import type { PrismaClient } from '../../src/index.js';
 
 const TABLES = [
+  'outreach_test_deliveries',
+  'outreach_outbound_messages',
   'outreach_batches',
   'outreach_decisions',
   'outreach_drafts',

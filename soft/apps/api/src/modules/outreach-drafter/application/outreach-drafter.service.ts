@@ -8,7 +8,9 @@ import {
 } from '@nestjs/common';
 import type {
   CreateOutreachBatchInput,
+  OutreachMessageStrategy,
   PrepareOutreachDraftInput,
+  ReopenOutreachBatchInput,
   ReviseOutreachDraftInput,
   SetOutreachDecisionInput,
 } from '@ai-sdr/contracts';
@@ -86,6 +88,10 @@ export class OutreachDrafterService {
     opportunityId: string,
     leadId: string,
     input: PrepareOutreachDraftInput,
+    options: {
+      strategy?: OutreachMessageStrategy | null;
+      batchId?: string;
+    } = {},
   ): Promise<OutreachDraftRecord> {
     const lead = await this.leads.getLead(opportunityId, leadId);
 
@@ -114,6 +120,13 @@ export class OutreachDrafterService {
 
     const { contact, recipientRationale } =
       await this.contacts.selectRecipient(lead.companyId, input.contactId);
+
+    // A company name is never used as a recipient name; the greeting addresses a
+    // real named contact only when one is known.
+    const recipientName =
+      contact?.contactType === 'NAMED_PERSON' && contact.personName
+        ? contact.personName
+        : null;
 
     const chosen = input.language
       ? {
@@ -180,6 +193,7 @@ export class OutreachDrafterService {
       const content = buildDraftContent({
         language: chosen.language,
         companyName: lead.company.name,
+        recipientName,
         observedActivityText: lead.observedActivityText,
         offerSummary,
         productCategory: context?.product.category ?? null,
@@ -193,6 +207,7 @@ export class OutreachDrafterService {
         whatsappPhone: activeProfile.whatsappPhone,
         includeLogoInSignature: activeProfile.includeLogoInSignature,
         logoUrl: activeProfile.logoUrl,
+        ...(options.strategy ? { strategy: options.strategy } : {}),
       });
       subject = content.subject;
       canonicalBody = content.canonicalBody;
@@ -234,6 +249,10 @@ export class OutreachDrafterService {
       website: activeProfile?.website ?? null,
       whatsappEnabled: activeProfile?.whatsappEnabled ?? false,
       whatsappPhone: activeProfile?.whatsappPhone ?? null,
+      strategySubject: options.strategy?.subject ?? null,
+      strategyProposition: options.strategy?.proposition ?? null,
+      strategyTerms: options.strategy?.terms ?? null,
+      strategyCta: options.strategy?.cta ?? null,
     });
 
     const existing = await this.repository.findByFingerprint(fingerprint);
@@ -264,6 +283,7 @@ export class OutreachDrafterService {
       ...(activeProfile?.emailAccountId
         ? { emailAccountId: activeProfile.emailAccountId }
         : {}),
+      ...(options.batchId ? { batchId: options.batchId } : {}),
       ...(senderSnapshot ? { senderSnapshot } : {}),
       version: await this.repository.nextVersion(opportunityId, leadId),
       fingerprint,
@@ -453,6 +473,49 @@ export class OutreachDrafterService {
   }
 
   /**
+   * Send-layer read: the batch record plus its draft versions (with snapshots).
+   * The `outreach-sender` module uses this; it never reads the tables directly.
+   */
+  async getBatchForSend(batchId: string): Promise<{
+    batch: OutreachBatchRecord;
+    drafts: OutreachDraftRecord[];
+  }> {
+    const batch = await this.batches.findBatch(batchId);
+    if (!batch) {
+      throw new NotFoundException({ error: 'outreach_batch_not_found' });
+    }
+    const rows = await this.batches.listDraftRowsForBatch(batchId);
+    const sender = await this.senderContextFor(batch.opportunityId);
+    const drafts: OutreachDraftRecord[] = [];
+    for (const row of rows) {
+      const lead = await this.leads.getLead(batch.opportunityId, row.leadId);
+      const decision = await this.decisions.find(
+        batch.opportunityId,
+        lead.companyId,
+      );
+      drafts.push(this.toRecord(row, lead, sender, decision));
+    }
+    return { batch, drafts };
+  }
+
+  async getBatchRecord(batchId: string): Promise<OutreachBatchRecord | null> {
+    return this.batches.findBatch(batchId);
+  }
+
+  /** Send-layer writes to the batch are mediated here (single writer). */
+  async setBatchSendState(
+    batchId: string,
+    data: {
+      status?: OutreachBatchRecord['status'];
+      paused?: boolean;
+      startedAt?: Date;
+      pacingSeconds?: number;
+    },
+  ): Promise<OutreachBatchRecord> {
+    return this.batches.updateSendState(batchId, data);
+  }
+
+  /**
    * Creates a batch and generates drafts for every currently eligible lead in
    * the opportunity scope (excluded/rejected/stale/unqualified and
    * no-recipient leads are skipped and counted). No per-recipient approval is
@@ -472,8 +535,15 @@ export class OutreachDrafterService {
       targetMarketId: input.targetMarketId ?? null,
       senderProfileId: input.senderProfileId ?? sender.assignmentId,
       language,
+      pacingSeconds: input.pacingSeconds ?? null,
     });
-    await this.generateIntoBatch(opportunityId, batch.id, language, leads);
+    await this.generateIntoBatch(
+      opportunityId,
+      batch.id,
+      language,
+      leads,
+      batch.messageStrategy,
+    );
     return this.composeBatchSummary(opportunityId, batch.id);
   }
 
@@ -527,9 +597,12 @@ export class OutreachDrafterService {
         continue;
       }
       if (!(await this.isDraftable(opportunityId, lead))) continue;
-      const draft = await this.prepareDraft(opportunityId, lead.id, {
-        language: batch.language,
-      });
+      const draft = await this.prepareDraft(
+        opportunityId,
+        lead.id,
+        { language: batch.language },
+        { strategy: batch.messageStrategy, batchId: batch.id },
+      );
       if (draft.preparationStatus === 'PREPARED') ids.push(draft.id);
     }
     await this.batches.attachDrafts(batch.id, ids);
@@ -539,18 +612,181 @@ export class OutreachDrafterService {
     return this.composeBatchSummary(opportunityId, batch.id);
   }
 
+  /**
+   * Applies a shared batch-level message strategy: stores it on the batch and
+   * regenerates only **unapproved, non-customized** drafts, preserving each
+   * lead's evidence-backed personalization. Approved versions stay immutable; if
+   * any draft changes, the batch returns to DRAFT (explicit re-approval).
+   */
+  async applyBatchMessage(
+    opportunityId: string,
+    batchId: string,
+    strategy: OutreachMessageStrategy,
+  ): Promise<OutreachBatchSummary> {
+    const batch = await this.requireBatch(opportunityId, batchId);
+    if (batch.status === 'APPROVED') {
+      // An approved batch must be explicitly reopened before its message can be
+      // changed (otherwise this would silently affect 0 drafts).
+      throw new ConflictException({ error: 'batch_approved_reopen_first' });
+    }
+    if (!['DRAFT', 'FAILED'].includes(batch.status)) {
+      throw new ConflictException({ error: 'batch_not_editable' });
+    }
+    const normalized = this.normaliseStrategy(strategy);
+    await this.batches.setMessageStrategy(batchId, { messageStrategy: normalized });
+
+    const leads = await this.leads.listLeads(opportunityId);
+    const rows = await this.batches.listDraftRowsForBatch(batchId);
+    const latestByLead = new Map<string, BatchDraftRow>();
+    for (const row of rows) {
+      if (!latestByLead.has(row.leadId)) latestByLead.set(row.leadId, row);
+    }
+    let affected = 0;
+    for (const lead of leads) {
+      const existing = latestByLead.get(lead.id);
+      // Customized drafts are protected unless the operator explicitly reset
+      // them on reopen. Previously approved versions are never mutated: applying
+      // the shared message creates a NEW PENDING version instead.
+      if (existing?.customized) continue;
+      if (!(await this.isDraftable(opportunityId, lead))) continue;
+      const draft = await this.prepareDraft(
+        opportunityId,
+        lead.id,
+        { language: batch.language },
+        { strategy: normalized, batchId },
+      );
+      if (draft.preparationStatus === 'PREPARED') {
+        await this.batches.attachDrafts(batchId, [draft.id]);
+        if (!existing || existing.id !== draft.id) affected += 1;
+      }
+    }
+    if (affected > 0 && batch.status !== 'DRAFT' && batch.status !== 'CANCELLED') {
+      await this.batches.setStatus(batchId, 'DRAFT', null);
+    }
+    return this.composeBatchSummary(opportunityId, batchId);
+  }
+
+  /**
+   * Explicitly reopens an APPROVED but not-yet-started batch so its shared
+   * message can be edited. The batch returns to `DRAFT`; every previously
+   * approved draft version is preserved untouched as immutable history, and a
+   * later `apply-message` creates new PENDING versions. Individually customized
+   * drafts stay protected unless `resetCustomized` is set, in which case a new
+   * non-customized PENDING version is created for them (the original customized
+   * version is still kept). Only batches that have not entered
+   * QUEUED/SENDING/SENT may be reopened.
+   */
+  async reopenBatchForEditing(
+    opportunityId: string,
+    batchId: string,
+    input: ReopenOutreachBatchInput,
+  ): Promise<OutreachBatchSummary> {
+    const batch = await this.requireBatch(opportunityId, batchId);
+    if (
+      batch.status !== 'APPROVED' ||
+      batch.startedAt !== null ||
+      batch.paused
+    ) {
+      throw new ConflictException({ error: 'batch_not_reopenable' });
+    }
+    if (input.resetCustomized) {
+      const rows = await this.batches.listDraftRowsForBatch(batchId);
+      const latestByLead = new Map<string, BatchDraftRow>();
+      for (const row of rows) {
+        if (!latestByLead.has(row.leadId)) latestByLead.set(row.leadId, row);
+      }
+      for (const row of latestByLead.values()) {
+        if (!row.customized) continue;
+        await this.cloneDraftAsPending(
+          row,
+          batchId,
+          'reopened: customized draft reset by operator',
+        );
+      }
+    }
+    await this.batches.setStatus(batchId, 'DRAFT', null);
+    return this.composeBatchSummary(opportunityId, batchId);
+  }
+
+  /**
+   * Creates a new PENDING (non-customized) version from an existing draft row,
+   * leaving the source row untouched. Used only to reset an individually
+   * customized draft when the operator explicitly requests it on reopen.
+   */
+  private async cloneDraftAsPending(
+    row: BatchDraftRow,
+    batchId: string,
+    note: string,
+  ): Promise<string> {
+    const snapshot = (row.senderSnapshot as SenderSnapshot | null) ?? null;
+    const data: CreateDraftData = {
+      opportunityId: row.opportunityId,
+      leadId: row.leadId,
+      companyId: row.companyId,
+      ...(row.contactId ? { contactId: row.contactId } : {}),
+      ...(row.recipientEmail ? { recipientEmail: row.recipientEmail } : {}),
+      language: row.language,
+      preparationStatus: row.preparationStatus,
+      ...(row.subject !== null ? { subject: row.subject } : {}),
+      ...(row.canonicalBody !== null ? { canonicalBody: row.canonicalBody } : {}),
+      ...(row.body !== null ? { body: row.body } : {}),
+      ...(row.htmlBody !== null ? { htmlBody: row.htmlBody } : {}),
+      rationale: `${row.rationale} [${note}]`,
+      recipientRationale: row.recipientRationale,
+      missingFields: (row.missingFields as string[] | null) ?? [],
+      ...(row.contextVersion !== null
+        ? { contextVersion: row.contextVersion }
+        : {}),
+      ...(row.evidenceId ? { evidenceId: row.evidenceId } : {}),
+      ...(row.claimId ? { claimId: row.claimId } : {}),
+      ...(row.sourceReferenceId
+        ? { sourceReferenceId: row.sourceReferenceId }
+        : {}),
+      ...(row.senderProfileId ? { senderProfileId: row.senderProfileId } : {}),
+      ...(row.emailAccountId ? { emailAccountId: row.emailAccountId } : {}),
+      ...(snapshot ? { senderSnapshot: snapshot } : {}),
+      customized: false,
+      batchId,
+      version: await this.repository.nextVersion(row.opportunityId, row.leadId),
+      fingerprint: this.fingerprint({
+        resetOf: row.id,
+        leadId: row.leadId,
+        batchId,
+      }),
+    };
+    const created = await this.repository.createDraft(data);
+    return created.id;
+  }
+
+  private normaliseStrategy(
+    strategy: OutreachMessageStrategy,
+  ): OutreachMessageStrategy | null {
+    const clean: OutreachMessageStrategy = {};
+    if (strategy.subject?.trim()) clean.subject = strategy.subject.trim();
+    if (strategy.proposition?.trim()) {
+      clean.proposition = strategy.proposition.trim();
+    }
+    if (strategy.terms?.trim()) clean.terms = strategy.terms.trim();
+    if (strategy.cta?.trim()) clean.cta = strategy.cta.trim();
+    return Object.keys(clean).length > 0 ? clean : null;
+  }
+
   private async generateIntoBatch(
     opportunityId: string,
     batchId: string,
     language: string,
     leads: LeadRecord[],
+    strategy: OutreachMessageStrategy | null,
   ): Promise<void> {
     const ids: string[] = [];
     for (const lead of leads) {
       if (!(await this.isDraftable(opportunityId, lead))) continue;
-      const draft = await this.prepareDraft(opportunityId, lead.id, {
-        language,
-      });
+      const draft = await this.prepareDraft(
+        opportunityId,
+        lead.id,
+        { language },
+        { strategy, batchId },
+      );
       if (draft.preparationStatus === 'PREPARED') ids.push(draft.id);
     }
     await this.batches.attachDrafts(batchId, ids);
@@ -603,12 +839,16 @@ export class OutreachDrafterService {
     const sender = await this.senderContextFor(opportunityId);
 
     const counts: OutreachBatchCounts = {
+      leadCandidates: leads.length,
       eligibleLeads: 0,
+      rejectedOrStale: 0,
       excludedByDecision: 0,
       withoutRecipient: 0,
       generatedDrafts: 0,
       approvedDrafts: 0,
       pendingDrafts: 0,
+      regeneratableDrafts: 0,
+      customizedDrafts: 0,
     };
     for (const lead of leads) {
       const decision = await this.decisions.find(opportunityId, lead.companyId);
@@ -621,12 +861,14 @@ export class OutreachDrafterService {
         lead.agentQualificationStale ||
         lead.needsReview
       ) {
+        counts.rejectedOrStale += 1;
         continue;
       }
       if (
         lead.agentQualificationStatus !== 'QUALIFIED' &&
         lead.reviewStatus !== 'SHORTLISTED'
       ) {
+        counts.rejectedOrStale += 1;
         continue;
       }
       counts.eligibleLeads += 1;
@@ -649,6 +891,18 @@ export class OutreachDrafterService {
     counts.pendingDrafts = prepared.filter(
       (d) => d.approvalStatus === 'PENDING',
     ).length;
+    const latestByLead = new Map<string, OutreachDraftRecord>();
+    for (const draft of drafts) {
+      if (!latestByLead.has(draft.leadId)) latestByLead.set(draft.leadId, draft);
+    }
+    const latest = [...latestByLead.values()];
+    counts.regeneratableDrafts = latest.filter(
+      (d) =>
+        d.preparationStatus === 'PREPARED' &&
+        d.approvalStatus === 'PENDING' &&
+        !d.customized,
+    ).length;
+    counts.customizedDrafts = latest.filter((d) => d.customized).length;
 
     const representative: OutreachBatchPreview[] = prepared
       .slice(0, 3)
@@ -861,6 +1115,9 @@ export class OutreachDrafterService {
       version: row.version,
       batchId: row.batchId,
       customized: row.customized,
+      excludedFromOutreach: Boolean(
+        decision && isExcludingOutreachDecision(decision.decision),
+      ),
       approvalStatus: row.approvalStatus,
       approvedAt: row.approvedAt,
       createdAt: row.createdAt,

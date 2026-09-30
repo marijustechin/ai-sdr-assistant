@@ -11,6 +11,7 @@ import {
   type BodyStructureNode,
   type TextPartCandidate,
 } from '../domain/imap-body.js';
+import { selectSentMailbox } from '../domain/mime.js';
 import {
   type InboundMailCandidate,
   InboundMailPort,
@@ -78,42 +79,13 @@ export class ImapInboundMailAdapter extends InboundMailPort {
     accountId: string,
     window: ReplyScanWindow,
   ): Promise<InboundMailCandidate[]> {
-    const account = await this.repository.find(accountId);
-    if (!account) throw new MailTransportError('email_account_not_found');
-    if (account.status !== 'ACTIVE') {
-      throw new MailTransportError('email_account_disabled');
-    }
-    if (!account.imapHost || account.imapPort === null) {
-      throw new MailTransportError('imap_not_configured');
-    }
-
-    const secrets = await this.repository.findPasswordCiphertexts(accountId);
-    const ciphertext = account.credentialsShared
-      ? (secrets?.smtpPasswordCiphertext ?? null)
-      : (secrets?.imapPasswordCiphertext ?? null);
-    if (!ciphertext) {
-      throw new MailTransportError('mailbox_credentials_missing');
-    }
-    let credential: string;
-    try {
-      credential = decryptSecret(ciphertext);
-    } catch {
-      throw new MailTransportError('secret_decryption_failed');
-    }
-
-    const options = buildImapClientOptions(account, { password: credential });
     const since = new Date(
       Date.now() - Math.max(1, window.sinceDays) * 86_400_000,
     );
     const limit = Math.min(Math.max(1, window.limit), 200);
 
-    const client = new ImapFlow(
-      options as unknown as ConstructorParameters<typeof ImapFlow>[0],
-    );
-    (client as unknown as { timeout?: number }).timeout = CONNECT_TIMEOUT_MS;
-
+    const client = await this.connectClient(accountId);
     try {
-      await client.connect();
       // Read-only: reading INBOX must not change mailbox state.
       const lock = await client.getMailboxLock('INBOX', { readOnly: true });
       try {
@@ -144,8 +116,70 @@ export class ImapInboundMailAdapter extends InboundMailPort {
     }
   }
 
-  /** Pass 1: envelope + BODYSTRUCTURE per message (no body content). */
-  private async collectMeta(
+  /**
+   * Appends an already-submitted raw MIME message to the mailbox's Sent folder,
+   * discovered via IMAP special-use (`\Sent`) first, then common names. The same
+   * serialized bytes already SMTP-submitted are appended, so the Sent copy keeps
+   * the exact MIME structure, Message-ID and bodies.
+   */
+  async appendToSent(accountId: string, raw: Buffer): Promise<void> {
+    const client = await this.connectClient(accountId);
+    try {
+      const listed = await client.list();
+      const mailboxes = listed.map((mailbox) => ({
+        path: mailbox.path,
+        specialUse:
+          (mailbox as unknown as { specialUse?: string | null }).specialUse ??
+          null,
+      }));
+      const sent = selectSentMailbox(mailboxes);
+      if (!sent) throw new MailTransportError('sent_folder_not_found');
+      await client.append(sent, raw, ['\\Seen']);
+    } catch (error) {
+      if (error instanceof MailTransportError) throw error;
+      throw new MailTransportError(safeErrorCode(error));
+    } finally {
+      try {
+        await client.logout();
+      } catch {
+        /* ignore close errors */
+      }
+    }
+  }
+
+  /** Resolves account + credential and returns a connected IMAP client. */
+  private async connectClient(accountId: string): Promise<ImapFlow> {
+    const account = await this.repository.find(accountId);
+    if (!account) throw new MailTransportError('email_account_not_found');
+    if (account.status !== 'ACTIVE') {
+      throw new MailTransportError('email_account_disabled');
+    }
+    if (!account.imapHost || account.imapPort === null) {
+      throw new MailTransportError('imap_not_configured');
+    }
+    const secrets = await this.repository.findPasswordCiphertexts(accountId);
+    const ciphertext = account.credentialsShared
+      ? (secrets?.smtpPasswordCiphertext ?? null)
+      : (secrets?.imapPasswordCiphertext ?? null);
+    if (!ciphertext) {
+      throw new MailTransportError('mailbox_credentials_missing');
+    }
+    let credential: string;
+    try {
+      credential = decryptSecret(ciphertext);
+    } catch {
+      throw new MailTransportError('secret_decryption_failed');
+    }
+    const options = buildImapClientOptions(account, { password: credential });
+    const client = new ImapFlow(
+      options as unknown as ConstructorParameters<typeof ImapFlow>[0],
+    );
+    (client as unknown as { timeout?: number }).timeout = CONNECT_TIMEOUT_MS;
+    await client.connect();
+    return client;
+  }
+
+  /** Pass 1: envelope + BODYSTRUCTURE per message (no body content). */  private async collectMeta(
     client: ImapFlow,
     uids: number[],
     uidValidity: string,

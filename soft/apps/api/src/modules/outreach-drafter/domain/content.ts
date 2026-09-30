@@ -112,9 +112,10 @@ export function naturalizeObservation(
 }
 
 interface Scaffold {
-  /** Subject line; must not contain a question mark (keeps the CTA unique). */
-  subject: (offer: string) => string;
-  greeting: (company: string) => string;
+  /** Concise subject: no attention-tactic words (quick/short/question), no "?". */
+  subject: (offer: string, category: string | null) => string;
+  /** Greeting: a company name is never used as a recipient name. */
+  greeting: (recipientName: string | null) => string;
   /** Natural personalization sentence from a normalized clause (or neutral). */
   personalization: (clause: string | null) => string;
   /** One clear product proposition; category is optional stored context. */
@@ -127,8 +128,9 @@ interface Scaffold {
 }
 
 const DEFAULT_SCAFFOLD: Scaffold = {
-  subject: (offer) => `A quick question about ${offer}`,
-  greeting: (company) => `Hello ${company} team,`,
+  subject: (offer, category) =>
+    category ? `${offer} ${category}` : offer,
+  greeting: (recipientName) => (recipientName ? `Hello ${recipientName},` : 'Hello,'),
   personalization: (clause) =>
     clause
       ? `I came across your company and noticed that ${clause}.`
@@ -141,11 +143,29 @@ const DEFAULT_SCAFFOLD: Scaffold = {
   closing: 'Best regards,',
 };
 
+/**
+ * Bounded, explicitly-curated Lithuanian renderings of generic category labels
+ * for recipient-facing prose. Official product names are never translated; an
+ * unknown category is omitted rather than guessed.
+ */
+const LT_CATEGORY: Record<string, string> = {
+  cladding: 'dailylenčių',
+  'sauna cladding': 'pirtinių dailylenčių',
+  panels: 'plokščių',
+  panel: 'plokštės',
+  timber: 'medienos',
+  wood: 'medienos',
+  decking: 'terasinių lentų',
+};
+
+
 const SCAFFOLDS: Record<string, Scaffold> = {
   en: DEFAULT_SCAFFOLD,
   lt: {
-    subject: (offer) => `Trumpas klausimas apie ${offer}`,
-    greeting: (company) => `Sveiki, ${company},`,
+    subject: (offer, category) =>
+      `Dėl ${offer}${category ? ` ${category}` : ''}`,
+    greeting: (recipientName) =>
+      recipientName ? `Sveiki, ${recipientName},` : 'Sveiki,',
     personalization: (clause) =>
       clause
         ? `Radau jūsų įmonę ir pastebėjau, kad ${clause}.`
@@ -158,8 +178,9 @@ const SCAFFOLDS: Record<string, Scaffold> = {
     closing: 'Pagarbiai,',
   },
   lv: {
-    subject: (offer) => `Īss jautājums par ${offer}`,
-    greeting: (company) => `Labdien, ${company}!`,
+    subject: (offer) => `Par ${offer}`,
+    greeting: (recipientName) =>
+      recipientName ? `Labdien, ${recipientName}!` : 'Labdien,',
     personalization: () =>
       'Atradu jūsu uzņēmumu un vēlētos pajautāt par sadarbību.',
     proposition: (offer, category) =>
@@ -170,8 +191,9 @@ const SCAFFOLDS: Record<string, Scaffold> = {
     closing: 'Ar cieņu,',
   },
   et: {
-    subject: (offer) => `Lühike küsimus: ${offer}`,
-    greeting: (company) => `Tere, ${company}!`,
+    subject: (offer) => offer,
+    greeting: (recipientName) =>
+      recipientName ? `Tere, ${recipientName}!` : 'Tere,',
     personalization: () =>
       'Leidsin teie ettevõtte ja sooviksin koostöö kohta küsida.',
     proposition: (offer, category) =>
@@ -200,15 +222,33 @@ export interface SenderIdentity {
   logoUrl: string | null;
 }
 
+/**
+ * Optional batch-level message strategy: shared overrides for the subject,
+ * proposition, commercial-terms line and CTA. The evidence-backed personalization
+ * (and the structured greeting/signature) are NEVER overridable here, so applying
+ * a strategy preserves each lead's personalization.
+ */
+export interface MessageStrategy {
+  subject?: string | null;
+  proposition?: string | null;
+  terms?: string | null;
+  cta?: string | null;
+}
+
 export interface DraftContentInput extends SenderIdentity {
   language: string;
+  /** Recipient company (context only; never used as a person's name). */
   companyName: string;
+  /** A real named contact person, when known — else null. */
+  recipientName: string | null;
   /** Evidence-backed observation about the company (stored on the lead). */
   observedActivityText: string;
   /** Our sellable offer name (research context). */
   offerSummary: string;
   /** Optional stored product category (research context); never invented. */
   productCategory: string | null;
+  /** Optional shared batch-level message overrides. */
+  strategy?: MessageStrategy;
 }
 
 export interface DraftContent {
@@ -232,6 +272,23 @@ export function shouldIncludeCategory(
   const value = category?.trim();
   if (!value) return false;
   return !offer.toLowerCase().includes(value.toLowerCase());
+}
+
+/**
+ * The category used in the subject line, localized for recipient-facing prose
+ * where a curated rendering exists. Unknown categories are omitted (never
+ * guessed, never a leaked internal English label).
+ */
+function localizeSubjectCategory(
+  language: string,
+  offer: string,
+  category: string | null,
+): string | null {
+  if (!category || !shouldIncludeCategory(offer, category)) return null;
+  const key = category.trim().toLowerCase();
+  if (language === 'en') return category.trim();
+  if (language === 'lt') return LT_CATEGORY[key] ?? null;
+  return null;
 }
 
 function escapeHtml(value: string): string {
@@ -334,13 +391,29 @@ export function buildDraftContent(input: DraftContentInput): DraftContent {
     shouldIncludeCategory(input.offerSummary, input.productCategory)
       ? input.productCategory!.trim()
       : null;
+  const subjectCategory = localizeSubjectCategory(
+    input.language,
+    input.offerSummary,
+    input.productCategory,
+  );
+
+  // Batch-level strategy overrides the shared fields only; the evidence-backed
+  // personalization sentence stays per-lead.
+  const strategy = input.strategy ?? {};
+  const subject =
+    strategy.subject?.trim() || scaffold.subject(input.offerSummary, subjectCategory);
+  const proposition =
+    strategy.proposition?.trim() ||
+    scaffold.proposition(input.offerSummary, category);
+  const terms = strategy.terms?.trim() || scaffold.terms;
+  const cta = strategy.cta?.trim() || scaffold.cta;
 
   const canonicalBody = [
-    scaffold.greeting(input.companyName),
+    scaffold.greeting(input.recipientName),
     '',
-    `${scaffold.personalization(clause)} ${scaffold.proposition(input.offerSummary, category)}`,
+    `${scaffold.personalization(clause)} ${proposition}`,
     '',
-    `${scaffold.terms} ${scaffold.cta}`,
+    `${terms} ${cta}`,
   ].join('\n');
 
   const { body, htmlBody } = composeOutreachBodies(
@@ -349,7 +422,7 @@ export function buildDraftContent(input: DraftContentInput): DraftContent {
     input,
   );
   return {
-    subject: scaffold.subject(input.offerSummary),
+    subject,
     canonicalBody,
     body,
     htmlBody,

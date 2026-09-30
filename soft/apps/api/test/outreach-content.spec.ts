@@ -9,6 +9,7 @@ import {
 
 const base = {
   companyName: 'Example Sauna Reseller',
+  recipientName: null as string | null,
   observedActivityText: 'sells thermo-treated sauna cladding',
   offerSummary: 'Thermo Abachi STD cladding',
   productCategory: null as string | null,
@@ -365,5 +366,79 @@ describe('canonical body ↔ derived body/HTML consistency', () => {
     const { body, htmlBody } = composeOutreachBodies('en', edited, identity);
     expect(body).toContain('Hello <b>team</b>, 5 > 3 & counting.');
     expect(htmlBody).toContain('Hello &lt;b&gt;team&lt;/b&gt;, 5 &gt; 3 &amp; counting.');
+  });
+});
+
+describe('subject and greeting rules', () => {
+  it('uses a concise restrained English subject (no quick/short/question tactic)', () => {
+    const content = buildDraftContent({
+      ...base,
+      language: 'en',
+      offerSummary: 'Thermo Abachi',
+      productCategory: 'cladding',
+    });
+    expect(content.subject).toBe('Thermo Abachi cladding');
+    expect(content.subject.toLowerCase()).not.toContain('quick');
+    expect(content.subject.toLowerCase()).not.toContain('question');
+    expect(content.subject).not.toContain('?');
+  });
+
+  it('uses a natural Lithuanian subject with a localized category', () => {
+    const content = buildDraftContent({
+      ...base,
+      language: 'lt',
+      offerSummary: 'Thermo Abachi',
+      productCategory: 'cladding',
+    });
+    expect(content.subject).toBe('Dėl Thermo Abachi dailylenčių');
+    expect(content.subject).not.toContain('?');
+    expect(content.subject).toContain('Thermo Abachi');
+    expect(content.subject).not.toContain('Trumpas');
+    expect(content.subject).not.toContain('klausimas');
+  });
+
+  it('omits an unknown LT category rather than leaking an English label', () => {
+    const content = buildDraftContent({
+      ...base,
+      language: 'lt',
+      offerSummary: 'Thermo Abachi',
+      productCategory: 'internal-label',
+    });
+    expect(content.subject).toBe('Dėl Thermo Abachi');
+    expect(content.subject).not.toContain('internal-label');
+  });
+
+  it('greets a real named contact person', () => {
+    const en = buildDraftContent({
+      ...base,
+      language: 'en',
+      recipientName: 'Jane Buyer',
+    });
+    expect(en.canonicalBody.split('\n')[0]).toBe('Hello Jane Buyer,');
+    const lt = buildDraftContent({
+      ...base,
+      language: 'lt',
+      recipientName: 'Jonas Pirkėjas',
+    });
+    expect(lt.canonicalBody.split('\n')[0]).toBe('Sveiki, Jonas Pirkėjas,');
+  });
+
+  it('uses a neutral greeting when only a company is known (no company-as-name, no team suffix)', () => {
+    const en = buildDraftContent({
+      ...base,
+      language: 'en',
+      recipientName: null,
+    });
+    expect(en.canonicalBody.split('\n')[0]).toBe('Hello,');
+    expect(en.body).not.toContain('team');
+    expect(en.body).not.toContain('Example Sauna Reseller team');
+
+    const lt = buildDraftContent({
+      ...base,
+      language: 'lt',
+      recipientName: null,
+    });
+    expect(lt.canonicalBody.split('\n')[0]).toBe('Sveiki,');
+    expect(lt.body).not.toContain('Example Sauna Reseller');
   });
 });
