@@ -16,6 +16,7 @@ import { EmailAccountsModule } from './modules/email-accounts/email-accounts.mod
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { OutreachSenderModule } from './modules/outreach-sender/outreach-sender.module.js';
 import { OutreachResultsModule } from './modules/outreach-results/outreach-results.module.js';
+import { AccountIntelligenceModule } from './modules/account-intelligence/account-intelligence.module.js';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { OutreachResultsModule } from './modules/outreach-results/outreach-resul
     DashboardModule,
     OutreachSenderModule,
     OutreachResultsModule,
+    AccountIntelligenceModule,
   ],
   controllers: [HealthController, ReadinessController],
 })

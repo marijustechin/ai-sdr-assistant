@@ -131,6 +131,7 @@ model Opportunity {
   outreachDecisions OutreachDecision[]
   outreachBatches OutreachBatch[]
   priceInquiryDrafts PriceInquiryDraft[]
+  companyBriefs CompanyBrief[]
 
   @@index([offerId])
   @@map("opportunities")
@@ -427,6 +428,7 @@ model Company {
   outreachDrafts OutreachDraft[]
   outreachDecisions OutreachDecision[]
   priceInquiryDrafts PriceInquiryDraft[]
+  companyBriefs CompanyBrief[]
 
   @@unique([identityKey])
   @@index([normalizedName])
@@ -691,6 +693,15 @@ enum OutreachHandoffState {
   HANDOFF_TO_HUMAN
 }
 
+/// Lifecycle of a company-brief snapshot. `COMPILED` = Stage 1 (existing
+/// intelligence only); `ENRICHMENT_REQUESTED` = a human asked for Stage 2;
+/// `ENRICHED` = Stage 2 findings merged into a fresh snapshot.
+enum CompanyBriefStatus {
+  COMPILED
+  ENRICHMENT_REQUESTED
+  ENRICHED
+}
+
 /// Approval state of one draft version. Approval is per immutable version: a
 /// later revision is a NEW row with `PENDING`, so it is not part of the approved
 /// batch until re-approved (deterministic re-approval rule).
@@ -884,6 +895,51 @@ model OutreachReply {
   @@index([outboundMessageId])
   @@index([classification])
   @@map("outreach_replies")
+}
+
+/// One company brief for a company/opportunity relationship, compiled for human
+/// sales preparation after a positive outreach handoff. Historical snapshots are
+/// preserved; a refresh appends a new snapshot rather than rewriting old ones.
+/// @owner account-intelligence
+model CompanyBrief {
+  id            String   @id @default(uuid()) @db.Uuid
+  opportunityId String   @map("opportunity_id") @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  opportunity Opportunity            @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  snapshots   CompanyBriefSnapshot[]
+
+  @@unique([opportunityId, companyId])
+  @@index([companyId])
+  @@map("company_briefs")
+}
+
+/// One immutable compiled/enriched brief snapshot (validated JSON content).
+/// Stage 1 is compiled from persisted platform intelligence only; Stage 2 adds
+/// harness-submitted, source-backed findings. Facts, recent enrichment and
+/// commercial hypotheses are kept distinct; unknowns/questions are explicit.
+/// @owner account-intelligence
+model CompanyBriefSnapshot {
+  id              String             @id @default(uuid()) @db.Uuid
+  briefId         String             @map("brief_id") @db.Uuid
+  version         Int
+  status          CompanyBriefStatus @default(COMPILED)
+  preparedAt      DateTime           @map("prepared_at") @db.Timestamptz(6)
+  lastRefreshedAt DateTime           @map("last_refreshed_at") @db.Timestamptz(6)
+  sourceCount     Int                @default(0) @map("source_count")
+  /// Validated `BriefContent` JSON (sections with kind + provenance, unknowns).
+  content         Json
+  enrichmentNote  String?            @map("enrichment_note") @db.VarChar(2000)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  brief CompanyBrief @relation(fields: [briefId], references: [id], onDelete: Cascade)
+
+  @@unique([briefId, version])
+  @@index([briefId, status])
+  @@map("company_brief_snapshots")
 }
 
 /// A persisted, reviewable **price inquiry / RFQ draft**. Generated from

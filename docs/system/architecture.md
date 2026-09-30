@@ -101,6 +101,7 @@ root `modules/` workspace**.
 | 21 | `research-result` | **retired 2026-09-25** — removed with the supplier-clarification decommission | retired |
 | 22 | `outreach-sender` | DB-backed approved-outreach send queue (pacing, one-SMTP-per-version idempotency, independent Sent-copy tracking; content-dumb) | implemented-subset |
 | 23 | `outreach-results` | Outreach results / campaign summary: bounded inbox reply ingestion, Message-ID/References correlation, bounded classification, HANDOFF_TO_HUMAN for positive replies, human-overridable; never sends | implemented-subset |
+| 24 | `account-intelligence` | Account Intelligence / Company Brief for positive handoffs: compiles persisted platform intelligence (Stage 1), harness-submitted targeted enrichment (Stage 2), facts/hypotheses/unknowns distinct, snapshots preserved; never researches the web itself or sends | implemented-subset |
 
 Modules marked `implemented-subset` exist as bounded slices behind the internal
 API key; their **execution**, scoring, sending, and orchestration remain planned

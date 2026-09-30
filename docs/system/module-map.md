@@ -614,3 +614,28 @@ no new write path.
   `HANDOFF_TO_HUMAN`; the assistant never continues the conversation. A human may
   override the classification (`classification_source = HUMAN`).
 - **No autonomy:** no follow-up is ever sent; handoff is a state for a human.
+
+## 25. `account-intelligence`
+
+- **Status:** implemented subset (2026-09-30) — Account Intelligence / Company
+  Brief for leads handed off after a positive outreach reply. Endpoints (guarded):
+  `POST .../companies/:companyId/brief`, `POST .../brief/refresh`,
+  `GET .../companies/:companyId/brief`,
+  `POST .../brief/request-enrichment`,
+  `POST /company-briefs/:briefId/enrichment` (harness submit).
+- **Responsibility:** a focused dossier for **human sales preparation** on one
+  company/opportunity relationship — NOT a broad market-research run. Stage 1
+  compiles already-persisted intelligence; Stage 2 adds a human-requested,
+  source-backed public-data enrichment submitted by the research harness.
+- **Tables read/written (owner):** `company_briefs`, `company_brief_snapshots`.
+  Reuses research/evidence/contact/outreach data through the owning modules'
+  application services; it does not duplicate company identity records.
+- **Evidence discipline:** findings are labelled `KNOWN_FACT`,
+  `RECENT_ENRICHMENT` or `COMMERCIAL_HYPOTHESIS`; unknowns/questions are explicit.
+  Schema refinements forbid a hypothesis in a factual section. Unavailable
+  financials/headcount/decision-makers are never invented.
+- **Freshness / history:** each snapshot records `preparedAt`,
+  `lastRefreshedAt`, `sourceCount`. Refresh appends a new snapshot; previous
+  snapshots are preserved.
+- **No autonomy:** the API never crawls the web and never sends email; Stage-2
+  enrichment is executed by the manager/OpenCode research harness.
