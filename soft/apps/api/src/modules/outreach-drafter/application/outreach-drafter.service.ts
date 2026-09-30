@@ -195,6 +195,7 @@ export class OutreachDrafterService {
         companyName: lead.company.name,
         recipientName,
         observedActivityText: lead.observedActivityText,
+        observedRoles: lead.observedRoles,
         offerSummary,
         productCategory: context?.product.category ?? null,
         senderName: activeProfile.senderName,

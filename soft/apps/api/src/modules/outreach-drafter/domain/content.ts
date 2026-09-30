@@ -56,10 +56,6 @@ const PHRASE_FORMS: ReadonlyArray<
   [/^speciali[sz]es in\b/i, { en: 'specialise in' }],
 ];
 
-function stripLeadingArticle(value: string): string {
-  return value.replace(/^(a|an|the)\s+/i, '');
-}
-
 function clauseFromRest(rest: string, language: RewriteLanguage): string | null {
   for (const [pattern, forms] of PHRASE_FORMS) {
     if (pattern.test(rest)) {
@@ -80,35 +76,149 @@ function clauseFromRest(rest: string, language: RewriteLanguage): string | null 
 }
 
 /**
- * Deterministically converts a stored observation into a natural recipient-facing
- * clause in the message language for the bounded set of supported patterns
- * (`sells …` → “you sell …” / “prekiaujate …”). Returns null when it cannot be
- * rendered safely — the caller then uses a neutral, evidence-safe fallback rather
- * than exposing raw database phrasing or an unsafe transformation. No
+ * Deterministically converts an English stored observation into a natural
+ * recipient-facing `you <verb> …` clause for the bounded set of supported
+ * patterns. **English only**: a single-language rule forbids mixing languages, so
+ * non-English messages must use their own localized renderer (see
+ * `renderLtObservation`) and otherwise fall back to a neutral, evidence-safe
+ * sentence. Returns null when it cannot be rendered safely — the caller then uses
+ * the neutral fallback rather than exposing raw database phrasing. No
  * unrestricted machine translation is performed.
  */
 export function naturalizeObservation(
   observed: string,
   language: string = 'en',
 ): string | null {
-  if (language !== 'en' && language !== 'lt') return null;
-  const lang: RewriteLanguage = language;
+  if (language !== 'en') return null;
+  const lang: RewriteLanguage = 'en';
   const text = observed.trim().replace(/\s+/g, ' ').replace(/[.;]+$/, '');
   if (!text) return null;
 
   const companyIs = /^the company\s+(is|are)\s+(.+)$/i.exec(text);
   if (companyIs) {
-    const rest = companyIs[2]!;
-    if (lang === 'en') return `you are ${rest}`;
-    return `esate ${stripLeadingArticle(rest)}`;
+    return `you are ${companyIs[2]!}`;
   }
   const company = /^the company\s+(.+)$/i.exec(text);
   if (company) {
-    const clause = clauseFromRest(company[1]!, lang);
-    if (clause) return clause;
-    return lang === 'en' ? `it ${company[1]}` : null;
+    return clauseFromRest(company[1]!, lang) ?? `it ${company[1]}`;
   }
   return clauseFromRest(text, lang);
+}
+
+/** Second-person Lithuanian activity verb, with the grammatical case it governs. */
+interface LtVerb {
+  form: string;
+  /** `acc` (gaminate pirtis) or `ins` (prekiaujate dailylentėmis). */
+  objectCase: 'acc' | 'ins';
+  /** Whether a "Lietuvoje" location phrase may be appended. */
+  locationOk: boolean;
+}
+
+/**
+ * Observed role → Lithuanian verb, in precedence order (a manufacturer that also
+ * distributes is described by what it makes). Deliberately bounded; a role that
+ * is not listed (e.g. COMPETITOR/END_USER) yields no phrase and falls back.
+ */
+const LT_VERB_BY_ROLE: ReadonlyArray<readonly [string, LtVerb]> = [
+  ['MANUFACTURER', { form: 'gaminate', objectCase: 'acc', locationOk: false }],
+  ['FABRICATOR', { form: 'gaminate', objectCase: 'acc', locationOk: false }],
+  ['INSTALLER', { form: 'montuojate', objectCase: 'acc', locationOk: true }],
+  ['BUILDER', { form: 'statote', objectCase: 'acc', locationOk: true }],
+  ['DESIGNER', { form: 'projektuojate', objectCase: 'acc', locationOk: false }],
+  ['DISTRIBUTOR', { form: 'prekiaujate', objectCase: 'ins', locationOk: false }],
+  ['RETAILER', { form: 'prekiaujate', objectCase: 'ins', locationOk: false }],
+  ['IMPORTER', { form: 'prekiaujate', objectCase: 'ins', locationOk: false }],
+];
+
+/** Bounded Lithuanian renderings of generic product categories (acc/ins cases). */
+const LT_PRODUCT_TERMS: Record<string, { acc: string; ins: string }> = {
+  sauna_cladding: { acc: 'pirties dailylentes', ins: 'pirties dailylentėmis' },
+  cladding: { acc: 'dailylentes', ins: 'dailylentėmis' },
+  bench: { acc: 'gultų medieną', ins: 'gultų mediena' },
+  decking: { acc: 'terasines lentas', ins: 'terasinėmis lentomis' },
+  sauna: { acc: 'pirtis', ins: 'pirtimis' },
+  hot_tub: { acc: 'sodo kubilus', ins: 'sodo kubilais' },
+};
+
+const LT_RE = {
+  saunaCladding: /sauna\s+cladding|pirties\s+dailylent|pirtinių\s+dailylent/i,
+  cladding: /\bcladding\b|dailylent/i,
+  bench: /\bbench(?:es)?\b|\bbench\s+timber\b|gult/i,
+  decking: /\bdecking\b|terasin/i,
+  sauna: /\bsaunas?\b|pirt/i,
+  hotTub: /hot\s*tubs?|sodo\s+kubil|kubil/i,
+  lithuania: /lithuania|lietuv/i,
+};
+
+function ltVerbForRoles(roles: readonly string[]): LtVerb | null {
+  for (const [role, verb] of LT_VERB_BY_ROLE) {
+    if (roles.includes(role)) return verb;
+  }
+  return null;
+}
+
+/**
+ * Bounded, deterministic **Lithuanian** personalization. It classifies ONE short
+ * evidence-backed activity/category from the lead's observed roles + activity
+ * text and renders a fully-Lithuanian clause (never raw English prose). Returns
+ * null (→ the neutral LT fallback) when the observation cannot be mapped safely.
+ */
+export function renderLtObservation(
+  observedRoles: readonly string[],
+  observedActivityText: string,
+): string | null {
+  const text = (observedActivityText ?? '').trim();
+  if (!text) return null;
+  const verb = ltVerbForRoles(observedRoles ?? []);
+  if (!verb) return null;
+
+  const roles = observedRoles ?? [];
+  const isService = roles.includes('INSTALLER') || roles.includes('BUILDER');
+  const categories: string[] = [];
+  if (isService && LT_RE.sauna.test(text)) {
+    categories.push('sauna');
+  } else {
+    if (LT_RE.saunaCladding.test(text)) categories.push('sauna_cladding');
+    else if (LT_RE.cladding.test(text)) categories.push('cladding');
+    if (LT_RE.bench.test(text)) categories.push('bench');
+    if (LT_RE.decking.test(text) && !categories.includes('sauna_cladding')) {
+      categories.push('decking');
+    }
+  }
+
+  let keys: string[];
+  if (categories.length > 0) {
+    keys = categories.slice(0, 2);
+  } else if (LT_RE.hotTub.test(text) && roles.includes('MANUFACTURER')) {
+    keys = ['hot_tub'];
+  } else if (
+    LT_RE.sauna.test(text) &&
+    (roles.includes('MANUFACTURER') || roles.includes('DESIGNER'))
+  ) {
+    keys = ['sauna'];
+  } else {
+    return null;
+  }
+
+  const objects = keys.map((key) =>
+    verb.objectCase === 'ins' ? LT_PRODUCT_TERMS[key]!.ins : LT_PRODUCT_TERMS[key]!.acc,
+  );
+  let clause = `${verb.form} ${objects.join(' ir ')}`;
+  if (verb.locationOk && LT_RE.lithuania.test(text)) clause += ' Lietuvoje';
+  return clause;
+}
+
+/**
+ * Localizes a generic product-category token inside a stored offer/product name
+ * for Lithuanian prose (e.g. "Thermo Abachi Cladding" → "Thermo Abachi
+ * dailylentės"). Brand/model identity is preserved; only the generic category
+ * word is mapped.
+ */
+export function localizeOfferForLt(offer: string): string {
+  return offer
+    .replace(/\bcladding\b/gi, 'dailylentės')
+    .replace(/\bdecking\b/gi, 'terasinės lentos')
+    .replace(/\bpanels?\b/gi, 'plokštės');
 }
 
 interface Scaffold {
@@ -243,6 +353,8 @@ export interface DraftContentInput extends SenderIdentity {
   recipientName: string | null;
   /** Evidence-backed observation about the company (stored on the lead). */
   observedActivityText: string;
+  /** Observed business roles (stored on the lead) — drive structured rendering. */
+  observedRoles: string[];
   /** Our sellable offer name (research context). */
   offerSummary: string;
   /** Optional stored product category (research context); never invented. */
@@ -284,10 +396,18 @@ function localizeSubjectCategory(
   offer: string,
   category: string | null,
 ): string | null {
-  if (!category || !shouldIncludeCategory(offer, category)) return null;
+  if (!category) return null;
   const key = category.trim().toLowerCase();
-  if (language === 'en') return category.trim();
-  if (language === 'lt') return LT_CATEGORY[key] ?? null;
+  if (language === 'en') {
+    return shouldIncludeCategory(offer, category) ? category.trim() : null;
+  }
+  if (language === 'lt') {
+    const lt = LT_CATEGORY[key];
+    if (!lt) return null;
+    // Omit the category when the (already localized) offer carries the term.
+    const stem = lt.slice(0, 6).toLowerCase();
+    return offer.toLowerCase().includes(stem) ? null : lt;
+  }
   return null;
 }
 
@@ -382,18 +502,31 @@ export function composeOutreachBodies(
  */
 export function buildDraftContent(input: DraftContentInput): DraftContent {
   const scaffold = SCAFFOLDS[input.language] ?? DEFAULT_SCAFFOLD;
-  const clause = naturalizeObservation(input.observedActivityText, input.language);
+  // Single-language rule: LT uses the bounded structured renderer (never raw
+  // English evidence); EN uses the English naturalizer; anything else falls back
+  // to the scaffold's neutral sentence.
+  const clause =
+    input.language === 'lt'
+      ? renderLtObservation(input.observedRoles, input.observedActivityText)
+      : naturalizeObservation(input.observedActivityText, input.language);
+  // Generic category tokens in a stored offer name are localized for LT prose
+  // ("Thermo Abachi Cladding" → "Thermo Abachi dailylentės"); brand identity is
+  // preserved.
+  const offer =
+    input.language === 'lt'
+      ? localizeOfferForLt(input.offerSummary)
+      : input.offerSummary;
   // The stored product category is an internal (often English) label: only the
   // English scaffold surfaces it, and only when it adds information beyond the
   // offer wording (no "… cladding (cladding)" and no leaked label in LT prose).
   const category =
     input.language === 'en' &&
-    shouldIncludeCategory(input.offerSummary, input.productCategory)
+    shouldIncludeCategory(offer, input.productCategory)
       ? input.productCategory!.trim()
       : null;
   const subjectCategory = localizeSubjectCategory(
     input.language,
-    input.offerSummary,
+    offer,
     input.productCategory,
   );
 
@@ -401,10 +534,9 @@ export function buildDraftContent(input: DraftContentInput): DraftContent {
   // personalization sentence stays per-lead.
   const strategy = input.strategy ?? {};
   const subject =
-    strategy.subject?.trim() || scaffold.subject(input.offerSummary, subjectCategory);
+    strategy.subject?.trim() || scaffold.subject(offer, subjectCategory);
   const proposition =
-    strategy.proposition?.trim() ||
-    scaffold.proposition(input.offerSummary, category);
+    strategy.proposition?.trim() || scaffold.proposition(offer, category);
   const terms = strategy.terms?.trim() || scaffold.terms;
   const cta = strategy.cta?.trim() || scaffold.cta;
 

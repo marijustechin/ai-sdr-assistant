@@ -3,7 +3,9 @@ import {
   buildDraftContent,
   composeOutreachBodies,
   hasScaffold,
+  localizeOfferForLt,
   naturalizeObservation,
+  renderLtObservation,
   shouldIncludeCategory,
 } from '../src/modules/outreach-drafter/domain/content.js';
 
@@ -11,6 +13,7 @@ const base = {
   companyName: 'Example Sauna Reseller',
   recipientName: null as string | null,
   observedActivityText: 'sells thermo-treated sauna cladding',
+  observedRoles: ['RETAILER'] as string[],
   offerSummary: 'Thermo Abachi STD cladding',
   productCategory: null as string | null,
   senderName: 'Jane Doe',
@@ -49,32 +52,92 @@ describe('observation naturalization (deterministic, evidence-safe)', () => {
     expect(naturalizeObservation('   ')).toBeNull();
   });
 
-  it('renders the bounded Lithuanian patterns (no machine translation)', () => {
+  it('supports only English observation naturalization (single-language rule)', () => {
+    // Non-English messages must never be built by appending raw English tails.
+    expect(naturalizeObservation('sells sauna cladding', 'lt')).toBeNull();
+    expect(naturalizeObservation('sells sauna cladding', 'lv')).toBeNull();
+  });
+});
+
+describe('Lithuanian personalization (structured, single-language)', () => {
+  it('maps a sauna-cladding + bench-timber reseller to Lithuanian', () => {
     expect(
-      naturalizeObservation('sells thermo-treated sauna cladding', 'lt'),
-    ).toBe('prekiaujate thermo-treated sauna cladding');
-    expect(naturalizeObservation('offers sauna materials', 'lt')).toBe(
-      'siūlote sauna materials',
-    );
-    expect(naturalizeObservation('works with thermo wood', 'lt')).toBe(
-      'dirbate su thermo wood',
-    );
-    expect(naturalizeObservation('builds timber structures', 'lt')).toBe(
-      'statote timber structures',
-    );
-    expect(naturalizeObservation('manufactures cladding', 'lt')).toBe(
-      'gaminate cladding',
-    );
-    expect(
-      naturalizeObservation('The company is a sauna materials reseller.', 'lt'),
-    ).toBe('esate sauna materials reseller');
+      renderLtObservation(
+        ['RETAILER', 'DISTRIBUTOR'],
+        'Sells sauna cladding and bench timber (alder/linden) from 18 EUR/m2.',
+      ),
+    ).toBe('prekiaujate pirties dailylentėmis ir gultų mediena');
   });
 
-  it('keeps the safe neutral fallback for the Lithuanian market', () => {
-    expect(naturalizeObservation('exterior/facade cladding', 'lt')).toBeNull();
-    expect(naturalizeObservation('   ', 'lt')).toBeNull();
-    // An unsupported language has no renderer and falls back safely.
-    expect(naturalizeObservation('sells sauna cladding', 'lv')).toBeNull();
+  it('maps a sauna installer, appending Lietuvoje', () => {
+    expect(
+      renderLtObservation(
+        ['INSTALLER'],
+        'Installs saunas across Lithuania (cladding, ventilation, heaters).',
+      ),
+    ).toBe('montuojate pirtis Lietuvoje');
+  });
+
+  it('maps a sauna manufacturer to Lithuanian', () => {
+    expect(
+      renderLtObservation(
+        ['MANUFACTURER', 'DISTRIBUTOR'],
+        'Manufactures outdoor panoramic barrel/Cube saunas in Lithuania; sells B2B to resellers/dealers; uses Nordic Spruce.',
+      ),
+    ).toBe('gaminate pirtis');
+  });
+
+  it('never leaks raw English evidence fragments into LT output', () => {
+    const rendered = renderLtObservation(
+      ['MANUFACTURER', 'DISTRIBUTOR'],
+      'Manufactures outdoor panoramic barrel/Cube saunas in Lithuania; sells B2B to resellers/dealers; uses Nordic Spruce.',
+    )!;
+    for (const leak of [
+      'outdoor',
+      'panoramic',
+      'barrel',
+      'sells',
+      'resellers',
+      'dealers',
+      'nordic',
+      'spruce',
+      'saunas',
+      'cladding',
+      'bench',
+      'timber',
+    ]) {
+      expect(rendered.toLowerCase()).not.toMatch(new RegExp(`\\b${leak}\\b`));
+    }
+  });
+
+  it('uses a neutral (null) fallback for an unmappable observation', () => {
+    expect(renderLtObservation(['OTHER'], 'Operates in many sectors.')).toBeNull();
+    // FABRICATOR + thermo wood: no safely-mappable generic category → fallback.
+    expect(
+      renderLtObservation(
+        ['FABRICATOR'],
+        'Thermal-modification service and made-to-order thermo wood for facades/sauna/hot tubs; B2B.',
+      ),
+    ).toBeNull();
+    expect(renderLtObservation([], 'sells sauna cladding')).toBeNull();
+  });
+
+  it('renders LT product categories and never the English generic term', () => {
+    const rendered = renderLtObservation(
+      ['RETAILER'],
+      'sells thermo-treated sauna cladding',
+    )!;
+    expect(rendered).toContain('dailylent');
+    expect(rendered).not.toMatch(/\bcladding\b/i);
+  });
+
+  it('maps official names via bounded localization only (brand preserved)', () => {
+    expect(localizeOfferForLt('Thermo Abachi Cladding')).toBe(
+      'Thermo Abachi dailylentės',
+    );
+    expect(localizeOfferForLt('Thermo Abachi Supreme XL')).toBe(
+      'Thermo Abachi Supreme XL',
+    );
   });
 });
 
@@ -117,43 +180,49 @@ describe('first-contact outreach content', () => {
       observedActivityText: 'sells thermo-treated sauna cladding',
     });
     expect(content.canonicalBody).toContain(
-      'Radau jūsų įmonę ir pastebėjau, kad prekiaujate thermo-treated sauna cladding.',
+      'Radau jūsų įmonę ir pastebėjau, kad prekiaujate pirties dailylentėmis.',
     );
     expect(content.canonicalBody).not.toContain(
       'Radau jūsų įmonę ir norėčiau pasiteirauti',
     );
+    // No raw English evidence fragment leaks into the LT message.
+    expect(content.body).not.toContain('thermo-treated');
+    expect(content.body).not.toMatch(/\bsauna\s+cladding\b/i);
   });
 
   it('keeps the Lithuanian neutral fallback when the observation cannot be rendered', () => {
     const content = buildDraftContent({
       ...base,
       language: 'lt',
-      observedActivityText: 'exterior/facade cladding',
+      observedRoles: ['OTHER'],
+      observedActivityText: 'Operates in many sectors.',
     });
     expect(content.canonicalBody).toContain(
       'Radau jūsų įmonę ir norėčiau pasiteirauti dėl bendradarbiavimo.',
     );
-    expect(content.body).not.toContain('exterior/facade cladding');
+    expect(content.body).not.toContain('Operates in many sectors');
+    expect(content.body).not.toContain('sectors');
   });
 
-  it('preserves official offer names and never leaks an internal category label into LT prose', () => {
+  it('preserves official names and localizes generic category terms in LT prose', () => {
     const lt = buildDraftContent({
       ...base,
       language: 'lt',
       offerSummary: 'Thermo Abachi STD cladding',
       productCategory: 'cladding',
     });
-    // Official offer/product name is kept verbatim.
-    expect(lt.canonicalBody).toContain('Thermo Abachi STD cladding');
+    // Brand/model kept verbatim; the generic "cladding" token is localized.
+    expect(lt.canonicalBody).toContain('Thermo Abachi STD dailylentės');
+    expect(lt.canonicalBody).not.toMatch(/\bcladding\b/i);
 
-    const ltWithCategoryOnly = buildDraftContent({
+    const ltWithUnknownCategory = buildDraftContent({
       ...base,
       language: 'lt',
       offerSummary: 'Thermo Abachi STD',
       productCategory: 'internal-english-category',
     });
     // The internal category label is not injected into Lithuanian prose.
-    expect(ltWithCategoryOnly.canonicalBody).not.toContain(
+    expect(ltWithUnknownCategory.canonicalBody).not.toContain(
       'internal-english-category',
     );
   });
@@ -440,5 +509,84 @@ describe('subject and greeting rules', () => {
     });
     expect(lt.canonicalBody.split('\n')[0]).toBe('Sveiki,');
     expect(lt.body).not.toContain('Example Sauna Reseller');
+  });
+});
+
+describe('LT first-contact fixtures (no unintended English prose)', () => {
+  const fixtures: Array<{ roles: string[]; text: string }> = [
+    {
+      roles: ['RETAILER', 'DISTRIBUTOR'],
+      text: 'Sells sauna cladding and bench timber (alder/linden) from 18 EUR/m2.',
+    },
+    {
+      roles: ['INSTALLER'],
+      text: 'Installs saunas across Lithuania (cladding, ventilation, heaters).',
+    },
+    {
+      roles: ['MANUFACTURER', 'DISTRIBUTOR'],
+      text: 'Manufactures outdoor panoramic barrel/Cube saunas in Lithuania; sells B2B to resellers/dealers; uses Nordic Spruce.',
+    },
+    {
+      roles: ['DISTRIBUTOR', 'RETAILER'],
+      text: 'Wholesale and retail sauna cladding (alder/linden/aspen).',
+    },
+    {
+      roles: ['FABRICATOR', 'DISTRIBUTOR'],
+      text: 'Thermal-modification service and made-to-order thermo wood for facades/sauna/hot tubs; B2B.',
+    },
+  ];
+  const allowed = /Thermo Abachi|B2B|Jane Doe|jane@acme\.invalid/g;
+  const englishLeaks = [
+    'cladding',
+    'sauna',
+    'bench',
+    'timber',
+    'manufacture',
+    'sells',
+    'installs',
+    'resellers',
+    'dealers',
+    'spruce',
+    'nordic',
+    'wholesale',
+    'facades',
+    'thermal',
+    'hot tubs',
+    'barrel',
+  ];
+
+  it('contains no unintended English evidence prose (only allowed proper/product names)', () => {
+    for (const fixture of fixtures) {
+      const content = buildDraftContent({
+        ...base,
+        language: 'lt',
+        observedRoles: fixture.roles,
+        observedActivityText: fixture.text,
+        offerSummary: 'Thermo Abachi Cladding',
+        productCategory: 'cladding',
+      });
+      const stripped = content.canonicalBody.replace(allowed, ' ').toLowerCase();
+      for (const leak of englishLeaks) {
+        expect(
+          stripped,
+          `${fixture.text} -> ${content.canonicalBody}`,
+        ).not.toContain(leak);
+      }
+    }
+  });
+
+  it('keeps every LT personalization sentence fully Lithuanian', () => {
+    for (const fixture of fixtures) {
+      const content = buildDraftContent({
+        ...base,
+        language: 'lt',
+        observedRoles: fixture.roles,
+        observedActivityText: fixture.text,
+      });
+      const secondParagraph = content.canonicalBody.split('\n\n')[1]!;
+      expect(secondParagraph).toMatch(
+        /^Radau jūsų įmonę ir (pastebėjau, kad .+|norėčiau pasiteirauti dėl bendradarbiavimo\.)/,
+      );
+    }
   });
 });
